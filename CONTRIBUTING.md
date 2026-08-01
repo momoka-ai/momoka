@@ -89,19 +89,18 @@ ruff check .
 | `Fix Issues` | 修复 Bug（附 Issue 号） | `[Sense]: Fix Issues #17, #323; Add collection non-null checking to solve unexpected null reference exceptions` |
 | `Refactor` | 重构，行为不变 | `[Core]: Refactor; Extract tool dispatcher into separate service` |
 | `Docs Update` | 文档（含双语翻译同步） | `[Docs]: Docs Update; Add English README` |
-| `Test Update` | 新增/修改测试 | `[Home]: Test Update; Cover PlacementService edge cases` |
-| `Project Setup` | 项目搭建/脚手架（一次性） | `[Docs]: Project Setup; Initialize Momoka monorepo scaffolding and CI workflow` |
+| `Unit Test` | 新增/修改测试 | `[Home]: Unit Test; Cover PlacementService edge cases` |
 
 ### 更新类型（扩展 · 按需使用）
 
 | 更新类型 | 含义 | 何时使用 |
 |----------|------|----------|
-| `Build Update` | 构建系统改动 | `.csproj`、`CMakeLists.txt`、Godot 导出配置 |
-| `CI Update` | CI/CD 工作流 | `.github/workflows/*.yml` |
-| `Dependency Update` | 依赖升级/降级 | NuGet / pip / vcpkg 版本变更 |
+| `Build Tools` | 构建系统改动 | `.csproj`、`CMakeLists.txt`、Godot 导出配置 |
+| `CI/CD` | CI/CD 工作流 | `.github/workflows/*.yml` |
+| `Dependency` | 依赖升级/降级 | NuGet / pip / vcpkg 版本变更 |
 | `Config Update` | 配置变更 | `.editorconfig`、`.gitignore`、设备配置 JSON |
 | `Security Update` | 安全修复 | 敏感修复，先走 [SECURITY.md](SECURITY.md) 私有流程 |
-| `Performance Optimization` | 性能优化 | 明确以性能为目标的改动 |
+| `Optimize` | 性能优化 | 明确以性能为目标的改动 |
 | `Asset Update` | 资源文件 | Live2D 模型、纹理、音频、glTF 户型 |
 | `Release` | 版本发布 | 打 tag + 更新 CHANGELOG |
 | `Revert` | 回滚 | 撤销之前的提交 |

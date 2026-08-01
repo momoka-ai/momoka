@@ -21,7 +21,7 @@ PR 合并时使用的提交信息请遵循以下格式：
 - [ ] `Fix Issues` — 修复
 - [ ] `Refactor` — 重构
 - [ ] `Docs Update` — 文档
-- [ ] `Test Update` — 测试
+- [ ] `Unit Test` — 测试
 - [ ] 其他：______
 
 ## 自测清单
