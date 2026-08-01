@@ -6,32 +6,47 @@
 
 ## [未发布]（Unreleased）
 
-### 新增
+> 本版本变更**按模块分节**记录，分类与提交类型体系对应（见 [CONTRIBUTING.md](CONTRIBUTING.md)）。
 
-- 初始化 monorepo 项目结构：
-  - `Momoka.Ai` / `Momoka.Core` / `Momoka.Sense` / `Momoka.Home`（C# / .NET 8）
-  - `Momoka.Ui`（Godot 4.x + C++ GDExtension 骨架）
-  - `Momoka.Stage`（Desktop / Mobile / Panel 平台目录）
-  - `Momoka.Voice`（Python FastAPI TTS 微服务骨架）
-- 建立基础配置：`Momoka.sln`、`.editorconfig`、`.gitignore`、`LICENSE`（AGPLv3）、CI 工作流 `.github/workflows/ci.yml`
-- **Momoka.Home 核心数据模型**：
-  - 坐标原语：`Int2` / `Int3` / `Float3` / `Key` / `Bound`
-  - 属性系统：`Property<T>` 及 6 种子类型（布尔 / 枚举 / 浮点 / 整数 / 字符串 / 纹理）、`PropertyValueObject`
-  - 实体系统：`Entity` 继承链与 `Component` 行为脚本；`Wall` / `Door` / `Window` / `Appliance` / `Curtain` / `Human` / `Pet` 等
-  - 空间结构：`Home → Level → LevelChunk`（20×20×Y 分块）、`PalettedContainer`、`BlockGraph`、`Region`、`Canvas`
-  - 服务层：`PlacementService` / `RegionService` / `WallBuildingService` / `SelectionService`
-  - 编辑器：`EditorCommand` / `MoveEntityCommand` + `CommandHistory`（undo / redo）
-- **Momoka.Voice**：FastAPI 骨架，提供 `GET /health` 与 `POST /tts` 占位接口
-- **Momoka.Ui**：GDExtension 入口骨架（`main.cpp`）与 `project.godot`、`CMakeLists.txt`
-- 新增项目文档：`ROADMAP.md`、`CONTRIBUTING.md`、`CODE_OF_CONDUCT.md`、`SECURITY.md`、`CHANGELOG.md`，以及 `README.md`（中文）/ `README.en.md`（英文）
+### Docs（文档与工程基础设施）
 
-### 变更
+#### 新增
 
-- 重构根目录 `README.md`：新增「当前进度」「系统架构（Mermaid）」等章节，明确已实现与规划中内容
+- 建立 monorepo 项目脚手架与基础配置：`Momoka.sln`、`.editorconfig`、`.gitignore`、`LICENSE`（AGPLv3）、CI 工作流 `.github/workflows/ci.yml`
+- 新增文档套件：`README.md`（中文）/ `README.en.md`（英文）、`ROADMAP.md`、`CONTRIBUTING.md`、`CODE_OF_CONDUCT.md`、`SECURITY.md`、`CHANGELOG.md`
+- 新增 Issue / PR 模板（`.github/`）
 
-### 修复
+#### 变更
 
-- 无
+- 重写根目录 `README.md`：新增「当前进度」「系统架构（Mermaid）」等章节，明确已实现与规划中内容
+- 提交信息格式统一为 `[项目名]: 更新类型; 更改信息`，并建立核心 + 扩展类型体系
+
+### Home
+
+#### 新增
+
+- 坐标原语：`Int2` / `Int3` / `Float3` / `Key` / `Bound`
+- 属性系统：`Property<T>` 及 6 种子类型（布尔 / 枚举 / 浮点 / 整数 / 字符串 / 纹理）、`PropertyValueObject`
+- 实体系统：`Entity` 继承链与 `Component` 行为脚本；`Wall` / `Door` / `Window` / `Appliance` / `Curtain` / `Human` / `Pet` 等
+- 空间结构：`Home → Level → LevelChunk`（20×20×Y 分块）、`PalettedContainer`、`BlockGraph`、`Region`、`Canvas`
+- 服务层：`PlacementService` / `RegionService` / `WallBuildingService` / `SelectionService`
+- 编辑器：`EditorCommand` / `MoveEntityCommand` + `CommandHistory`（undo / redo）
+
+### Voice
+
+#### 新增
+
+- FastAPI 骨架：提供 `GET /health` 与 `POST /tts` 占位接口
+
+### Ui
+
+#### 新增
+
+- GDExtension 入口骨架（`main.cpp`）与 `project.godot`、`CMakeLists.txt`
+
+### Ai / Core / Sense / Stage
+
+- 脚手架已建立（`Program.cs` 占位 / 平台目录），核心功能待实现（见 [ROADMAP.md](ROADMAP.md)）
 
 ### 计划中（见 [ROADMAP.md](ROADMAP.md)）
 

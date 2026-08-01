@@ -78,18 +78,42 @@ ruff check .
 ```
 
 - **项目名**：改动所属模块，如 `Ai`、`Core`、`Sense`、`Home`、`Ui`、`Stage`、`Voice`、`Docs`、`Ci` 等。
-- **更新类型**：如 `Feature Update`（新功能）、`Fix Issues`（修复，可附 Issue 编号）、`Docs Update`（文档）、`Project Setup`（项目搭建）、`Refactor`（重构）等。
+- **更新类型**：见下方「更新类型」表（核心 + 扩展）。
 - **更改信息**：一句话描述改动内容。
 
-示例：
+### 更新类型（核心 · 强制约定）
 
-```
-[Home]: Feature Update; Create type BlockCompositionEntity and several interfaces to abstract block entities contained abilities.
-[Sense]: Fix Issues #17, #323; Add collection non-null checking to solve unexpected null reference exceptions
-[Docs]: Docs Update; Add bilingual README and roadmap documentation
-```
+| 更新类型 | 含义 | 示例 |
+|----------|------|------|
+| `Feature Update` | 新增功能 | `[Home]: Feature Update; Create type BlockCompositionEntity and several interfaces to abstract block entities contained abilities.` |
+| `Fix Issues` | 修复 Bug（附 Issue 号） | `[Sense]: Fix Issues #17, #323; Add collection non-null checking to solve unexpected null reference exceptions` |
+| `Refactor` | 重构，行为不变 | `[Core]: Refactor; Extract tool dispatcher into separate service` |
+| `Docs Update` | 文档（含双语翻译同步） | `[Docs]: Docs Update; Add English README` |
+| `Test Update` | 新增/修改测试 | `[Home]: Test Update; Cover PlacementService edge cases` |
+| `Project Setup` | 项目搭建/脚手架（一次性） | `[Docs]: Project Setup; Initialize Momoka monorepo scaffolding and CI workflow` |
 
-> 一条提交只做一件事（single responsibility），便于回溯与 Review。
+### 更新类型（扩展 · 按需使用）
+
+| 更新类型 | 含义 | 何时使用 |
+|----------|------|----------|
+| `Build Update` | 构建系统改动 | `.csproj`、`CMakeLists.txt`、Godot 导出配置 |
+| `CI Update` | CI/CD 工作流 | `.github/workflows/*.yml` |
+| `Dependency Update` | 依赖升级/降级 | NuGet / pip / vcpkg 版本变更 |
+| `Config Update` | 配置变更 | `.editorconfig`、`.gitignore`、设备配置 JSON |
+| `Security Update` | 安全修复 | 敏感修复，先走 [SECURITY.md](SECURITY.md) 私有流程 |
+| `Performance Optimization` | 性能优化 | 明确以性能为目标的改动 |
+| `Asset Update` | 资源文件 | Live2D 模型、纹理、音频、glTF 户型 |
+| `Release` | 版本发布 | 打 tag + 更新 CHANGELOG |
+| `Revert` | 回滚 | 撤销之前的提交 |
+
+### 配套规则
+
+1. **一个提交只做一件事**（single responsibility），便于回溯与 Review；
+2. **跨模块改动**：按影响最大的模块标记 `[项目名]`，或拆分为多个提交；
+3. **`Fix Issues` 必须附 Issue 号**；没有号则写清现象与根因；
+4. **`Security Update` 敏感**：先通过 [SECURITY.md](SECURITY.md) 的私有渠道沟通；
+5. **类型不够用**：先用语义最接近的类型并在描述中说明；新增类型需在讨论中确认；
+6. **CHANGELOG 联动**：`CHANGELOG.md` 按模块分节，分类与此类型体系对应。
 
 ---
 
