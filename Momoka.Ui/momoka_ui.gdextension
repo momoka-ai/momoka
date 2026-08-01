@@ -1,0 +1,11 @@
+[configuration]
+entry_symbol = "momoka_ui_init"
+compatibility_minimum = "4.3"
+
+[libraries]
+linux.x86_64.debug = "res://lib/libmomoka_ui.so"
+linux.x86_64.release = "res://lib/libmomoka_ui.so"
+windows.x86_64.debug = "res://lib/momoka_ui.dll"
+windows.x86_64.release = "res://lib/momoka_ui.dll"
+macos.debug = "res://lib/libmomoka_ui.dylib"
+macos.release = "res://lib/libmomoka_ui.dylib"

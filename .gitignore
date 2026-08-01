@@ -1,0 +1,60 @@
+## C# / .NET
+bin/
+obj/
+*.user
+*.suo
+*.vs/
+*.vscode/
+*.sln.docstates
+.vscode/
+*.nupkg
+*.snupkg
+
+## Godot
+.godot/
+*.import
+export_presets.cfg
+
+## C++ / CMake
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+compile_commands.json
+*.o
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+*.exe
+
+## Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+## IDE
+.idea/
+*.swp
+*.swo
+*~
+
+## OS
+.DS_Store
+Thumbs.db
+
+## vcpkg
+vcpkg_installed/
+
+## Misc
+*.log

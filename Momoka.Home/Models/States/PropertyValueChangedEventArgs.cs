@@ -1,0 +1,13 @@
+namespace Momoka.Home.Models.States;
+
+public class PropertyValueChangedEventArgs : EventArgs
+{
+    public Property Property { get; }
+    public object? NewValue { get; }
+
+    public PropertyValueChangedEventArgs(Property property, object? newValue)
+    {
+        Property = property;
+        NewValue = newValue;
+    }
+}

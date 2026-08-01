@@ -1,0 +1,144 @@
+using Momoka.Home.Models.Levels;
+using Momoka.Home.Primitives;
+
+namespace Momoka.Home.Models.Entities;
+
+/// <summary>
+/// An <see cref="BlockEntity"/> that is itself a spatial volume of blocks — a 3D
+/// grid backed by chunked paletted storage. The grid owns a local coordinate
+/// system; <see cref="Origin"/> offsets it relative to its parent composition,
+/// so an assembled space (a building, the yard) can move as a whole without
+/// re-keying its contents. <see cref="Level"/> (a floor) and Home (the yard)
+/// are both block compositions.
+/// </summary>
+public class BlockCompositionEntity : BlockEntity
+{
+    public const int ChunkSize = 20;
+
+    /// <summary>Vertical extent of this space, in cells.</summary>
+    public int ChunkHeight { get; set; } = 30;
+
+    /// <summary>
+    /// Inclusive world-space footprint of this space. Its position relative to
+    /// the enclosing level is inherited from <see cref="BlockEntity.Coords"/>.
+    /// </summary>
+    public Bound Bound { get; set; } = Bound.Empty;
+
+    public Dictionary<Int2, LevelChunk> Chunks { get; } = new();
+    public List<Entity> Entities { get; } = new();
+
+    /// <summary>
+    /// Floor division to chunk-grid coordinates (handles negative coordinates correctly).
+    /// </summary>
+    public int GetAsChunkCoord(int coord) => (coord >= 0 ? coord : coord - (ChunkSize - 1)) / ChunkSize;
+
+    public Int2 GetAsChunkCoord(Int3 pos) => new(GetAsChunkCoord(pos.X), GetAsChunkCoord(pos.Z));
+
+    /// <summary>
+    /// Gets or sets the BlockEntity at a local coordinate of this grid
+    /// (world position minus <see cref="BlockEntity.Coords"/>).
+    /// Auto-creates the containing chunk on write.
+    /// </summary>
+    public BlockEntity? this[Int3 pos]
+    {
+        get
+        {
+            var local = pos - Coords;
+            return Chunks.TryGetValue(GetAsChunkCoord(local), out var chunk) ? chunk[local] : null;
+        }
+        set
+        {
+            var local = pos - Coords;
+            var chunkPos = GetAsChunkCoord(local);
+            if (!Chunks.TryGetValue(chunkPos, out var chunk))
+            {
+                chunk = new LevelChunk(chunkPos, ChunkSize, ChunkHeight);
+                Chunks[chunkPos] = chunk;
+            }
+            chunk[local] = value;
+        }
+    }
+
+    /// <summary>
+    /// Returns true if a BlockEntity occupies the given position.
+    /// </summary>
+    public bool HasEntity(Int3 pos) => this[pos] is not null;
+
+    // ── Entity queries ───────────────────────────────────
+
+    /// <summary>
+    /// Returns a copy of all entities tracked in this space.
+    /// </summary>
+    public List<Entity> ListEntities() => new(Entities);
+
+    /// <summary>
+    /// Returns all entities whose shape or location falls within the region's polygon boundary.
+    /// </summary>
+    public List<Entity> GetEntitiesInRegion(Region region) =>
+        Services.RegionService.GetEntitiesInRegion(this, region);
+
+    /// <summary>
+    /// Returns all BlockEntity instances whose shape intersects the axis-aligned bounding box
+    /// defined by <paramref name="min"/> and <paramref name="max"/> (inclusive).
+    /// Useful for drag-select in the editor.
+    /// </summary>
+    public List<BlockEntity> GetEntitiesInRegion(Int2 min, Int2 max)
+    {
+        var result = new List<BlockEntity>();
+        foreach (var entity in Entities.OfType<BlockEntity>())
+        {
+            foreach (var loc in entity.Shape.Locations())
+            {
+                var p = loc.Int2;
+                if (p.X >= min.X && p.X <= max.X && p.Z >= min.Z && p.Z <= max.Z)
+                {
+                    result.Add(entity);
+                    break;
+                }
+            }
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Returns all entities in this space that are assignable to the specified type.
+    /// </summary>
+    public List<T> GetEntitiesOfType<T>() where T : Entity =>
+        Entities.OfType<T>().ToList();
+
+    /// <summary>
+    /// Returns the BlockEntity at the given integer grid position, or null if empty.
+    /// </summary>
+    public BlockEntity? GetEntityAtPoint(Int3 pos) => this[pos];
+
+    /// <summary>
+    /// Finds the nearest BlockEntity to <paramref name="pos"/> by expanding spiral search.
+    /// Returns null if the space has no BlockEntities.
+    /// </summary>
+    public BlockEntity? GetEntityAtNearest(Int3 pos)
+    {
+        // Spiral search — expand radius until an entity is found
+        for (var radius = 0; radius < 1000; radius++)
+        {
+            for (var dx = -radius; dx <= radius; dx++)
+            {
+                for (var dz = -radius; dz <= radius; dz++)
+                {
+                    if (Math.Abs(dx) != radius && Math.Abs(dz) != radius)
+                        continue;
+
+                    var candidate = this[new Int3(pos.X + dx, pos.Y, pos.Z + dz)];
+                    if (candidate is not null)
+                        return candidate;
+                }
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Finds an entity by its unique Id across this space. Returns null if not found.
+    /// </summary>
+    public Entity? FindEntity(Guid id) =>
+        Entities.FirstOrDefault(e => e.Id == id);
+}

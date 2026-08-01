@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  dotnet:
+    name: C# Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - run: dotnet build Momoka.sln --configuration Release
+      - run: dotnet test Momoka.sln --configuration Release --no-build
+
+  godot:
+    name: Godot Export Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Godot project
+        run: |
+          if [ -f Momoka.Ui/project.godot ]; then
+            echo "Godot project found."
+          else
+            echo "ERROR: project.godot not found" && exit 1
+          fi
+
+  python:
+    name: Python Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install ruff
+      - run: ruff check Momoka.Voice/
