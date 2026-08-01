@@ -1,8 +1,9 @@
 """Momoka.Voice - TTS 微服务骨架"""
 
+import io
+
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
-import io
 
 app = FastAPI(title="Momoka.Voice")
 
