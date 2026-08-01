@@ -4,7 +4,7 @@
 
 **Open-Source AI Home Companion**
 
-Momoka is an open-source AI home companion project. Its goal is not to be a simple voice assistant, but to build an intelligent system that **understands your home and accompanies your daily life**: a character engine with a Live2D avatar, a "home digital twin" that perceives the home environment and device state, and an agent reasoning framework capable of executing complex tasks.
+Momoka is an open-source AI home companion project, currently in its **early development stage**. Its goal is to build a system that represents the state of your home and, on top of that, provides character dialogue and task execution. The current code is mainly the "home digital twin" data model; the character engine, agent reasoning, UI rendering, and voice components are still planned or at scaffold stage. Please refer to [Current Progress](#current-progress) and [ROADMAP.md](ROADMAP.md) — do not treat planned designs as implemented capabilities.
 
 The system uses a **Host + Terminal separation architecture**:
 
@@ -32,7 +32,7 @@ The system uses a **Host + Terminal separation architecture**:
 
 ## Introduction
 
-The core problem Momoka tries to solve is: **let AI not only "talk", but also "understand this home".**
+The problem Momoka tries to solve is: **let AI not only "talk", but also "understand this home"** — this is a goal, not yet implemented.
 
 Traditional voice assistants can only answer questions; they cannot understand room layout, device state, or your home's physical environment. Momoka provides the AI with a programmable knowledge base of the home through a "home digital twin": where walls are, which rooms doors lead to, which room has poor air, which light should be turned off — then the character engine and agent jointly decide **what to say and what to do**.
 
@@ -40,7 +40,7 @@ Traditional voice assistants can only answer questions; they cannot understand r
 
 1. **Local-first**: Core reasoning runs on local LLMs (Ollama); speech and TTS components can run offline. Privacy matters.
 2. **Modular**: Character / Agent / Sense / Home model / Rendering / Voice are fully decoupled and can be developed or replaced independently.
-3. **Physical safety**: Device control is guarded by safety constraints (L0–L4 tiers); dangerous operations (gas, door locks, high-voltage) are blocked.
+3. **Physical safety (planned)**: Device control should be guarded by safety constraints (L0–L4 tiers); dangerous operations (gas, door locks, high-voltage) should be blocked.
 4. **Extensible device ecosystem**: A unified device abstraction layer integrates HomeAssistant and the GIIC protocol, and third-party devices can be declared via JSON.
 
 ---
@@ -104,7 +104,7 @@ Traditional voice assistants can only answer questions; they cannot understand r
 
 ## System Architecture
 
-Momoka consists of a **Host** (C# brain), a **Terminal** (Godot senses & expression), and standalone microservices. The Host and Terminal communicate over WebSocket + MessagePack.
+Momoka consists of a **Host** (C# / .NET 8), a **Terminal** (Godot 4.x + C++), and standalone microservices. The Host and Terminal are designed to communicate over WebSocket + MessagePack (not yet implemented).
 
 ```mermaid
 flowchart LR
@@ -136,6 +136,8 @@ flowchart LR
 ```
 
 ### Key Data Flows
+
+> The flows below are **designed but not yet implemented**.
 
 1. **Dialogue path**: Terminal (post-ASR text) → `Momoka.Ai` character engine → dialogue text + emotion params → Terminal (Live2D expression + TTS voice).
 2. **Task path**: `Momoka.Ai` → `Momoka.Core` intent recognition (Ollama) → agent reasoning → tool calls (HA / calendar / weather).
@@ -214,16 +216,18 @@ python server.py   # listens on 0.0.0.0:8100 by default
 ## Roadmap
 
 > For the complete, checkable roadmap see [ROADMAP.md](ROADMAP.md).
+>
+> **Development priority**: finish Momoka.Home first, then implement Momoka.Ui + Momoka.Stage to get the home management system running, and only then move to the AI companion phase (Ai / Core / Sense / Voice).
 
 | Phase | Goal | Status |
 |-------|------|--------|
 | **Phase 0** | Infrastructure: CI, test framework, release process | 📋 Planned |
 | **Phase 1** | Complete Momoka.Home (device layer, safety, persistence) | 🟡 In progress |
-| **Phase 2** | Momoka.Ai character engine and memory system | 📋 Not started |
-| **Phase 3** | Momoka.Core agent reasoning and tool scheduling | 📋 Not started |
-| **Phase 4** | Momoka.Sense perception data ingestion | 📋 Not started |
-| **Phase 5** | Momoka.Ui rendering and voice pipeline | 📋 Not started |
-| **Phase 6** | Momoka.Stage platform adaptation | 📋 Not started |
+| **Phase 2** | Momoka.Ui home management terminal | 📋 Not started |
+| **Phase 3** | Momoka.Stage platform adaptation | 📋 Not started |
+| **Phase 4** | Momoka.Ai character layer (AI companion) | 📋 Not started |
+| **Phase 5** | Momoka.Core agent reasoning (AI companion) | 📋 Not started |
+| **Phase 6** | Momoka.Sense perception (AI companion) | 📋 Not started |
 | **Phase 7** | Momoka.Voice TTS engine integration | 🟡 In progress |
 
 ---

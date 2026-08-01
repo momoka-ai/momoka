@@ -4,7 +4,7 @@
 
 **开源 AI 家庭伴侣系统 · Open-Source AI Home Companion**
 
-Momoka 是一个开源的人工智能家庭伴侣项目。它的目标不是做一个简单的语音助手，而是构建一个**能理解你的家、陪伴你生活**的智能系统：它拥有一个带 Live2D 形象的角色引擎，一个能感知家居环境与设备状态的「家庭数字孪生」，以及一套可执行复杂任务的 Agent 推理框架。
+Momoka 是一个开源的人工智能家庭伴侣项目，目前**仍处于早期开发阶段**。它的目标是构建一个能表达「家的状态」、并在此基础上提供角色对话与任务执行的系统。当前代码主要集中在「家庭数字孪生」的数据模型上；角色引擎、Agent 推理、UI 渲染、语音等仍处于规划或骨架阶段。请以[「当前进度」](#当前进度)与 [ROADMAP.md](ROADMAP.md) 为准，勿将文档中的设想当作已实现的能力。
 
 系统采用 **主机（Host） + 终端（Terminal）分离架构**：
 
@@ -32,7 +32,7 @@ Momoka 是一个开源的人工智能家庭伴侣项目。它的目标不是做�
 
 ## 项目简介
 
-Momoka 想解决的核心问题是：**让 AI 不仅「会说话」，还「懂这个家」**。
+Momoka 想解决的问题是：**让 AI 不仅「会说话」，还「懂这个家」**——这是目标，尚未实现。
 
 传统语音助手只能应答问题，无法理解房间结构、设备状态与你家的物理环境。Momoka 通过「家庭数字孪生」为 AI 提供一份关于家的可编程知识：墙在哪、门通向哪、哪个房间的空气不好、哪盏灯该关了——然后由角色引擎与 Agent 共同决定**说什么、做什么**。
 
@@ -40,7 +40,7 @@ Momoka 想解决的核心问题是：**让 AI 不仅「会说话」，还「懂�
 
 1. **本地优先**：核心推理使用本地 LLM（Ollama），语音与 TTS 组件可离线运行，重视隐私。
 2. **模块化**：角色 / Agent / 感知 / 家庭模型 / 渲染 / 语音完全解耦，可独立开发与替换。
-3. **家庭物理安全**：设备控制受安全约束校验（L0–L4 分级），危险操作（燃气、门锁、高压）会被拦截。
+3. **家庭物理安全（规划中）**：设备控制应受安全约束校验（L0–L4 分级），危险操作（燃气、门锁、高压）应被拦截。
 4. **可扩展设备生态**：通过统一的设备抽象层接入 HomeAssistant 与 GIIC 协议，并支持第三方设备 JSON 声明。
 
 ---
@@ -65,7 +65,7 @@ Momoka 想解决的核心问题是：**让 AI 不仅「会说话」，还「懂�
   - 坐标系统：`Int2` / `Int3` / `Float3` / `Key`（10cm 网格步长）
   - 属性系统：`Property<T>` 及 6 种类型（布尔 / 枚举 / 浮点 / 整数 / 字符串 / 纹理）、`PropertyValueObject`（get/set/事件/序列化）
   - 实体系统：`Entity` 继承链（`BlockEntity` / `LivingEntity` / `RobotEntity` / `TileEntity`）+ `Component` 行为脚本，已实现 `Wall`、`Door`、`Window`、`Appliance`、`Curtain`、`Human`、`Pet` 等
-  - 空间结构：`Home → Level → LevelChunk`（20×20×Y 分块）、Minecraft 风格 `PalettedContainer`、`BlockGraph` 墙体拓扑、`Region` 多边形区域、`Canvas` 地板/天花板
+  - 空间结构：`Home → Level → LevelChunk`（20×20×Y 分块）、体素风格 `PalettedContainer`、`BlockGraph` 墙体拓扑、`Region` 多边形区域、`Canvas` 地板/天花板
   - 服务层：`PlacementService`（放置校验）、`RegionService`（区域查询）、`WallBuildingService`（墙体绘制）、`SelectionService`（选中状态）
   - 编辑器：`EditorCommand` / `MoveEntityCommand` + `CommandHistory`（undo / redo）
 - **Momoka.Voice**：FastAPI 骨架，`GET /health` 与 `POST /tts` 接口占位。
@@ -104,7 +104,7 @@ Momoka 想解决的核心问题是：**让 AI 不仅「会说话」，还「懂�
 
 ## 系统架构
 
-Momoka 由**主机**（C# 大脑）、**终端**（Godot 感官与表达）和**独立微服务**组成，主机与终端之间通过 WebSocket + MessagePack 通信。
+Momoka 由**主机**（C# / .NET 8）、**终端**（Godot 4.x + C++）和**独立微服务**组成，主机与终端之间设计为通过 WebSocket + MessagePack 通信（尚未实现）。
 
 ```mermaid
 flowchart LR
@@ -136,6 +136,8 @@ flowchart LR
 ```
 
 ### 关键数据流
+
+> 以下为**设计中的数据流**，尚未全部实现。
 
 1. **对话链路**：终端（ASR 后文本）→ `Momoka.Ai` 角色引擎 → 对话文本 + 情感参数 → 终端（Live2D 表情 + TTS 语音）。
 2. **任务链路**：`Momoka.Ai` → `Momoka.Core` 意图识别（Ollama）→ Agent 推理 → 工具调用（HA / 日历 / 天气）。
@@ -214,16 +216,18 @@ python server.py   # 默认监听 0.0.0.0:8100
 ## 路线图
 
 > 完整、可勾选的路线图见 [ROADMAP.md](ROADMAP.md)。
+>
+> **开发优先级**：先完成 Momoka.Home，再实现 Momoka.Ui + Momoka.Stage 让家庭管理系统跑起来，之后进入 AI 伴侣阶段（Ai / Core / Sense / Voice）。
 
 | 阶段 | 目标 | 状态 |
 |------|------|------|
 | **Phase 0** | 基础设施：CI、测试框架、发布流程 | 📋 规划中 |
 | **Phase 1** | 完善 Momoka.Home（设备层、安全、存档） | 🟡 进行中 |
-| **Phase 2** | Momoka.Ai 角色引擎与记忆系统 | 📋 未开始 |
-| **Phase 3** | Momoka.Core Agent 推理与工具调度 | 📋 未开始 |
-| **Phase 4** | Momoka.Sense 感知数据接入 | 📋 未开始 |
-| **Phase 5** | Momoka.Ui 渲染与语音链路 | 📋 未开始 |
-| **Phase 6** | Momoka.Stage 平台适配 | 📋 未开始 |
+| **Phase 2** | Momoka.Ui 家庭管理终端 | 📋 未开始 |
+| **Phase 3** | Momoka.Stage 平台适配 | 📋 未开始 |
+| **Phase 4** | Momoka.Ai 角色交互层（AI 伴侣） | 📋 未开始 |
+| **Phase 5** | Momoka.Core Agent 推理（AI 伴侣） | 📋 未开始 |
+| **Phase 6** | Momoka.Sense 感知接入（AI 伴侣） | 📋 未开始 |
 | **Phase 7** | Momoka.Voice TTS 引擎集成 | 🟡 进行中 |
 
 ---
