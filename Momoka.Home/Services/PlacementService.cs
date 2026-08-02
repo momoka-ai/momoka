@@ -5,14 +5,14 @@ namespace Momoka.Home.Services;
 
 public static class PlacementService
 {
-    public static bool CanPlace(BlockGridEntity space, BlockEntity entity, Int3 pos)
+    public static bool CanPlace(VoxelGridEntity space, VoxelEntity entity, Int3 pos)
     {
-        // Occupied by another BlockEntity?
+        // Occupied by another VoxelEntity?
         if (space.HasEntity(pos))
             return false;
 
         // Embedded entities need a host surface
-        if (entity.Parent is BlockEntity host)
+        if (entity.Parent is VoxelEntity host)
         {
             foreach (var cell in entity.Shape.Locations())
             {
@@ -32,7 +32,7 @@ public static class PlacementService
         return true;
     }
 
-    public static bool Place(BlockGridEntity space, BlockEntity entity, Int3 pos)
+    public static bool Place(VoxelGridEntity space, VoxelEntity entity, Int3 pos)
     {
         if (!CanPlace(space, entity, pos))
             return false;

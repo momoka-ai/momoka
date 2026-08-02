@@ -3,11 +3,11 @@ using Momoka.Home.Primitives;
 
 namespace Momoka.Home.Models.Entities;
 
-public abstract class BlockEntity : Entity
+public abstract class VoxelEntity : Entity
 {
     /// <summary>
     /// Position of this entity relative to its parent space
-    /// (a <see cref="BlockGridEntity"/>). For a composition this is its
+    /// (a <see cref="VoxelGridEntity"/>). For a composition this is its
     /// offset relative to the enclosing level, so moving it moves the whole
     /// composition without touching interior coordinates.
     /// </summary>

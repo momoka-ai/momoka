@@ -3,7 +3,7 @@ using Momoka.Home.Models.States;
 
 namespace Momoka.Home.Models.Entities;
 
-public class Door : BlockEntity
+public class Door : VoxelEntity
 {
     public static readonly BooleanProperty OPEN = new("open", typeof(Door));
     public static readonly BooleanProperty LOCKED = new("locked", typeof(Door));

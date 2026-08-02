@@ -8,11 +8,11 @@ namespace Momoka.Home.Models;
 /// <summary>
 /// The outermost digital-twin root: the whole property/residence.
 ///
-/// Home is a <see cref="BlockGridEntity"/> — the yard grid. Buildings,
+/// Home is a <see cref="VoxelGridEntity"/> — the yard grid. Buildings,
 /// fences, and terrain features are placed into this grid as ordinary
-/// <see cref="BlockEntity"/> instances, so external-view editing reuses the
+/// <see cref="VoxelEntity"/> instances, so external-view editing reuses the
 /// same block-editing logic as interiors. Its grid height should be set to the
-/// tallest building's height and its <see cref="BlockGridEntity.Bound"/>
+/// tallest building's height and its <see cref="VoxelGridEntity.Bound"/>
 /// to the whole yard.
 ///
 /// As an open-air space, Home composes a fence/boundary topology graph, a
@@ -22,10 +22,10 @@ namespace Momoka.Home.Models;
 /// <see cref="Buildings"/>. Site-wide data sources (Weather, GPS, TimeZone,
 /// Location) and whole-home command components are mounted as entity components.
 /// </summary>
-public class Home : BlockGridEntity
+public class Home : VoxelGridEntity
 {
-    /// <summary>Fence and boundary topology across the yard.</summary>
-    public Graph2D<BlockEntity> Boundary { get; } = new();
+    /// <summary>Fence/boundary topology across the yard; its bounded faces enclose lawn, driveway, pool areas.</summary>
+    public Graph2D<VoxelEntity> Boundary { get; } = new();
 
     /// <summary>Ground surface (lawn, paving) as 2D tiles.</summary>
     public Canvas<TileEntity, Int2> FloorCanvas { get; } = new();

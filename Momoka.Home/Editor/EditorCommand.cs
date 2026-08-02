@@ -9,8 +9,8 @@ public abstract class EditorCommand
     public DateTime Timestamp { get; } = DateTime.UtcNow;
     public string Description { get; set; } = string.Empty;
 
-    public abstract void Apply(BlockGridEntity space);
-    public abstract void Revert(BlockGridEntity space);
+    public abstract void Apply(VoxelGridEntity space);
+    public abstract void Revert(VoxelGridEntity space);
 }
 
 public class MoveEntityCommand : EditorCommand
@@ -19,7 +19,7 @@ public class MoveEntityCommand : EditorCommand
     private readonly Int3 _from;
     private readonly Int3 _to;
 
-    public MoveEntityCommand(BlockEntity entity, Int3 from, Int3 to)
+    public MoveEntityCommand(VoxelEntity entity, Int3 from, Int3 to)
     {
         _entityId = entity.Id;
         _from = from;
@@ -27,7 +27,7 @@ public class MoveEntityCommand : EditorCommand
         Description = $"Move {entity.Key} from {from} to {to}";
     }
 
-    public override void Apply(BlockGridEntity space)
+    public override void Apply(VoxelGridEntity space)
     {
         var entity = space[_from];
         if (entity is null) return;
@@ -35,7 +35,7 @@ public class MoveEntityCommand : EditorCommand
         space[_to] = entity;
     }
 
-    public override void Revert(BlockGridEntity space)
+    public override void Revert(VoxelGridEntity space)
     {
         var entity = space[_to];
         if (entity is null) return;

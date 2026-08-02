@@ -3,7 +3,7 @@ using Momoka.Home.Models.States;
 
 namespace Momoka.Home.Models.Entities;
 
-public class Wall : BlockEntity
+public class Wall : VoxelEntity
 {
     public static readonly TextureProperty TEXTURE = new("texture", typeof(Wall));
 

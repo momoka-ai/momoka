@@ -16,7 +16,7 @@ public class LevelChunk
 
     public Int2 Pos { get; }
 
-    private readonly PalettedContainer<Int3, BlockEntity> _container;
+    private readonly PalettedContainer<Int3, VoxelEntity> _container;
 
     public LevelChunk(Int2 chunkPos, int size, int heightY, int initialBits = 4)
     {
@@ -25,7 +25,7 @@ public class LevelChunk
         HeightY = heightY;
         Pos = chunkPos;
         _container = new(
-            new Palette<BlockEntity>.Int3ChunkStrategy(new Int3(20, heightY, 20), initialBits));
+            new Palette<VoxelEntity>.Int3ChunkStrategy(new Int3(20, heightY, 20), initialBits));
     }
 
     /// <summary>
@@ -60,7 +60,7 @@ public class LevelChunk
                worldPos.Z >= minZ && worldPos.Z < minZ + SizeZ;
     }
 
-    public BlockEntity? this[Int3 pos]
+    public VoxelEntity? this[Int3 pos]
     {
         get => TryNormalize(pos, out var local) ? _container[local] : null;
         set { if (TryNormalize(pos, out var local)) _container[local] = value; }

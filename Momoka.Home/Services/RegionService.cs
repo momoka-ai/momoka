@@ -6,11 +6,11 @@ namespace Momoka.Home.Services;
 
 public static class RegionService
 {
-    public static List<Entity> GetEntitiesInRegion(BlockGridEntity space, Region region)
+    public static List<Entity> GetEntitiesInRegion(VoxelGridEntity space, Region region)
     {
         return space.Entities.Where(e =>
         {
-            if (e is BlockEntity be) return region.Contains(be);
+            if (e is VoxelEntity be) return region.Contains(be);
             if (e is LivingEntity le) return region.Contains(le.Location.Int2);
             if (e is RobotEntity re) return region.Contains(re.Location.Int2);
             return false;

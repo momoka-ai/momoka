@@ -17,7 +17,7 @@ public class Region
 
     public bool Contains(Int2 point) => RayCasting(point, Boundary);
 
-    public bool Contains(BlockEntity entity)
+    public bool Contains(VoxelEntity entity)
     {
         foreach (var pos in entity.Shape.Locations())
         {
@@ -27,7 +27,7 @@ public class Region
         return true;
     }
 
-    public float ContainmentRatio(BlockEntity entity)
+    public float ContainmentRatio(VoxelEntity entity)
     {
         var total = 0;
         var inside = 0;
