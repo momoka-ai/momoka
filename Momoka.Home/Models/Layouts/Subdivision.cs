@@ -45,6 +45,12 @@ public class Subdivision<TEntity> : Graph2D<TEntity> where TEntity : class
 
         public bool IsOuter => SignedArea < 0;
 
+        /// <summary>
+        /// Optional content entity bound to this face (e.g. a material marker for
+        /// floor/ceiling surfaces). Persisted via <see cref="Subdivision{TEntity}.AssignEntity"/>.
+        /// </summary>
+        public TEntity? Entity { get; set; }
+
         /// <summary>Point-in-polygon via ray casting (same rule as a region boundary).</summary>
         public bool Contains(Int2 point)
         {
@@ -93,6 +99,18 @@ public class Subdivision<TEntity> : Graph2D<TEntity> where TEntity : class
         public override string ToString() =>
             $"{nameof(Face)}[{string.Join(" → ", Vertices)}]";
     }
+
+    private readonly Dictionary<HashSet<Int2>, TEntity?> _faceEntities = new();
+
+    /// <summary>Binds a content entity (e.g. a material marker) to a face. Survives recomputation.</summary>
+    public void AssignEntity(Face face, TEntity? entity) =>
+        _faceEntities[new HashSet<Int2>(face.Vertices)] = entity;
+
+    /// <summary>Returns the content entity bound to the given face, or default.</summary>
+    public TEntity? EntityOf(Face face) =>
+        _faceEntities.TryGetValue(new HashSet<Int2>(face.Vertices), out var entity)
+            ? entity
+            : default;
 
     // ── Face enumeration ─────────────────────────────────
 
@@ -168,7 +186,12 @@ public class Subdivision<TEntity> : Graph2D<TEntity> where TEntity : class
         }
 
         if (vertices.Count >= 3)
-            faces.Add(new Face(vertices));
+        {
+            var face = new Face(vertices);
+            _faceEntities.TryGetValue(new HashSet<Int2>(vertices), out var entity);
+            face.Entity = entity;
+            faces.Add(face);
+        }
     }
 
     private Int2? NextHalfEdge(Int2 from, Int2 to)
