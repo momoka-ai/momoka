@@ -50,7 +50,7 @@
 - [x] 坐标原语：`Int2` / `Int3` / `Float3` / `Key` / `Bound`
 - [x] 属性系统：`Property<T>` + 6 种子类型、`PropertyValueObject`
 - [x] 实体系统：`Entity` 继承链 + `Component` 脚本；`Wall` / `Door` / `Window` / `Appliance` / `Curtain` / `Human` / `Pet` 等
-- [x] 空间结构：`Home → Level → LevelChunk`、`PalettedContainer`、`BlockGraph`、`Region`、`Canvas`
+- [x] 空间结构：`Home → Building → Level`（`BlockGridEntity` + `GridLayout` 分块调色板存储）、`Layouts` 布局族（`Canvas` / `Graph` / `GridLayout` / `Subdivision`）、`Region`
 - [x] 服务层：`PlacementService` / `RegionService` / `WallBuildingService` / `SelectionService`
 - [x] 编辑器：`EditorCommand` / `MoveEntityCommand` + `CommandHistory`
 
@@ -62,7 +62,14 @@
 - [ ] **存档 `HomeSerializer`**：Home / Level / 实体序列化与反序列化
 - [ ] **设备配置 JSON**：`/devices/` 目录，以 JSON 声明第三方设备（无需写代码）
 - [ ] **DSL 安全规则**：复杂约束的表达式解析
-- [ ] **墙体开口级联删除**：删除墙 → 级联删除门窗
+- [ ] **`Subdivision` 面实体支持（方案A）**：`Face` 携带 `TEntity`（材质/内容），内部维护面→实体映射，无外部字典；`Level.Ground` 用 `Subdivision<TileEntity>` 划分地板/天花板材质区域
+- [ ] **参数化 `Shape` 体系**：`Shape` 统一几何（`Locations()` 体素占用 + `BuildMesh()` 网格生成）；屋顶形状 `Flat / Shed / Gable / Hip / Conical` 继承 `Shape`（`Pitch` / `Overhang` 参数化）
+- [ ] **非体素屋顶**：`VoxelShapeEntity` 持有屋顶 `Shape`，由建筑顶部外环（`Boundary.Bounds`）生成参数化网格
+- [ ] **`BlockEntity` → `VoxelEntity` 重命名（待定）**：体素更精确描述网格系统；需一并评估 `BlockGridEntity` 的一致性
+- [ ] **Mesh 转换函数**：`Shape` / 材质面 → 三角网格；据此决定 `Slab`（共享地板/天花板）是否必要
+- [ ] **Slab（暂缓）**：本质是上下贴图不同的面，可能被「材质面直接转 Mesh」替代
+- [ ] **墙体开口宿主关系 + 级联删除**：门窗/吊灯等挂载到墙/天花板实体（`Entity` 父子层级）；删除墙 → 级联删除，移动 / 拆分时重新校验
+- [ ] **具体编辑命令**：`PlaceEntityCommand` / `RemoveEntityCommand`（含开口级联）/ `BuildWallCommand` / `PaintTileCommand`（刷材质面），接入 `SelectionService` + `CommandHistory`
 - [ ] **空气流体模拟（未来）**：房间粒度分段混合模型 → 自然通风建议
 - [ ] 补充单元测试覆盖上述服务
 
