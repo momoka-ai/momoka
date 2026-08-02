@@ -13,3 +13,13 @@ indent_size = 2
 
 [*.md]
 trim_trailing_whitespace = false
+
+# ── .NET analyzer (CA) rule overrides ──────────────────────
+[*.cs]
+# WPF DependencyProperty-style ALL_CAPS property descriptors (TEXTURE, SOURCE_ID...)
+dotnet_diagnostic.CA1707.severity = none
+# Property system type is deliberately named "Property" (WPF convention)
+dotnet_diagnostic.CA1716.severity = none
+# Protected readonly backing fields are an intentional internal pattern
+# (Entity._children, Graph._nodes, PalettedContainerRO internals)
+dotnet_diagnostic.CA1051.severity = none
