@@ -45,6 +45,7 @@ env/
 
 ## IDE
 .idea/
+.codacy/
 *.swp
 *.swo
 *~
@@ -58,3 +59,7 @@ vcpkg_installed/
 
 ## Misc
 *.log
+
+
+#Ignore vscode AI rules
+.github/instructions/codacy.instructions.md
