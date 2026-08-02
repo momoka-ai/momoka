@@ -15,6 +15,10 @@ public sealed class PackedBitStorage
     public int Size => _size;
     public int Bits => _bits;
 
+    /// <summary>Minimum number of bits needed to store <paramref name="size"/> distinct values.</summary>
+    public static int RequiredBits(int size) =>
+        Math.Max(1, (int)Math.Ceiling(Math.Log2(size)));
+
     public PackedBitStorage(int size, int bits)
     {
         if (bits < 1 || bits > 63)

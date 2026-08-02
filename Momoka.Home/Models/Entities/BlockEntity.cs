@@ -7,7 +7,7 @@ public abstract class BlockEntity : Entity
 {
     /// <summary>
     /// Position of this entity relative to its parent space
-    /// (a <see cref="BlockCompositionEntity"/>). For a composition this is its
+    /// (a <see cref="BlockGridEntity"/>). For a composition this is its
     /// offset relative to the enclosing level, so moving it moves the whole
     /// composition without touching interior coordinates.
     /// </summary>

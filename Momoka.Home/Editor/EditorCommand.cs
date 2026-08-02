@@ -9,8 +9,8 @@ public abstract class EditorCommand
     public DateTime Timestamp { get; } = DateTime.UtcNow;
     public string Description { get; set; } = string.Empty;
 
-    public abstract void Apply(BlockCompositionEntity space);
-    public abstract void Revert(BlockCompositionEntity space);
+    public abstract void Apply(BlockGridEntity space);
+    public abstract void Revert(BlockGridEntity space);
 }
 
 public class MoveEntityCommand : EditorCommand
@@ -27,7 +27,7 @@ public class MoveEntityCommand : EditorCommand
         Description = $"Move {entity.Key} from {from} to {to}";
     }
 
-    public override void Apply(BlockCompositionEntity space)
+    public override void Apply(BlockGridEntity space)
     {
         var entity = space[_from];
         if (entity is null) return;
@@ -35,7 +35,7 @@ public class MoveEntityCommand : EditorCommand
         space[_to] = entity;
     }
 
-    public override void Revert(BlockCompositionEntity space)
+    public override void Revert(BlockGridEntity space)
     {
         var entity = space[_to];
         if (entity is null) return;

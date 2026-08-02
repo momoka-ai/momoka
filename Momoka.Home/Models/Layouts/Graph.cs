@@ -1,8 +1,8 @@
 using Momoka.Home.Primitives;
 
-namespace Momoka.Home.Models;
+namespace Momoka.Home.Models.Layouts;
 
-public class Graph<TEntity, TCoords> where TEntity : class where TCoords : notnull
+public class Graph<T, TCoords> where T : class where TCoords : notnull
 {
     protected readonly Dictionary<TCoords, Node> _nodes = new();
     public IEnumerable<Node> Nodes => _nodes.Values;
@@ -31,14 +31,14 @@ public class Graph<TEntity, TCoords> where TEntity : class where TCoords : notnu
         return true;
     }
 
-    public Edge AddEdge(Node from, Node to, TEntity? entity = null)
+    public Edge AddEdge(Node from, Node to, T? entity = null)
     {
         var edge = new Edge(from, to, entity);
         Edges.Add(edge);
         return edge;
     }
 
-    public Edge AddEdge(TCoords from, TCoords to, TEntity? entity = null) =>
+    public Edge AddEdge(TCoords from, TCoords to, T? entity = null) =>
         AddEdge(AddNode(from), AddNode(to), entity);
 
     public bool RemoveEdge(Edge edge) => Edges.Remove(edge);
@@ -61,19 +61,19 @@ public class Graph<TEntity, TCoords> where TEntity : class where TCoords : notnu
         return null;
     }
 
-    public static Graph<TEntity, TCoords> operator +(Graph<TEntity, TCoords> g, TCoords coords)
+    public static Graph<T, TCoords> operator +(Graph<T, TCoords> g, TCoords coords)
     {
         g.AddNode(coords);
         return g;
     }
 
-    public static Graph<TEntity, TCoords> operator -(Graph<TEntity, TCoords> g, TCoords coords)
+    public static Graph<T, TCoords> operator -(Graph<T, TCoords> g, TCoords coords)
     {
         g.RemoveNode(coords);
         return g;
     }
 
-    public static Graph<TEntity, TCoords> operator +(Graph<TEntity, TCoords> g, (TCoords from, TCoords to) edge)
+    public static Graph<T, TCoords> operator +(Graph<T, TCoords> g, (TCoords from, TCoords to) edge)
     {
         g.AddEdge(edge.from, edge.to);
         return g;
@@ -81,7 +81,7 @@ public class Graph<TEntity, TCoords> where TEntity : class where TCoords : notnu
 
     public readonly record struct Node(TCoords Coords);
 
-    public readonly record struct Edge(Node A, Node B, TEntity? Entity)
+    public readonly record struct Edge(Node A, Node B, T? Entity)
     {
         public Node Exclude(Node node) => (A == node) ? B : A;
 
@@ -148,7 +148,7 @@ public class Graph2D<TEntity> : Graph<TEntity, Int2> where TEntity : class
         }
     }
 
-    private static double CcwAngle(Int2 from, Int2 to)
+    protected static double CcwAngle(Int2 from, Int2 to)
     {
         var cross = (double)from.X * to.Z - (double)from.Z * to.X;
         var dot = (double)from.X * to.X + (double)from.Z * to.Z;

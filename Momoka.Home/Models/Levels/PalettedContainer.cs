@@ -16,18 +16,18 @@ public class PalettedContainer<TKey, T> : PalettedContainerRO<TKey, T>
 
     public void Set(TKey key, T value)
     {
-        _storage.Set(_strategy.ToIndex(key), _palette.IdFor(value));
+        _storage.Set(_strategy.AsIndexed(key), _palette.IdFor(value));
     }
 
     public new T? this[TKey key]
     {
-        get => _palette.ValueFor(_storage.Get(_strategy.ToIndex(key)));
+        get => _palette.ValueFor(_storage.Get(_strategy.AsIndexed(key)));
         set
         {
             if (value is null)
                 Clear(key);
             else
-                _storage.Set(_strategy.ToIndex(key), _palette.IdFor(value));
+                _storage.Set(_strategy.AsIndexed(key), _palette.IdFor(value));
         }
     }
 

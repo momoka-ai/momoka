@@ -5,7 +5,7 @@ namespace Momoka.Home.Services;
 
 public static class PlacementService
 {
-    public static bool CanPlace(BlockCompositionEntity space, BlockEntity entity, Int3 pos)
+    public static bool CanPlace(BlockGridEntity space, BlockEntity entity, Int3 pos)
     {
         // Occupied by another BlockEntity?
         if (space.HasEntity(pos))
@@ -32,7 +32,7 @@ public static class PlacementService
         return true;
     }
 
-    public static bool Place(BlockCompositionEntity space, BlockEntity entity, Int3 pos)
+    public static bool Place(BlockGridEntity space, BlockEntity entity, Int3 pos)
     {
         if (!CanPlace(space, entity, pos))
             return false;

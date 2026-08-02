@@ -30,7 +30,7 @@ public abstract class PropertyValueObject
         if (!property.IsValidValue(value))
             throw new ArgumentException($"Invalid value for property '{property.Name}'.");
 
-        value = Coerce(property, value);
+        value = CoerceValue(property, value);
         _values[property] = value!;
         NotifyChanged(property);
     }
@@ -135,7 +135,7 @@ public abstract class PropertyValueObject
         return null;
     }
 
-    private T Coerce<T>(Property<T> property, T value)
+    private T CoerceValue<T>(Property<T> property, T value)
     {
         if (_coercions.TryGetValue(property, out var del) && del is Func<T, T> coercion)
             return coercion(value);

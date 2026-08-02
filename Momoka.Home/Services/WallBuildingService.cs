@@ -14,9 +14,9 @@ public static class WallBuildingService
         shape.Start = from.ToFloat3();
         shape.End = to.ToFloat3();
 
-        level.WallGraph.AddNode(from);
-        level.WallGraph.AddNode(to);
-        level.WallGraph.AddEdge(from, to, wall);
+        level.Boundary.AddNode(from);
+        level.Boundary.AddNode(to);
+        level.Boundary.AddEdge(from, to, wall);
 
         foreach (var cell in shape.Locations())
         {

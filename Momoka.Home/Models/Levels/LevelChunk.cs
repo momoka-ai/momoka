@@ -25,7 +25,7 @@ public class LevelChunk
         HeightY = heightY;
         Pos = chunkPos;
         _container = new(
-            new Palette<BlockEntity>.Int3ChunkedStrategy(heightY, initialBits));
+            new Palette<BlockEntity>.Int3ChunkStrategy(new Int3(20, heightY, 20), initialBits));
     }
 
     /// <summary>

@@ -28,6 +28,8 @@ public readonly record struct Int3(int X, int Y, int Z)
     public static Int3 operator *(Int3 a, int s) =>
         new(a.X * s, a.Y * s, a.Z * s);
     public static Int3 operator *(int s, Int3 a) => a * s;
+    public static Int3 operator %(Int3 a, int s) => new(a.X % s, a.Y % s, a.Z % s);
+    public static Int3 operator %(Int3 a, Int3 b) => new(a.X % b.X, a.Y % b.Y, a.Z % b.Z);
 
     // ── ValueTuple decomposition ───────────────────────────
 

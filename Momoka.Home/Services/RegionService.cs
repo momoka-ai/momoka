@@ -6,7 +6,7 @@ namespace Momoka.Home.Services;
 
 public static class RegionService
 {
-    public static List<Entity> GetEntitiesInRegion(BlockCompositionEntity space, Region region)
+    public static List<Entity> GetEntitiesInRegion(BlockGridEntity space, Region region)
     {
         return space.Entities.Where(e =>
         {

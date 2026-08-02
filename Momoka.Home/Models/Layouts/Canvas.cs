@@ -1,7 +1,6 @@
-using Momoka.Home.Models.Entities;
 using Momoka.Home.Primitives;
 
-namespace Momoka.Home.Models;
+namespace Momoka.Home.Models.Layouts;
 
 public class Canvas<T, TPos> where TPos : notnull
 {
@@ -19,5 +18,3 @@ public class Canvas<T, TPos> where TPos : notnull
 
     public bool HasEntity(TPos pos) => Entities.ContainsKey(pos);
 }
-
-public class BlockCanvas : Canvas<BlockEntity, Int3> { }

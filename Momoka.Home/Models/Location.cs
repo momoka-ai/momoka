@@ -8,7 +8,7 @@ namespace Momoka.Home.Models.Levels;
 /// level that owns them. Distinguishes "where" (Coords) from "which floor"
 /// (Level), so a bare Int3 can never be mistaken for a full location.
 /// </summary>
-public readonly record struct Location(Int3 Coords, BlockCompositionEntity? Composition)
+public readonly record struct Location(Int3 Coords, BlockGridEntity? Composition)
 {
     public int X => Coords.X;
     public int Y => Coords.Y;

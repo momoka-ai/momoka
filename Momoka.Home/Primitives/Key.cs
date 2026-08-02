@@ -34,7 +34,7 @@ public readonly record struct Key : IComparable<Key>
     public static bool TryParse(string input, out Key result)
     {
         try { result = Parse(input); return true; }
-        catch { result = default; return false; }
+        catch (ArgumentException) { result = default; return false; }
     }
 
     public int CompareTo(Key other)
@@ -42,6 +42,11 @@ public readonly record struct Key : IComparable<Key>
         var ns = string.CompareOrdinal(Namespace, other.Namespace);
         return ns != 0 ? ns : string.CompareOrdinal(Path, other.Path);
     }
+
+    public static bool operator <(Key a, Key b) => a.CompareTo(b) < 0;
+    public static bool operator <=(Key a, Key b) => a.CompareTo(b) <= 0;
+    public static bool operator >(Key a, Key b) => a.CompareTo(b) > 0;
+    public static bool operator >=(Key a, Key b) => a.CompareTo(b) >= 0;
 
     public override string ToString() => $"{Namespace}:{Path}";
 

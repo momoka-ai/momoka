@@ -26,6 +26,8 @@ public readonly record struct Int2(int X, int Z)
     public static Int2 operator -(Int2 a, Int2 b) => new(a.X - b.X, a.Z - b.Z);
     public static Int2 operator *(Int2 a, int s) => new(a.X * s, a.Z * s);
     public static Int2 operator *(int s, Int2 a) => new(a.X * s, a.Z * s);
+    public static Int2 operator %(Int2 a, int b) => new(a.X % b, a.Z % b);
+    public static Int2 operator %(Int2 a, Int2 b) => new(a.X % b.X, a.Z % b.Z);
 
     // ── Methods ────────────────────────────────────────────
 

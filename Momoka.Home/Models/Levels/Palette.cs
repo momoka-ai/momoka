@@ -27,14 +27,11 @@ public class Palette<T> where T : notnull
         id = _values.Count;
         _values.Add(value);
         _index[value] = id;
-        Resized?.Invoke(GetRequiredBits(_values.Count));
+        Resized?.Invoke(PackedBitStorage.RequiredBits(_values.Count));
         return id;
     }
 
     public T ValueFor(int id) => _values[id];
-
-    public static int GetRequiredBits(int size) =>
-        Math.Max(1, (int)Math.Ceiling(Math.Log2(size)));
 
     // ── Strategy ─────────────────────────────────────────
 
@@ -47,8 +44,8 @@ public class Palette<T> where T : notnull
     {
         public abstract int Count { get; }
         public abstract int InitialBits { get; }
-        public abstract int ToIndex(TKey key);
-        public abstract TKey FromIndex(int index);
+        public abstract int AsIndexed(TKey key);
+        public abstract TKey AsKeyed(int index);
     }
 
     /// <summary>
@@ -73,10 +70,10 @@ public class Palette<T> where T : notnull
             InitialBits = initialBits;
         }
 
-        public override int ToIndex(Int3 key) =>
+        public override int AsIndexed(Int3 key) =>
             key.X - Origin.X + (key.Z - Origin.Z) * SizeX + (key.Y - Origin.Y) * SizeX * SizeZ;
 
-        public override Int3 FromIndex(int index)
+        public override Int3 AsKeyed(int index)
         {
             var x = index % SizeX;
             var z = (index / SizeX) % SizeZ;
@@ -90,36 +87,19 @@ public class Palette<T> where T : notnull
     /// Only accepts coordinates already normalized to chunk-local space
     /// (x in [0,20), y in [0,SizeY), z in [0,20)). No chunk offset handling.
     /// </summary>
-    public sealed class Int3ChunkedStrategy : Strategy<Int3>
+    public sealed class Int3ChunkStrategy(Int3 size, int initialBits) : Strategy<Int3>
     {
-        public const int ChunkSizeX = 20;
-        public const int ChunkSizeZ = 20;
+        public Int3 Size { get; } = size;
+        public override int Count => Size.X * Size.Y * Size.Z;
+        public override int InitialBits { get; } = initialBits;
+        public override int AsIndexed(Int3 key) =>
+            key.X + key.Z * Size.X + key.Y * Size.X * Size.Z;
 
-        public int SizeY { get; }
-        public override int Count => ChunkSizeX * SizeY * ChunkSizeZ;
-        public override int InitialBits { get; }
-
-        public Int3ChunkedStrategy(int sizeY, int initialBits = 4)
-        {
-            SizeY = sizeY;
-            InitialBits = initialBits;
-        }
-
-        public bool Contains(Int3 localKey) =>
-            localKey.X >= 0 && localKey.X < ChunkSizeX &&
-            localKey.Y >= 0 && localKey.Y < SizeY &&
-            localKey.Z >= 0 && localKey.Z < ChunkSizeZ;
-
-        public override int ToIndex(Int3 localKey) =>
-            localKey.X + localKey.Z * ChunkSizeX + localKey.Y * ChunkSizeX * ChunkSizeZ;
-
-        public override Int3 FromIndex(int index)
-        {
-            var x = index % ChunkSizeX;
-            var z = (index / ChunkSizeX) % ChunkSizeZ;
-            var y = index / (ChunkSizeX * ChunkSizeZ);
-            return new Int3(x, y, z);
-        }
+        public override Int3 AsKeyed(int index) => new(
+            index % Size.X,
+            index / Size.X % Size.Z,
+            index / Size.X / Size.Z
+        );
     }
 
     /// <summary>
@@ -142,14 +122,25 @@ public class Palette<T> where T : notnull
             InitialBits = initialBits;
         }
 
-        public override int ToIndex(Int2 key) =>
+        public override int AsIndexed(Int2 key) =>
             key.X - Origin.X + (key.Z - Origin.Z) * SizeX;
 
-        public override Int2 FromIndex(int index)
+        public override Int2 AsKeyed(int index)
         {
             var x = index % SizeX;
             var z = index / SizeX;
             return new Int2(Origin.X + x, Origin.Z + z);
         }
+    }
+
+    public sealed class Int2ChunkStrategy(Int2 size, int initialBits) : Strategy<Int2>
+    {
+        public Int2 Size { get; } = size;
+        public override int Count => Size.X * Size.Z;
+        public override int InitialBits { get; } = initialBits;
+
+        public override int AsIndexed(Int2 key) => (key.X % Size.X) + (key.Z % Size.Z) * Size.X;
+
+        public override Int2 AsKeyed(int index) => new(index % Size.X, index / Size.X);
     }
 }

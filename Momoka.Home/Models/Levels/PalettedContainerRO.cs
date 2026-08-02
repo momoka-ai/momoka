@@ -18,7 +18,7 @@ public class PalettedContainerRO<TKey, T> where TKey : notnull where T : notnull
     }
 
     public T? Get(TKey key) =>
-        _palette.ValueFor(_storage.Get(_strategy.ToIndex(key)));
+        _palette.ValueFor(_storage.Get(_strategy.AsIndexed(key)));
 
     public T? this[TKey key] => Get(key);
 
