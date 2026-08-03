@@ -7,7 +7,18 @@ namespace Momoka.Home.Entities;
 public abstract class Entity : PropertyValueObject, IComponentSource
 {
     public Guid Id { get; init; } = Guid.NewGuid();
-    public virtual Key Key => new(GetType().Name.ToLowerInvariant());
+
+    private Key? _key;
+
+    /// <summary>
+    /// Type identity of this entity. Defaults to the runtime type name in
+    /// lowercase; can be set so a config-driven entity adopts its template's key.
+    /// </summary>
+    public virtual Key Key
+    {
+        get => _key ?? new(GetType().Name.ToLowerInvariant());
+        set => _key = value;
+    }
 
     // ── Behavior components ──────────────────────────────
 
