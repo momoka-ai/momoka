@@ -6,42 +6,41 @@ namespace Momoka.Home.Models.Levels;
 
 /// <summary>
 /// A floor of a building: a <see cref="VoxelGridEntity"/> composed of a wall
-/// subdivision (whose bounded faces are the rooms), floor/ceiling surface
-/// canvases, and a region layout. Coordinates are local to the owning building
-/// (see <see cref="VoxelEntity.Coords"/>).
+/// subdivision (whose bounded faces are the rooms), floor/ceiling planes
+/// (placement surfaces + material regions), and a region layout. Coordinates
+/// are local to the owning building (see <see cref="VoxelEntity.Coords"/>).
 /// </summary>
 public class Level : VoxelGridEntity, IVoxelLayout2DSource
 {
-    /// <summary>Floor material regions (Subdivision of the ground plane).</summary>
-    public Subdivision<TileEntity> Ground { get; } = new();
+    /// <summary>
+    /// Floor plane: placement surface (Direction = Up) + material subdivision +
+    /// attachment layers (raised platforms). Size established by the operation
+    /// logic when the level footprint is known.
+    /// </summary>
+    public PlaneLayout<TileEntity> Floor { get; } = new(new Int2(50, 50)) { Direction = Int3.Up };
 
-    /// <summary>Ceiling material regions.</summary>
-    public Subdivision<TileEntity> Ceiling { get; } = new();
+    /// <summary>
+    /// Ceiling plane: attachment surface (Direction = Down, for hanging fixtures)
+    /// + material subdivision.
+    /// </summary>
+    public PlaneLayout<TileEntity> Ceiling { get; } = new(new Int2(50, 50)) { Direction = Int3.Down };
 
     public Graph2D<VoxelEntity> Boundary { get; } = new();
     public GridLayout2D<Region> Regions { get; } = new(new Int2(50, 50));
 
     /// <summary>
-    /// Floor placement surface (Direction = Up). Its size is established by the
-    /// operation logic when the level footprint is known.
-    /// </summary>
-    public VoxelLayout2D FloorSurface { get; set; } = new(new Int2(50, 50)) { Direction = Int3.Up };
-
-    /// <summary>
-    /// Ceiling placement surface (Direction = Down), for hanging fixtures.
-    /// </summary>
-    public VoxelLayout2D CeilingSurface { get; set; } = new(new Int2(50, 50)) { Direction = Int3.Down };
-
-    /// <summary>
-    /// All placement surfaces of this level: the floor, the ceiling, and each
-    /// wall's two faces. Placement logic queries this single catalog and uses
-    /// each surface's <see cref="VoxelLayout2D.Direction"/> to orient objects.
+    /// All placement surfaces of this level: the floor plane, the ceiling plane,
+    /// their attachment layers, and each wall's two faces. Placement logic
+    /// queries this single catalog and uses each surface's
+    /// <see cref="VoxelLayout2D.Direction"/> to orient objects.
     /// </summary>
     public IReadOnlyList<VoxelLayout2D> Layouts
     {
         get
         {
-            var layouts = new List<VoxelLayout2D> { FloorSurface, CeilingSurface };
+            var layouts = new List<VoxelLayout2D>();
+            layouts.AddRange(Floor.Layouts);
+            layouts.AddRange(Ceiling.Layouts);
             foreach (var wall in Entities.OfType<Wall>())
             {
                 layouts.AddRange(wall.Layouts);

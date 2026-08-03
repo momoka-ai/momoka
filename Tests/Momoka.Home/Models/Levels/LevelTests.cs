@@ -1,4 +1,6 @@
+using Momoka.Home.Models;
 using Momoka.Home.Models.Entities;
+using Momoka.Home.Models.Layouts;
 using Momoka.Home.Models.Levels;
 using Momoka.Home.Primitives;
 using Momoka.Home.Services;
@@ -28,6 +30,25 @@ public class LevelTests
     {
         var level = new Level();
         Assert.Equal(2, level.Layouts.Count);
+    }
+
+    [Fact]
+    public void Layouts_IncludesFloorAttachmentLayers()
+    {
+        var level = new Level();
+        level.Floor.AddLayer(2);
+
+        // 地板(1) + 地板层级(1) + 天花板(1)
+        Assert.Equal(3, level.Layouts.Count);
+        Assert.Equal(2, level.Floor.LayerAt(2)!.Surface.Offset.Y);
+    }
+
+    [Fact]
+    public void Floor_IsAPlaneLayoutWithMaterialSubdivision()
+    {
+        var level = new Level();
+        Assert.IsType<PlaneLayout<TileEntity>>(level.Floor);
+        Assert.NotNull(level.Floor.Subdivision);
     }
 
     [Fact]

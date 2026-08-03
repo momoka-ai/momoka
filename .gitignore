@@ -33,6 +33,7 @@ compile_commands.json
 
 ## Python
 __pycache__/
+.my_py_cache/
 *.py[cod]
 *$py.class
 *.egg-info/
