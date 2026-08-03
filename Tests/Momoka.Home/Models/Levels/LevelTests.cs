@@ -18,8 +18,8 @@ public class LevelTests
     {
         var level = new Level();
         var wall = new Wall();
-        level.Boundary.BuildPartition(new Int2(2, 0), new Int2(7, 0), wall);
-        level.Layout.ConstructAt(wall, new Int3(2, 0, 0));
+        level.Boundary.Build(new Int2(2, 0), new Int2(7, 0), wall);
+        level.Layout.BuildAt(wall, new Int3(2, 0, 0));
 
         // floor + ceiling + wall's two faces (E-W wall → south + north)
         Assert.Equal(4, level.Layouts.Count());
@@ -41,12 +41,12 @@ public class LevelTests
     }
 
     [Fact]
-    public void BuildPartition_AndConstructAt_PopulateGridAndBoundary()
+    public void Build_AndBuildAt_PopulateGridAndBoundary()
     {
         var level = new Level();
         var wall = new Wall();
-        Assert.True(level.Boundary.BuildPartition(new Int2(2, 0), new Int2(7, 0), wall));
-        Assert.True(level.Layout.ConstructAt(wall, new Int3(2, 0, 0)));
+        Assert.True(level.Boundary.Build(new Int2(2, 0), new Int2(7, 0), wall));
+        Assert.True(level.Layout.BuildAt(wall, new Int3(2, 0, 0)));
 
         var registered = Assert.Single(level.Layout.GetEntitiesOfType<Wall>());
         Assert.Equal(new Int3(2, 0, 0), registered.Coords);

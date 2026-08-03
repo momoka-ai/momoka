@@ -29,11 +29,9 @@ public class Level : VoxelEntity, IVoxelLayout2DSource
     public PlaneLayout<TileEntity> Ceiling { get; } = new(new Int2(50, 50)) { Direction = Int3.Down };
 
     /// <summary>Boundary partition graph (walls, fences…) with build/demolish.</summary>
-    public GraphLayout2D Boundary { get; }
+    public GraphLayout2D Boundary { get; } = new();
 
     public GridLayout2D<Region> Regions { get; } = new(new Int2(50, 50));
-
-    public Level() => Boundary = new GraphLayout2D();
 
     /// <summary>
     /// All placement surfaces of this level: the floor plane, the ceiling plane,

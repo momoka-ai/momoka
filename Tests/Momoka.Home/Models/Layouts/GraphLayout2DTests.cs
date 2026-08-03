@@ -19,12 +19,12 @@ public class GraphLayout2DTests
     }
 
     [Fact]
-    public void BuildPartition_PositionsPartitionAndRegistersEdge()
+    public void Build_PositionsPartitionAndRegistersEdge()
     {
         var graph = new GraphLayout2D();
         var wall = new Wall();
 
-        Assert.True(graph.BuildPartition(new Int2(2, 0), new Int2(7, 0), wall));
+        Assert.True(graph.Build(new Int2(2, 0), new Int2(7, 0), wall));
         Assert.Equal(new Int3(2, 0, 0), wall.Coords);
         Assert.NotNull(graph.TryGetNode(new Int2(2, 0)));
         Assert.NotNull(graph.TryGetNode(new Int2(7, 0)));
@@ -32,32 +32,32 @@ public class GraphLayout2DTests
     }
 
     [Fact]
-    public void BuildPartition_WorksWithAnyLineShapeEntity()
+    public void Build_WorksWithAnyLineShapeEntity()
     {
         var graph = new GraphLayout2D();
 
-        Assert.True(graph.BuildPartition(new Int2(0, 0), new Int2(0, 5), new FenceEntity()));
+        Assert.True(graph.Build(new Int2(0, 0), new Int2(0, 5), new FenceEntity()));
         Assert.Single(graph.Edges);
     }
 
     [Fact]
-    public void BuildPartition_NonLineShape_ReturnsFalse()
+    public void Build_NonLineShape_ReturnsFalse()
     {
         var graph = new GraphLayout2D();
 
-        Assert.False(graph.BuildPartition(new Int2(0, 0), new Int2(3, 0), new Appliance()));
+        Assert.False(graph.Build(new Int2(0, 0), new Int2(3, 0), new Appliance()));
         Assert.Empty(graph.Edges);
     }
 
     [Fact]
-    public void DemolishPartition_RemovesEdge()
+    public void Destroy_RemovesEdge()
     {
         var graph = new GraphLayout2D();
         var wall = new Wall();
-        graph.BuildPartition(new Int2(2, 0), new Int2(7, 0), wall);
+        graph.Build(new Int2(2, 0), new Int2(7, 0), wall);
 
-        Assert.True(graph.DemolishPartition(new Int2(2, 0), new Int2(7, 0)));
+        Assert.True(graph.Destroy(new Int2(2, 0), new Int2(7, 0)));
         Assert.Empty(graph.Edges);
-        Assert.False(graph.DemolishPartition(new Int2(2, 0), new Int2(7, 0))); // 已拆除
+        Assert.False(graph.Destroy(new Int2(2, 0), new Int2(7, 0))); // 已拆除
     }
 }

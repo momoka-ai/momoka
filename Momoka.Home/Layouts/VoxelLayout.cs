@@ -144,10 +144,10 @@ public class VoxelLayout3D : GridLayout3D<VoxelEntity>
     }
 
     /// <summary>
-    /// Constructs (places) the entity at <paramref name="cs"/>: writes EVERY one
-    /// of its shape voxels into the grid and registers it. False if collided.
+    /// Builds (places) the entity at <paramref name="cs"/>: writes EVERY one of
+    /// its shape voxels into the grid and registers it. False if collided.
     /// </summary>
-    public bool ConstructAt(VoxelEntity entity, Int3 cs)
+    public bool BuildAt(VoxelEntity entity, Int3 cs)
     {
         if (IsEntityCollided(entity, cs))
             return false;
@@ -162,17 +162,17 @@ public class VoxelLayout3D : GridLayout3D<VoxelEntity>
     }
 
     /// <summary>
-    /// Undoes <see cref="ConstructAt"/> at the entity's registered position:
+    /// Undoes <see cref="BuildAt"/> at the entity's registered position:
     /// removes the entity whose Coords equals <paramref name="pos"/>.
     /// </summary>
-    public bool DestructAt(Int3 pos)
+    public bool DestroyAt(Int3 pos)
     {
         var entity = Entities.OfType<VoxelEntity>().FirstOrDefault(e => e.Coords == pos);
         return entity is not null && Remove(entity);
     }
 
     /// <summary>Removes the entity covering the given target cell.</summary>
-    public bool DestructTarget(Int3 target)
+    public bool DestroyTarget(Int3 target)
     {
         if (this[target] is not VoxelEntity entity)
             return false;
@@ -183,7 +183,7 @@ public class VoxelLayout3D : GridLayout3D<VoxelEntity>
     /// Clears the current storage and re-rasterizes every held VoxelEntity into
     /// the grid — a forced flush/refresh after direct low-level cell writes.
     /// </summary>
-    public void FlushVoxelEntities()
+    public void Rebuild()
     {
         Clear();
         foreach (var entity in Entities.OfType<VoxelEntity>())
