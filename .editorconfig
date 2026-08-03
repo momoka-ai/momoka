@@ -23,3 +23,6 @@ dotnet_diagnostic.CA1716.severity = none
 # Protected readonly backing fields are an intentional internal pattern
 # (Entity._children, Graph._nodes, PalettedContainerRO internals)
 dotnet_diagnostic.CA1051.severity = none
+# VoxelLayout3D.IsEntityCollided(dest, src, cs) is a pure predicate but part of
+# the layout's instance collision API (kept non-static by design)
+dotnet_diagnostic.CA1822.severity = none

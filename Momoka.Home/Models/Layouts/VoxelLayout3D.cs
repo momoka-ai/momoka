@@ -4,66 +4,108 @@ using Momoka.Home.Primitives;
 namespace Momoka.Home.Models.Layouts;
 
 /// <summary>
-/// A 3D voxel occupancy container: chunked paletted storage plus the entities it
-/// contains. Owns the consistency between the cell grid and the entity list —
-/// placement, removal, and queries all go through here, so the two can never
-/// drift apart. The 3D counterpart of <see cref="VoxelLayout2D"/> (which is the
-/// 2D placement surface on a plane).
+/// A 3D voxel occupancy container: chunked paletted storage (inherits
+/// <see cref="GridLayout3D{T}"/>) plus the entities it holds. Owns the
+/// consistency between the cell grid and the entity list — every construction
+/// and destruction writes/clears ALL of the entity's voxels, so the two can
+/// never drift apart. The 3D counterpart of <see cref="VoxelLayout2D"/> (the 2D
+/// placement surface on a plane).
 /// </summary>
-public class VoxelLayout3D
+public class VoxelLayout3D : GridLayout3D<VoxelEntity>
 {
-    public Int3 ChunkSize { get; } = new(20, 30, 20);
-
-    /// <summary>Chunked paletted cell storage.</summary>
-    public GridLayout3D<VoxelEntity> Cells { get; }
-
-    /// <summary>All entities held by this space, kept in sync with <see cref="Cells"/>.</summary>
+    /// <summary>All entities held by this space, kept in sync with the cell grid.</summary>
     public List<Entity> Entities { get; } = new();
 
-    public VoxelLayout3D() => Cells = new GridLayout3D<VoxelEntity>(ChunkSize);
-
-    /// <summary>Gets or sets the VoxelEntity at a local coordinate (auto-creates the chunk on write).</summary>
-    public VoxelEntity? this[Int3 pos]
+    public VoxelLayout3D(Int3? chunkSize = null) : base(chunkSize ?? new Int3(20, 30, 20))
     {
-        get => Cells[pos];
-        set => Cells[pos] = value;
     }
 
     /// <summary>True if a VoxelEntity occupies the given position.</summary>
     public bool HasEntity(Int3 pos) => this[pos] is not null;
 
     /// <summary>
-    /// True if <paramref name="entity"/> can be placed at <paramref name="pos"/>:
-    /// the anchor is free and none of the entity's (local) shape voxels overlap
-    /// an occupied cell. Shape is local, so <paramref name="pos"/> offsets it.
+    /// True if placing <paramref name="entity"/> at <paramref name="cs"/> would
+    /// collide: the anchor or any of its (local) shape voxels lands on an
+    /// occupied cell.
     /// </summary>
-    public bool CanPlace(VoxelEntity entity, Int3 pos)
+    public bool IsEntityCollided(VoxelEntity entity, Int3 cs)
     {
-        if (HasEntity(pos))
-            return false;
+        if (HasEntity(cs))
+            return true;
 
         foreach (var cell in entity.Shape.GetVoxels())
         {
-            if (HasEntity(pos + cell))
-                return false;
+            if (HasEntity(cs + cell))
+                return true;
         }
-        return true;
+        return false;
     }
 
-    /// <summary>Places the entity at <paramref name="pos"/> and registers it.</summary>
-    public bool Place(VoxelEntity entity, Int3 pos)
+    /// <summary>
+    /// True if placing <paramref name="src"/> at <paramref name="cs"/> intersects
+    /// the specific <paramref name="dest"/> entity (dest voxels vs src voxels).
+    /// </summary>
+    public bool IsEntityCollided(VoxelEntity dest, VoxelEntity src, Int3 cs)
     {
-        if (!CanPlace(entity, pos))
+        var destCells = dest.Shape.GetVoxels()
+            .Select(v => dest.Coords + v)
+            .ToHashSet();
+        return src.Shape.GetVoxels().Any(v => destCells.Contains(cs + v));
+    }
+
+    /// <summary>
+    /// Constructs (places) the entity at <paramref name="cs"/>: writes EVERY one
+    /// of its shape voxels into the grid and registers it. False if collided.
+    /// </summary>
+    public bool ConstructAt(VoxelEntity entity, Int3 cs)
+    {
+        if (IsEntityCollided(entity, cs))
             return false;
 
-        entity.Coords = pos;
-        this[pos] = entity;
+        entity.Coords = cs;
+        foreach (var cell in entity.Shape.GetVoxels())
+        {
+            this[cs + cell] = entity;
+        }
         Entities.Add(entity);
         return true;
     }
 
-    /// <summary>Removes the entity and clears the cells it owns.</summary>
-    public bool Remove(VoxelEntity entity)
+    /// <summary>
+    /// Undoes <see cref="ConstructAt"/> at the entity's registered position:
+    /// removes the entity whose Coords equals <paramref name="pos"/>.
+    /// </summary>
+    public bool DestructAt(Int3 pos)
+    {
+        var entity = Entities.OfType<VoxelEntity>().FirstOrDefault(e => e.Coords == pos);
+        return entity is not null && Remove(entity);
+    }
+
+    /// <summary>Removes the entity covering the given target cell.</summary>
+    public bool DestructTarget(Int3 target)
+    {
+        if (this[target] is not VoxelEntity entity)
+            return false;
+        return Remove(entity);
+    }
+
+    /// <summary>
+    /// Clears the current storage and re-rasterizes every held VoxelEntity into
+    /// the grid — a forced flush/refresh after direct low-level cell writes.
+    /// </summary>
+    public void FlushVoxelEntities()
+    {
+        Clear();
+        foreach (var entity in Entities.OfType<VoxelEntity>())
+        {
+            foreach (var cell in entity.Shape.GetVoxels())
+            {
+                this[entity.Coords + cell] = entity;
+            }
+        }
+    }
+
+    private bool Remove(VoxelEntity entity)
     {
         if (!Entities.Remove(entity))
             return false;

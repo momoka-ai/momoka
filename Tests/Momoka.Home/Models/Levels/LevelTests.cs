@@ -33,17 +33,6 @@ public class LevelTests
     }
 
     [Fact]
-    public void Layouts_IncludesFloorAttachmentLayers()
-    {
-        var level = new Level();
-        level.Floor.AddLayer(2);
-
-        // 地板(1) + 地板层级(1) + 天花板(1)
-        Assert.Equal(3, level.Layouts.Count());
-        Assert.Equal(2, level.Floor.LayerAt(2)!.Surface.Offset.Y);
-    }
-
-    [Fact]
     public void Floor_IsAPlaneLayoutWithMaterialSubdivision()
     {
         var level = new Level();

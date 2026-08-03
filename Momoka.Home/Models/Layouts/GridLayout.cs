@@ -28,6 +28,9 @@ public abstract class GridLayout<T, TKey>(TKey chunkSize)
 
     private readonly Dictionary<TKey, Chunk> _innerDictionary = new();
 
+    /// <summary>Removes all chunks, emptying the grid.</summary>
+    public void Clear() => _innerDictionary.Clear();
+
     public abstract TKey AsChunkIndex(TKey coords);
 
     public abstract TKey AsChunkRelative(TKey coords);

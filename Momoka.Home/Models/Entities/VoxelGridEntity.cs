@@ -36,11 +36,15 @@ public class VoxelGridEntity : VoxelEntity
     /// <summary>True if a VoxelEntity occupies the given position.</summary>
     public bool HasEntity(Int3 coords) => Layout.HasEntity(coords);
 
-    public bool CanPlace(VoxelEntity entity, Int3 pos) => Layout.CanPlace(entity, pos);
+    public bool IsEntityCollided(VoxelEntity entity, Int3 pos) => Layout.IsEntityCollided(entity, pos);
 
-    public bool Place(VoxelEntity entity, Int3 pos) => Layout.Place(entity, pos);
+    public bool ConstructAt(VoxelEntity entity, Int3 pos) => Layout.ConstructAt(entity, pos);
 
-    public bool Remove(VoxelEntity entity) => Layout.Remove(entity);
+    public bool DestructAt(Int3 pos) => Layout.DestructAt(pos);
+
+    public bool DestructTarget(Int3 target) => Layout.DestructTarget(target);
+
+    public void FlushVoxelEntities() => Layout.FlushVoxelEntities();
 
     public List<VoxelEntity> GetEntitiesInBound(Int2 min, Int2 max) =>
         Layout.GetEntitiesInBound(min, max);

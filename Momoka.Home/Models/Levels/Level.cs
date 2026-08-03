@@ -36,9 +36,7 @@ public class Level : VoxelGridEntity, IVoxelLayout2DSource
     /// </summary>
     public IEnumerable<VoxelLayout2D> Layouts
     {
-        get => Entities.OfType<Wall>()
-                .SelectMany(x => x.Layouts)
-                .Concat(Floor.Layouts)
-                .Concat(Ceiling.Layouts);
+        get => new[] { Floor, Ceiling }
+                .Concat(Entities.OfType<Wall>().SelectMany(x => x.Layouts));
     }
 }
