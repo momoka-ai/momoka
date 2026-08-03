@@ -3,13 +3,17 @@ using Momoka.Home.Primitives;
 namespace Momoka.Home;
 
 /// <summary>
-/// A floor of a building: a <see cref="VoxelGridEntity"/> composed of a boundary
-/// partition graph (whose bounded faces are the rooms), floor/ceiling planes
-/// (placement surfaces + material regions), and a region layout. Coordinates
-/// are local to the owning building (see <see cref="VoxelEntity.Coords"/>).
+/// A floor of a building: an <see cref="VoxelEntity"/> composed of a voxel
+/// occupancy container (<see cref="Layout"/>), a boundary partition graph
+/// (whose bounded faces are the rooms), floor/ceiling planes (placement
+/// surfaces + material regions), and a region layout. Coordinates are local to
+/// the owning building (see <see cref="VoxelEntity.Coords"/>).
 /// </summary>
-public class Level : VoxelGridEntity, IVoxelLayout2DSource
+public class Level : VoxelEntity, IVoxelLayout2DSource
 {
+    /// <summary>The voxel occupancy container backing this floor.</summary>
+    public VoxelLayout3D Layout { get; } = new();
+
     /// <summary>
     /// Floor plane: placement surface (Direction = Up) + material subdivision.
     /// Size established by the operation logic when the level footprint is known.

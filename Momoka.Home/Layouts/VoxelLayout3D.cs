@@ -15,6 +15,9 @@ public class VoxelLayout3D : GridLayout3D<VoxelEntity>
     /// <summary>All entities held by this space, kept in sync with the cell grid.</summary>
     public List<Entity> Entities { get; } = new();
 
+    /// <summary>Inclusive footprint of the space (optional, set by the owner).</summary>
+    public Bound Bound { get; set; } = Bound.Empty;
+
     public VoxelLayout3D(Int3? chunkSize = null) : base(chunkSize ?? new Int3(20, 30, 20))
     {
     }

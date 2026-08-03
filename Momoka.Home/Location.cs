@@ -7,7 +7,7 @@ namespace Momoka.Home;
 /// level that owns them. Distinguishes "where" (Coords) from "which floor"
 /// (Level), so a bare Int3 can never be mistaken for a full location.
 /// </summary>
-public readonly record struct Location(Int3 Coords, VoxelGridEntity? Composition)
+public readonly record struct Location(Int3 Coords, VoxelLayout3D? Composition)
 {
     public int X => Coords.X;
     public int Y => Coords.Y;
