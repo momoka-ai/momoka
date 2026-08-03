@@ -1,4 +1,5 @@
-namespace Momoka.Home;
+using Momoka.Home;
+namespace Momoka.Home.States;
 
 public class StringProperty : Property<string>
 {

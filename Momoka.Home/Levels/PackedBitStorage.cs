@@ -1,4 +1,5 @@
-namespace Momoka.Home;
+using Momoka.Home;
+namespace Momoka.Home.Levels;
 
 /// <summary>
 /// Fixed-width packed bit array. Stores integer ids in an ulong[],

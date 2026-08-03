@@ -1,6 +1,8 @@
+using Momoka.Home;
+using Momoka.Home.Levels;
 using Momoka.Home.Primitives;
-
-namespace Momoka.Home;
+using Momoka.Home.Shapes;
+namespace Momoka.Home.Entities;
 
 /// <summary>
 /// A physically bounded structure with floors (<see cref="Levels"/>).

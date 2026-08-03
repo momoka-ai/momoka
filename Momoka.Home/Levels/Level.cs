@@ -1,6 +1,8 @@
+using Momoka.Home;
+using Momoka.Home.Entities;
+using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
-
-namespace Momoka.Home;
+namespace Momoka.Home.Levels;
 
 /// <summary>
 /// A floor of a building: an <see cref="VoxelEntity"/> composed of a voxel

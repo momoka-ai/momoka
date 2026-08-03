@@ -1,6 +1,7 @@
+using Momoka.Home;
+using Momoka.Home.Levels;
 using Momoka.Home.Primitives;
-
-namespace Momoka.Home;
+namespace Momoka.Home.Layouts;
 
 /// <summary>
 /// A generic chunked grid layout: items stored per grid cell, backed by a

@@ -1,4 +1,5 @@
-namespace Momoka.Home;
+using Momoka.Home;
+namespace Momoka.Home.Levels;
 
 /// <summary>
 /// Read-only view of a paletted container. Handles TKey &lt;-&gt; index conversion

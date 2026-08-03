@@ -1,6 +1,6 @@
+using Momoka.Home;
 using Momoka.Home.Primitives;
-
-namespace Momoka.Home;
+namespace Momoka.Home.Layouts;
 
 /// <summary>
 /// A large planar surface — a floor, a ceiling — combining:

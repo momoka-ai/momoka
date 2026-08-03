@@ -1,6 +1,8 @@
+using Momoka.Home;
+using Momoka.Home.Entities;
 using Momoka.Home.Primitives;
-
-namespace Momoka.Home;
+using Momoka.Home.Shapes;
+namespace Momoka.Home.Layouts;
 
 /// <summary>
 /// 2D boundary layout: a planar graph whose edges are partitions (walls, fences,

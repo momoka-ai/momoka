@@ -1,5 +1,4 @@
 using BenchmarkDotNet.Running;
-
 using Momoka.Home;
 namespace Momoka.Home.Benchmarks;
 

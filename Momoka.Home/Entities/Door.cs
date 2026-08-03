@@ -1,5 +1,7 @@
-
-namespace Momoka.Home;
+using Momoka.Home;
+using Momoka.Home.Shapes;
+using Momoka.Home.States;
+namespace Momoka.Home.Entities;
 
 public class Door : VoxelEntity
 {

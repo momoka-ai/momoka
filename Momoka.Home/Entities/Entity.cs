@@ -1,6 +1,8 @@
+using Momoka.Home;
+using Momoka.Home.Components;
 using Momoka.Home.Primitives;
-
-namespace Momoka.Home;
+using Momoka.Home.States;
+namespace Momoka.Home.Entities;
 
 public abstract class Entity : PropertyValueObject, IComponentSource
 {

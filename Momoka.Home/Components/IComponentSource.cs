@@ -1,5 +1,5 @@
-
-namespace Momoka.Home;
+using Momoka.Home;
+namespace Momoka.Home.Components;
 
 /// <summary>
 /// Capability of an object to hold behavior components — pure property carriers
