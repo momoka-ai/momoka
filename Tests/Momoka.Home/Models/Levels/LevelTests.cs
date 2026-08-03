@@ -3,7 +3,6 @@ using Momoka.Home.Models.Entities;
 using Momoka.Home.Models.Layouts;
 using Momoka.Home.Models.Levels;
 using Momoka.Home.Primitives;
-using Momoka.Home.Services;
 using Xunit;
 
 namespace Momoka.Home.Tests.Models.Levels;
@@ -19,7 +18,7 @@ public class LevelTests
     public void Layouts_IncludesFloorCeilingAndWallFaces()
     {
         var level = new Level();
-        WallBuildingService.BuildWall(level, new Int2(2, 0), new Int2(7, 0));
+        level.BuildWall(new Int2(2, 0), new Int2(7, 0));
 
         // floor + ceiling + wall's two faces (E-W wall → south + north)
         Assert.Equal(4, level.Layouts.Count());
@@ -44,7 +43,7 @@ public class LevelTests
     public void BuildWall_PopulatesGridAndBoundary()
     {
         var level = new Level();
-        Assert.True(WallBuildingService.BuildWall(level, new Int2(2, 0), new Int2(7, 0)));
+        Assert.True(level.BuildWall(new Int2(2, 0), new Int2(7, 0)));
 
         var wall = Assert.Single(level.GetEntitiesOfType<Wall>());
         Assert.Equal(new Int3(2, 0, 0), wall.Coords);
