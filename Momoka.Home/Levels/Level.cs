@@ -29,19 +29,20 @@ public class Level : VoxelEntity, IVoxelLayout2DSource
     public PlaneLayout<TileEntity> Ceiling { get; } = new(new Int2(50, 50)) { Direction = Int3.Down };
 
     /// <summary>Boundary partition graph (walls, fences…) with build/demolish.</summary>
-    public FloorPlanLayout Boundary { get; } = new();
+    public FloorPlanLayout Plan { get; } = new();
 
     public GridLayout2D<Region> Regions { get; } = new(new Int2(50, 50));
 
     /// <summary>
     /// All placement surfaces of this level: the floor plane, the ceiling plane,
-    /// and each partition's faces. Placement logic queries this single catalog
+    /// and every contained surface-source entity's own surfaces (walls' faces,
+    /// shelves, mounted panels…). Placement logic queries this single catalog
     /// and uses each surface's <see cref="VoxelLayout2D.Direction"/> to orient
     /// objects.
     /// </summary>
     public IEnumerable<VoxelLayout2D> Layouts
     {
         get => new[] { Floor, Ceiling }
-                .Concat(Layout.Entities.OfType<Wall>().SelectMany(x => x.Layouts));
+                .Concat(Layout.Entities.OfType<IVoxelLayout2DSource>().SelectMany(x => x.Layouts));
     }
 }

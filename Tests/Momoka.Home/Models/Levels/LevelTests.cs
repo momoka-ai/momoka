@@ -4,21 +4,35 @@ using Momoka.Home.Entities;
 using Momoka.Home.Layouts;
 using Momoka.Home.Levels;
 using Momoka.Home.Primitives;
+using Momoka.Home.Shapes;
 namespace Momoka.Home.Tests.Models.Levels;
 
 /// <summary>
 /// End-to-end checks of the level as the unified placement-surface catalog:
-/// Level : IVoxelLayout2DSource aggregates its floor/ceiling surfaces and every
-/// wall's two faces, and BuildWall rasterizes a wall into the occupancy grid.
+/// Level : IVoxelLayout2DSource aggregates its floor/ceiling planes and every
+/// contained surface-source entity's surfaces (walls' faces and any other
+/// IVoxelLayout2DSource placed in the occupancy grid).
 /// </summary>
 public class LevelTests
 {
+    private sealed class SurfaceSourceEntity : VoxelEntity, IVoxelLayout2DSource
+    {
+        public SurfaceSourceEntity()
+        {
+            Shape = new BoxShape();
+            Surface = new VoxelLayout2D(new Int2(2, 2));
+        }
+
+        public VoxelLayout2D Surface { get; }
+
+        public IEnumerable<VoxelLayout2D> Layouts => new[] { Surface };
+    }
     [Fact]
     public void Layouts_IncludesFloorCeilingAndWallFaces()
     {
         var level = new Level();
         var wall = new Wall();
-        level.Boundary.Build(new Int2(2, 0), new Int2(7, 0), wall);
+        level.Plan.Build(new Int2(2, 0), new Int2(7, 0), wall);
         level.Layout.BuildAt(wall, new Int3(2, 0, 0));
 
         // floor + ceiling + wall's two faces (E-W wall → south + north)
@@ -30,6 +44,18 @@ public class LevelTests
     {
         var level = new Level();
         Assert.Equal(2, level.Layouts.Count());
+    }
+
+    [Fact]
+    public void Layouts_IncludesAnySurfaceSourceEntity_NotJustWalls()
+    {
+        var level = new Level();
+        var source = new SurfaceSourceEntity();
+        level.Layout.BuildAt(source, new Int3(2, 0, 0));
+
+        // floor + ceiling + the custom surface-source entity's surface
+        Assert.Equal(3, level.Layouts.Count());
+        Assert.Contains(source.Surface, level.Layouts);
     }
 
     [Fact]
@@ -45,7 +71,7 @@ public class LevelTests
     {
         var level = new Level();
         var wall = new Wall();
-        Assert.True(level.Boundary.Build(new Int2(2, 0), new Int2(7, 0), wall));
+        Assert.True(level.Plan.Build(new Int2(2, 0), new Int2(7, 0), wall));
         Assert.True(level.Layout.BuildAt(wall, new Int3(2, 0, 0)));
 
         var registered = Assert.Single(level.Layout.GetEntitiesOfType<Wall>());
@@ -57,7 +83,7 @@ public class LevelTests
         Assert.False(level.Layout.HasEntity(new Int3(1, 0, 0)));
 
         // boundary nodes registered
-        Assert.NotNull(level.Boundary.TryGetNode(new Int2(2, 0)));
-        Assert.NotNull(level.Boundary.TryGetNode(new Int2(7, 0)));
+        Assert.NotNull(level.Plan.TryGetNode(new Int2(2, 0)));
+        Assert.NotNull(level.Plan.TryGetNode(new Int2(7, 0)));
     }
 }

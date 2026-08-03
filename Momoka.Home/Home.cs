@@ -6,9 +6,9 @@ namespace Momoka.Home;
 /// <summary>
 /// The outermost digital-twin root: the whole property/residence.
 ///
-/// Home is a <see cref="VoxelEntity"/> — the yard. Its voxel occupancy
+/// Home is a <see cref="Entity"/> — the yard. Its voxel occupancy
 /// container (<see cref="Layout"/>) holds buildings, fences, and terrain
-/// features placed as ordinary <see cref="VoxelEntity"/> instances, so
+/// features placed as ordinary <see cref="Entity"/> instances, so
 /// external-view editing reuses the same block-editing logic as interiors.
 /// Its grid height should be set to the tallest building's height and its
 /// <see cref="VoxelLayout3D.Bound"/> to the whole yard.
@@ -20,7 +20,7 @@ namespace Momoka.Home;
 /// <see cref="Buildings"/>. Site-wide data sources (Weather, GPS, TimeZone,
 /// Location) and whole-home command components are mounted as entity components.
 /// </summary>
-public class Home : VoxelEntity
+public class Home : Entity
 {
     public VoxelLayout3D Layout { get; } = new();
     public FloorPlanLayout Boundary { get; } = new();
