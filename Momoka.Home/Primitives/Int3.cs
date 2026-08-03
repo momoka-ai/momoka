@@ -4,7 +4,7 @@ namespace Momoka.Home.Primitives;
 
 /// <summary>
 /// 3D integer grid coordinate (X, Y, Z). Represents a discrete position
-/// at 10 cm precision. Used as a dictionary key in BlockCanvas.
+/// at 10 cm precision. Used as a dictionary key in voxel grids.
 /// </summary>
 public readonly record struct Int3(int X, int Y, int Z)
 {

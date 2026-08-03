@@ -4,22 +4,24 @@ namespace Momoka.Home.Models.Shapes;
 
 public class BoxShape : Shape
 {
-    public Float3 Origin { get; set; }
     public int SizeX { get; set; } = 1;
     public int SizeY { get; set; } = 1;
     public int SizeZ { get; set; } = 1;
 
-    /// <summary>Rasterizes the box volume (X × Y × Z, snapped to the grid).</summary>
+    /// <summary>
+    /// Rasterizes the box volume (X × Y × Z) into LOCAL cells — relative to the
+    /// host entity's Coords (world = Coords + cell). The shape carries no
+    /// position; it only describes its own geometry.
+    /// </summary>
     public override IEnumerable<Int3> GetVoxels()
     {
-        var o = Origin.Int3;
         for (var dy = 0; dy < SizeY; dy++)
         {
             for (var dx = 0; dx < SizeX; dx++)
             {
                 for (var dz = 0; dz < SizeZ; dz++)
                 {
-                    yield return o + new Int3(dx, dy, dz);
+                    yield return new Int3(dx, dy, dz);
                 }
             }
         }
@@ -30,18 +32,15 @@ public class BoxShape : Shape
     /// contacts the surface. For a 2(thickness)×3(height)×3(width) cabinet this
     /// is 2×3. The placement orientates the box onto the surface, so its local XZ
     /// maps to the surface plane (floor → world XZ, wall East/West → world YZ,
-    /// wall North/South → world XY), which yields the correct footprint for both
-    /// horizontal and vertical placement. Cells are absolute (include
-    /// <see cref="Origin"/>), so a layout can check them directly.
+    /// wall North/South → world XY). Cells are LOCAL (relative to Coords).
     /// </summary>
     public override IEnumerable<Int2> GetVoxelsOnAngle()
     {
-        var o = Origin.Int2;
         for (var dx = 0; dx < SizeX; dx++)
         {
             for (var dz = 0; dz < SizeZ; dz++)
             {
-                yield return new Int2(o.X + dx, o.Z + dz);
+                yield return new Int2(dx, dz);
             }
         }
     }

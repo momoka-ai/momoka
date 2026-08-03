@@ -21,7 +21,7 @@ public class Region
     {
         foreach (var pos in entity.Shape.GetVoxels())
         {
-            if (!Contains(pos.Xz))
+            if (!Contains((entity.Coords + pos).Xz))
                 return false;
         }
         return true;
@@ -34,7 +34,7 @@ public class Region
         foreach (var pos in entity.Shape.GetVoxels())
         {
             total++;
-            if (Contains(pos.Xz))
+            if (Contains((entity.Coords + pos).Xz))
                 inside++;
         }
         return total == 0 ? 0f : (float)inside / total;

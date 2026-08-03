@@ -11,8 +11,10 @@ public static class WallBuildingService
     {
         wall ??= new Wall();
         var shape = (LineShape)wall.Shape;
-        shape.Start = from.ToFloat3();
-        shape.End = to.ToFloat3();
+        // Shape is local: anchor the wall at `from`, the segment is relative.
+        wall.Coords = from.ToInt3();
+        shape.Start = Float3.Zero;
+        shape.End = (to - from).ToFloat3();
 
         level.Boundary.AddNode(from);
         level.Boundary.AddNode(to);
@@ -20,7 +22,7 @@ public static class WallBuildingService
 
         foreach (var cell in shape.GetVoxels())
         {
-            level[cell] = wall;
+            level[wall.Coords + cell] = wall;
         }
 
         level.Entities.Add(wall);

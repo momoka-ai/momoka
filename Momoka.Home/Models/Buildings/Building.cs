@@ -27,15 +27,17 @@ public class Building : VoxelEntity
 
     public Building()
     {
-        Shape = new BoxShape { Origin = Bound.Min.ToFloat3(), SizeX = Bound.SizeX, SizeZ = Bound.SizeZ };
+        Shape = new BoxShape { SizeX = Bound.SizeX, SizeZ = Bound.SizeZ };
     }
 
     /// <summary>
-    /// Sets the building's footprint and updates its exterior <see cref="Shape"/> accordingly.
+    /// Sets the building's footprint, positions it in the parent space, and
+    /// updates its exterior <see cref="Shape"/> accordingly.
     /// </summary>
     public void SetFootprint(Bound bound)
     {
         Bound = bound;
-        Shape = new BoxShape { Origin = bound.Min.ToFloat3(), SizeX = bound.SizeX, SizeZ = bound.SizeZ };
+        Coords = bound.Min;
+        Shape = new BoxShape { SizeX = bound.SizeX, SizeZ = bound.SizeZ };
     }
 }

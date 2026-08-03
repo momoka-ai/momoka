@@ -27,8 +27,8 @@ public class Home : VoxelGridEntity
     /// <summary>Fence/boundary topology across the yard; its bounded faces enclose lawn, driveway, pool areas.</summary>
     public Graph2D<VoxelEntity> Boundary { get; } = new();
 
-    /// <summary>Ground surface (lawn, paving) as 2D tiles.</summary>
-    public Canvas<TileEntity, Int2> FloorCanvas { get; } = new();
+    /// <summary>Ground surface (lawn, paving) as material regions.</summary>
+    public Subdivision<TileEntity> Ground { get; } = new();
 
     /// <summary>Named outdoor areas (lawn, driveway, pool) on the property.</summary>
     public GridLayout2D<Region> Regions { get; } = new(new Int2(50, 50));

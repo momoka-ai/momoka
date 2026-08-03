@@ -18,7 +18,7 @@ public class VoxelLayout2D : GridLayout2D<bool>
         Offset = offset ?? Int3.Zero;
     }
 
-    /// <summary>Offset of the layout plane relative to its host entity.</summary>
+    /// <summary>Position of the layout plane's origin in the parent space (e.g. level-local coords).</summary>
     public Int3 Offset { get; set; }
 
     /// <summary>Normal direction of the surface (which way placed objects face).</summary>
@@ -50,21 +50,20 @@ public class VoxelLayout2D : GridLayout2D<bool>
         return new Int2(rel.X, rel.Z);
     }
 
-    /// <summary>True if the local cell allows placement (in bounds and not blocked).</summary>
-    public bool IsCollided(Int2 xzCoords) => this[xzCoords];
+    /// <summary>True if the local cell is blocked (cannot be placed there).</summary>
+    public bool IsCollided(Int2 xzCoords) => !this[xzCoords];
 
     /// <summary>
-    /// True if any of the shape's support-footprint cells — as returned by
-    /// <see cref="Shape.GetVoxelsOnAngle"/>, expressed in this layout's local
-    /// frame — lands on a blocked (or out-of-bounds) cell. The placement
-    /// transforms the object's footprint onto the surface plane (using
-    /// <see cref="ToLocal"/> for the vertical/horizontal case) before querying.
+    /// True if the shape's support footprint, placed at layout-local
+    /// <paramref name="pos"/>, lands on any blocked (or out-of-bounds) cell.
+    /// The footprint cells come from <see cref="Shape.GetVoxelsOnAngle"/> and are
+    /// local to the object — the object's position on this surface is added here.
     /// </summary>
-    public bool IsCollided(Shape shape)
+    public bool IsCollided(Shape shape, Int2 pos)
     {
         foreach (var cell in shape.GetVoxelsOnAngle())
         {
-            if (!this[cell])
+            if (!this[cell + pos])
                 return true;
         }
         return false;

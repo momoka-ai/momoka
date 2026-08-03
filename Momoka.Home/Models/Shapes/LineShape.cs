@@ -4,7 +4,9 @@ namespace Momoka.Home.Models.Shapes;
 
 public class LineShape : Shape
 {
+    /// <summary>Start of the segment, in the host entity's LOCAL frame (relative to Coords).</summary>
     public Float3 Start { get; set; }
+    /// <summary>End of the segment, in the host entity's LOCAL frame.</summary>
     public Float3 End { get; set; }
     public float Curvature { get; set; }
     public int Thickness { get; set; } = 1;

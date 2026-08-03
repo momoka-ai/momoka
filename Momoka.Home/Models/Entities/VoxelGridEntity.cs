@@ -7,10 +7,10 @@ namespace Momoka.Home.Models.Entities;
 /// <summary>
 /// An <see cref="VoxelEntity"/> that is itself a spatial volume of blocks — a 3D
 /// grid backed by chunked paletted storage. The grid owns a local coordinate
-/// system; <see cref="Origin"/> offsets it relative to its parent composition,
-/// so an assembled space (a building, the yard) can move as a whole without
-/// re-keying its contents. <see cref="Level"/> (a floor) and Home (the yard)
-/// are both block compositions.
+/// system; <see cref="VoxelEntity.Coords"/> offsets it relative to its parent
+/// composition, so an assembled space (a building, the yard) can move as a whole
+/// without re-keying its contents. <see cref="Level"/> (a floor) and Home (the
+/// yard) are both block compositions.
 /// </summary>
 public class VoxelGridEntity : VoxelEntity
 {
@@ -55,7 +55,7 @@ public class VoxelGridEntity : VoxelEntity
         {
             foreach (var loc in entity.Shape.GetVoxels())
             {
-                var p = loc.Xz;
+                var p = (entity.Coords + loc).Xz;
                 if (p.X >= min.X && p.X <= max.X && p.Z >= min.Z && p.Z <= max.Z)
                 {
                     result.Add(entity);
