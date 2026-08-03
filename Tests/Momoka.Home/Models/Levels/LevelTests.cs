@@ -15,7 +15,7 @@ public class LevelTests
     public void Layouts_IncludesFloorCeilingAndWallFaces()
     {
         var level = new Level();
-        level.BuildWall(new Int2(2, 0), new Int2(7, 0));
+        level.Boundary.BuildPartition(new Int2(2, 0), new Int2(7, 0), new Wall());
 
         // floor + ceiling + wall's two faces (E-W wall → south + north)
         Assert.Equal(4, level.Layouts.Count());
@@ -37,18 +37,18 @@ public class LevelTests
     }
 
     [Fact]
-    public void BuildWall_PopulatesGridAndBoundary()
+    public void BuildPartition_PopulatesGridAndBoundary()
     {
         var level = new Level();
-        Assert.True(level.BuildWall(new Int2(2, 0), new Int2(7, 0)));
+        Assert.True(level.Boundary.BuildPartition(new Int2(2, 0), new Int2(7, 0), new Wall()));
 
-        var wall = Assert.Single(level.GetEntitiesOfType<Wall>());
+        var wall = Assert.Single(level.Layout.GetEntitiesOfType<Wall>());
         Assert.Equal(new Int3(2, 0, 0), wall.Coords);
 
         // voxels occupy (2..7, 0, 0) — anchored at Coords + local
-        Assert.True(level.HasEntity(new Int3(2, 0, 0)));
-        Assert.True(level.HasEntity(new Int3(7, 0, 0)));
-        Assert.False(level.HasEntity(new Int3(1, 0, 0)));
+        Assert.True(level.Layout.HasEntity(new Int3(2, 0, 0)));
+        Assert.True(level.Layout.HasEntity(new Int3(7, 0, 0)));
+        Assert.False(level.Layout.HasEntity(new Int3(1, 0, 0)));
 
         // boundary nodes registered
         Assert.NotNull(level.Boundary.TryGetNode(new Int2(2, 0)));

@@ -21,8 +21,8 @@ namespace Momoka.Home;
 /// </summary>
 public class Home : VoxelGridEntity
 {
-    /// <summary>Fence/boundary topology across the yard; its bounded faces enclose lawn, driveway, pool areas.</summary>
-    public Graph2D<VoxelEntity> Boundary { get; } = new();
+    /// <summary>Fence/boundary partition graph across the yard (fences, walls…); its bounded faces enclose lawn, driveway, pool areas.</summary>
+    public GraphLayout2D Boundary { get; }
 
     /// <summary>Ground surface (lawn, paving) as material regions.</summary>
     public Subdivision<TileEntity> Ground { get; } = new();
@@ -32,4 +32,6 @@ public class Home : VoxelGridEntity
 
     /// <summary>Accessory structures attached to or standing on the property.</summary>
     public List<Building> Buildings { get; } = new();
+
+    public Home() => Boundary = new GraphLayout2D(Layout);
 }
