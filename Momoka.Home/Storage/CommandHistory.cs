@@ -1,5 +1,5 @@
-using Momoka.Home.Models.Entities;
 
+using Momoka.Home;
 namespace Momoka.Home.Storage;
 
 public class CommandHistory

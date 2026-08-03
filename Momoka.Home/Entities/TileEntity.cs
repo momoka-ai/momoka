@@ -1,7 +1,5 @@
-using Momoka.Home.Models.Entities;
-using Momoka.Home.Models.States;
 
-namespace Momoka.Home.Models;
+namespace Momoka.Home;
 
 public class TileEntity : Entity
 {

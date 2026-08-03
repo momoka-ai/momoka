@@ -1,7 +1,6 @@
-using Momoka.Home.Models.Layouts;
 using Momoka.Home.Primitives;
 
-namespace Momoka.Home.Models.Entities;
+namespace Momoka.Home;
 
 /// <summary>
 /// An <see cref="VoxelEntity"/> that is itself a spatial volume of blocks — a

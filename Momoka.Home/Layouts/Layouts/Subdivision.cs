@@ -1,6 +1,6 @@
 using Momoka.Home.Primitives;
 
-namespace Momoka.Home.Models.Layouts;
+namespace Momoka.Home;
 
 /// <summary>
 /// A planar subdivision: a straight-line planar graph (inherits

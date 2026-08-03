@@ -1,6 +1,6 @@
 using Momoka.Home.Primitives;
 
-namespace Momoka.Home.Models.Entities;
+namespace Momoka.Home;
 
 public class RobotEntity : Entity
 {

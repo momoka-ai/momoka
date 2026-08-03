@@ -1,6 +1,6 @@
 using Momoka.Home.Primitives;
 
-namespace Momoka.Home.Models.Layouts;
+namespace Momoka.Home;
 
 public class Graph<T, TCoords> where T : class where TCoords : notnull
 {

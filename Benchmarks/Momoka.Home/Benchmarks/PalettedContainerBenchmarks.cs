@@ -1,7 +1,7 @@
 using BenchmarkDotNet.Attributes;
-using Momoka.Home.Models.Levels;
 using Momoka.Home.Primitives;
 
+using Momoka.Home;
 namespace Momoka.Home.Benchmarks;
 
 /// <summary>

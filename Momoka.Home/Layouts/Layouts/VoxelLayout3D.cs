@@ -1,7 +1,6 @@
-using Momoka.Home.Models.Entities;
 using Momoka.Home.Primitives;
 
-namespace Momoka.Home.Models.Layouts;
+namespace Momoka.Home;
 
 /// <summary>
 /// A 3D voxel occupancy container: chunked paletted storage (inherits

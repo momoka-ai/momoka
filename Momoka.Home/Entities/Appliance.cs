@@ -1,7 +1,5 @@
-using Momoka.Home.Models.Shapes;
-using Momoka.Home.Models.States;
 
-namespace Momoka.Home.Models.Entities;
+namespace Momoka.Home;
 
 public enum PowerState
 {

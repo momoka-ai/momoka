@@ -1,4 +1,4 @@
-namespace Momoka.Home.Models.Entities;
+namespace Momoka.Home;
 
 public class Pet : LivingEntity
 {

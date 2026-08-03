@@ -1,5 +1,6 @@
 using BenchmarkDotNet.Running;
 
+using Momoka.Home;
 namespace Momoka.Home.Benchmarks;
 
 public static class Program

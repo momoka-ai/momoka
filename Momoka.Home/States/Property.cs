@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace Momoka.Home.Models.States;
+namespace Momoka.Home;
 
 public abstract class Property
 {

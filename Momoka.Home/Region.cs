@@ -1,8 +1,6 @@
-using Momoka.Home.Models.Entities;
 using Momoka.Home.Primitives;
-using Momoka.Home.Models.Shapes;
 
-namespace Momoka.Home.Models;
+namespace Momoka.Home;
 
 public class Region
 {

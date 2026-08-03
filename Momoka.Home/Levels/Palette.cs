@@ -1,6 +1,6 @@
 using Momoka.Home.Primitives;
 
-namespace Momoka.Home.Models.Levels;
+namespace Momoka.Home;
 
 /// <summary>
 /// Bidirectional id &lt;-&gt; value mapping for palette storage.

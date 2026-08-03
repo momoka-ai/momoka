@@ -1,9 +1,6 @@
-using Momoka.Home.Models.Layouts;
-using Momoka.Home.Models.Shapes;
-using Momoka.Home.Models.States;
 using Momoka.Home.Primitives;
 
-namespace Momoka.Home.Models.Entities;
+namespace Momoka.Home;
 
 /// <summary>
 /// A wall segment: a straight line (see <see cref="LineShape"/>) with a

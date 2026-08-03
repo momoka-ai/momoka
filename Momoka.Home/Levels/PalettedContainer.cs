@@ -1,4 +1,4 @@
-namespace Momoka.Home.Models.Levels;
+namespace Momoka.Home;
 
 /// <summary>
 /// Paletted container: sparse entities are stored as small integer ids

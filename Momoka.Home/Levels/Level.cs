@@ -1,9 +1,6 @@
-using Momoka.Home.Models.Entities;
-using Momoka.Home.Models.Layouts;
-using Momoka.Home.Models.Shapes;
 using Momoka.Home.Primitives;
 
-namespace Momoka.Home.Models.Levels;
+namespace Momoka.Home;
 
 /// <summary>
 /// A floor of a building: a <see cref="VoxelGridEntity"/> composed of a wall

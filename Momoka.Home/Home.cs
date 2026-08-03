@@ -1,8 +1,6 @@
-using Momoka.Home.Models.Entities;
-using Momoka.Home.Models.Layouts;
 using Momoka.Home.Primitives;
 
-namespace Momoka.Home.Models;
+namespace Momoka.Home;
 
 /// <summary>
 /// The outermost digital-twin root: the whole property/residence.

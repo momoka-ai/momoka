@@ -1,8 +1,7 @@
-using Momoka.Home.Models;
-using Momoka.Home.Models.Layouts;
 using Momoka.Home.Primitives;
 using Xunit;
 
+using Momoka.Home;
 namespace Momoka.Home.Tests.Models.Layouts;
 
 /// <summary>

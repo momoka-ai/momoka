@@ -1,6 +1,5 @@
-using Momoka.Home.Models.States;
 
-namespace Momoka.Home.Models.Entities;
+namespace Momoka.Home;
 
 public class Curtain : Appliance
 {

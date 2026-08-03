@@ -1,7 +1,6 @@
-using Momoka.Home.Models.Shapes;
 using Momoka.Home.Primitives;
 
-namespace Momoka.Home.Models.Layouts;
+namespace Momoka.Home;
 
 /// <summary>
 /// A 2D placement layout on an entity's surface: a planar grid (inherits

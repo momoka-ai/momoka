@@ -1,7 +1,5 @@
-using Momoka.Home.Models.Entities;
-using Momoka.Home.Models.States;
 
-namespace Momoka.Home.Models.Components;
+namespace Momoka.Home;
 
 /// <summary>
 /// Base for behavior components attached to an <see cref="IComponentSource"/>.

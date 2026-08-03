@@ -1,7 +1,6 @@
-using Momoka.Home.Models.Shapes;
 using Momoka.Home.Primitives;
 
-namespace Momoka.Home.Models.Entities;
+namespace Momoka.Home;
 
 public abstract class VoxelEntity : Entity
 {

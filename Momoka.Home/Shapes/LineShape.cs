@@ -1,6 +1,6 @@
 using Momoka.Home.Primitives;
 
-namespace Momoka.Home.Models.Shapes;
+namespace Momoka.Home;
 
 public class LineShape : Shape
 {

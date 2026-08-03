@@ -1,4 +1,4 @@
-namespace Momoka.Home.Models.States;
+namespace Momoka.Home;
 
 public class FloatProperty : Property<float>
 {

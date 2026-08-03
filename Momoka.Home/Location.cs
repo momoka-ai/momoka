@@ -1,7 +1,6 @@
-using Momoka.Home.Models.Entities;
 using Momoka.Home.Primitives;
 
-namespace Momoka.Home.Models.Levels;
+namespace Momoka.Home;
 
 /// <summary>
 /// A location in the digital twin: grid coordinates plus a reference to the
