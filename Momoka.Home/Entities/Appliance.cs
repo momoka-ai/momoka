@@ -1,4 +1,5 @@
 using Momoka.Home;
+using Momoka.Home.Primitives;
 using Momoka.Home.Shapes;
 using Momoka.Home.States;
 namespace Momoka.Home.Entities;
@@ -19,9 +20,9 @@ public enum ConnectionState
 
 public class Appliance : VoxelEntity
 {
-    public static readonly EnumProperty<PowerState> POWER = new("power", typeof(Appliance), PowerState.Off);
-    public static readonly EnumProperty<ConnectionState> CONNECTION = new("connection", typeof(Appliance), ConnectionState.Offline);
-    public static readonly TextureProperty TEXTURE = new("texture", typeof(Appliance));
+    public static readonly EnumProperty<PowerState> POWER = new("power", new Key("appliance"), PowerState.Off);
+    public static readonly EnumProperty<ConnectionState> CONNECTION = new("connection", new Key("appliance"), ConnectionState.Offline);
+    public static readonly TextureProperty TEXTURE = new("texture", new Key("appliance"));
 
     public Appliance()
     {

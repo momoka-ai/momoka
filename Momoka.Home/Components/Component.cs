@@ -1,5 +1,6 @@
 using Momoka.Home;
 using Momoka.Home.Entities;
+using Momoka.Home.Primitives;
 using Momoka.Home.States;
 namespace Momoka.Home.Components;
 
@@ -11,7 +12,7 @@ namespace Momoka.Home.Components;
 /// </summary>
 public abstract class Component : PropertyValueObject
 {
-    public static readonly StringProperty SOURCE_ID = new("source_id", typeof(Component));
+    public static readonly StringProperty SOURCE_ID = new("source_id", new Key("component"));
 
     public Guid Id { get; init; } = Guid.NewGuid();
 

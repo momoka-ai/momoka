@@ -1,11 +1,12 @@
 using Momoka.Home;
+using Momoka.Home.Primitives;
 namespace Momoka.Home.States;
 
 public class EnumProperty<T> : Property<T>
     where T : Enum
 {
-    public EnumProperty(string name, Type ownerType, T defaultValue, string description = "")
-        : base(name, ownerType, defaultValue, description)
+    public EnumProperty(string name, Key templateKey, T defaultValue, string description = "")
+        : base(name, templateKey, defaultValue, description)
     {
     }
 

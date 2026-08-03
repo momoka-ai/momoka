@@ -1,10 +1,11 @@
 using Momoka.Home;
+using Momoka.Home.Primitives;
 namespace Momoka.Home.States;
 
 public class BooleanProperty : Property<bool>
 {
-    public BooleanProperty(string name, Type ownerType, bool defaultValue = false, string description = "")
-        : base(name, ownerType, defaultValue, description)
+    public BooleanProperty(string name, Key templateKey, bool defaultValue = false, string description = "")
+        : base(name, templateKey, defaultValue, description)
     {
     }
 

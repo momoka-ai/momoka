@@ -90,7 +90,7 @@ classDiagram
 
 ### 3.3 Property API
 
-`Name` / `OwnerType` / `PropertyType` / `Description` / `DefaultValue` / `IsReadOnly` / `ValidateValueCallback` / `IsValidType` / `IsValidValue` / `ToSchema()` / `GetValidValues()` / `Create(...)`。
+`Name` / `TemplateKey` / `PropertyType` / `Description` / `DefaultValue` / `IsReadOnly` / `ValidateValueCallback` / `IsValidType` / `IsValidValue` / `ToSchema()` / `GetValidValues()` / `Create(...)`。
 
 ### 3.4 PropertyValueObject API
 

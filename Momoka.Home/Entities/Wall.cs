@@ -12,7 +12,7 @@ namespace Momoka.Home.Entities;
 /// </summary>
 public class Wall : VoxelEntity, IVoxelLayout2DSource
 {
-    public static readonly TextureProperty TEXTURE = new("texture", typeof(Wall));
+    public static readonly TextureProperty TEXTURE = new("texture", new Key("wall"));
 
     /// <summary>Wall height in cells — drives the face surface extent.</summary>
     public int Height { get; set; } = 3;

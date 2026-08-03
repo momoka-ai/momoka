@@ -1,25 +1,29 @@
 using System.Text.Json;
 using Momoka.Home;
+using Momoka.Home.Primitives;
 namespace Momoka.Home.States;
 
 public abstract class Property
 {
     public string Name { get; }
-    public Type OwnerType { get; }
+    public Key TemplateKey { get; }
     public string Description { get; }
     public abstract Type PropertyType { get; }
 
     public bool IsReadOnly { get; init; }
     public Func<object?, bool>? ValidateValueCallback { get; init; }
 
-    protected Property(string name, Type ownerType, string description = "")
+    /// <summary>Optional closed set of valid values (config-driven "literals").</summary>
+    public IReadOnlyList<string>? ValidValues { get; init; }
+
+    protected Property(string name, Key templateKey, string description = "")
     {
         Name = name;
-        OwnerType = ownerType;
+        TemplateKey = templateKey;
         Description = description;
     }
 
-    public virtual IEnumerable<string>? GetValidValues() => null;
+    public virtual IEnumerable<string>? GetValidValues() => ValidValues;
 
     public bool IsValidType(object? value)
     {
@@ -66,7 +70,7 @@ public abstract class Property
     public static Property Create(
         string name,
         Type propertyType,
-        Type ownerType,
+        Key templateKey,
         Func<object?, bool>? validateValueCallback = null,
         string description = "")
     {
@@ -75,7 +79,7 @@ public abstract class Property
             ? Activator.CreateInstance(propertyType)
             : null;
 
-        var prop = (Property)Activator.CreateInstance(genericType, name, ownerType, defaultValue!)!;
+        var prop = (Property)Activator.CreateInstance(genericType, name, templateKey, defaultValue!)!;
         return prop;
     }
 
@@ -89,8 +93,8 @@ public abstract class Property<T> : Property
     public override Type PropertyType => typeof(T);
     public T DefaultValue { get; }
 
-    protected Property(string name, Type ownerType, T defaultValue, string description = "")
-        : base(name, ownerType, description)
+    protected Property(string name, Key templateKey, T defaultValue, string description = "")
+        : base(name, templateKey, description)
     {
         DefaultValue = defaultValue;
     }

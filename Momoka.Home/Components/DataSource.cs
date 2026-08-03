@@ -1,4 +1,5 @@
 using Momoka.Home;
+using Momoka.Home.Primitives;
 using Momoka.Home.States;
 namespace Momoka.Home.Components;
 
@@ -21,8 +22,8 @@ public enum DataSourceType
 
 public class DataSource : Component
 {
-    public static readonly EnumProperty<DataSourceType> TYPE = new("type", typeof(DataSource), DataSourceType.Temperature);
-    public static readonly FloatProperty VALUE = new("value", typeof(DataSource));
+    public static readonly EnumProperty<DataSourceType> TYPE = new("type", new Key("datasource"), DataSourceType.Temperature);
+    public static readonly FloatProperty VALUE = new("value", new Key("datasource"));
 
     public DataSource(DataSourceType type)
     {
