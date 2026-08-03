@@ -24,7 +24,7 @@ public class WallTests
 
         var faces = wall.Layouts;
 
-        Assert.Equal(2, faces.Count);
+        Assert.Equal(2, faces.Count());
         Assert.Contains(faces, f => f.Direction == Int3.South);
         Assert.Contains(faces, f => f.Direction == Int3.North);
 
@@ -47,7 +47,7 @@ public class WallTests
 
         var faces = wall.Layouts;
 
-        Assert.Equal(2, faces.Count);
+        Assert.Equal(2, faces.Count());
         Assert.Contains(faces, f => f.Direction == Int3.West);
         Assert.Contains(faces, f => f.Direction == Int3.East);
 
@@ -71,7 +71,7 @@ public class WallTests
         var north = wall.Layouts.First(f => f.Direction == Int3.North);
 
         // 北面：local.X→世界X（沿墙），local.Z→世界Y（高度）
-        Assert.Equal(new Int3(2, 0, 1), north.ToWorld(new Int2(0, 0)));
-        Assert.Equal(new Int3(6, 2, 1), north.ToWorld(new Int2(4, 2)));
+        Assert.Equal(new Int3(2, 0, 1), north.AsAbsolute(new Int2(0, 0)));
+        Assert.Equal(new Int3(6, 2, 1), north.AsAbsolute(new Int2(4, 2)));
     }
 }

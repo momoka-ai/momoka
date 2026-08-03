@@ -22,14 +22,14 @@ public class LevelTests
         WallBuildingService.BuildWall(level, new Int2(2, 0), new Int2(7, 0));
 
         // floor + ceiling + wall's two faces (E-W wall → south + north)
-        Assert.Equal(4, level.Layouts.Count);
+        Assert.Equal(4, level.Layouts.Count());
     }
 
     [Fact]
     public void Layouts_WithoutWalls_ContainsOnlyFloorAndCeiling()
     {
         var level = new Level();
-        Assert.Equal(2, level.Layouts.Count);
+        Assert.Equal(2, level.Layouts.Count());
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public class LevelTests
         level.Floor.AddLayer(2);
 
         // 地板(1) + 地板层级(1) + 天花板(1)
-        Assert.Equal(3, level.Layouts.Count);
+        Assert.Equal(3, level.Layouts.Count());
         Assert.Equal(2, level.Floor.LayerAt(2)!.Surface.Offset.Y);
     }
 

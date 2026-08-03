@@ -90,9 +90,9 @@ public class PlaneLayoutTests
         plane.AddLayer(3);
         plane.AddLayer(1);
 
-        Assert.Equal(3, plane.Layouts.Count);
-        Assert.Same(plane, plane.Layouts[0]);
-        Assert.Equal(1, plane.Layouts[1].Offset.Y);
-        Assert.Equal(3, plane.Layouts[2].Offset.Y);
+        Assert.Equal(3, plane.Layouts.Count());
+        Assert.Same(plane, plane.Layouts.ElementAt(0));
+        Assert.Equal(1, plane.Layouts.ElementAt(1).Offset.Y);
+        Assert.Equal(3, plane.Layouts.ElementAt(2).Offset.Y);
     }
 }

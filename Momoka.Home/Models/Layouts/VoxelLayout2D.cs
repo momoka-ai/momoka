@@ -28,23 +28,23 @@ public class VoxelLayout2D : GridLayout2D<bool>
     /// Maps a local layout cell to a world cell, based on <see cref="Direction"/>:
     /// Up/Down → XZ plane; East/West → YZ plane; North/South → XY plane.
     /// </summary>
-    public Int3 ToWorld(Int2 local)
+    public Int3 AsAbsolute(Int2 rel)
     {
-        if (Direction.X != 0) return Offset + new Int3(0, local.X, local.Z);
-        if (Direction.Z != 0) return Offset + new Int3(local.X, local.Z, 0);
-        return Offset + new Int3(local.X, 0, local.Z);
+        if (Direction.X != 0) return Offset + new Int3(0, rel.X, rel.Z);
+        if (Direction.Z != 0) return Offset + new Int3(rel.X, rel.Z, 0);
+        return Offset + new Int3(rel.X, 0, rel.Z);
     }
 
     /// <summary>
-    /// Inverse of <see cref="ToWorld"/>: projects a world cell onto this layout's
+    /// Inverse of <see cref="AsAbsolute"/>: projects a world cell onto this layout's
     /// plane, dropping the axis along <see cref="Direction"/>. This is the
     /// vertical/horizontal transform — a horizontal surface (Up/Down) keeps the
     /// object's XZ footprint (a 2×3×3 cabinet on the floor → 2×3), a wall
     /// (East/West) keeps YZ (→ 3×3, height×width), North/South keeps XY.
     /// </summary>
-    public Int2 ToLocal(Int3 world)
+    public Int2 AsRelative(Int3 abs)
     {
-        var rel = world - Offset;
+        var rel = abs - Offset;
         if (Direction.X != 0) return new Int2(rel.Y, rel.Z);
         if (Direction.Z != 0) return new Int2(rel.X, rel.Y);
         return new Int2(rel.X, rel.Z);
@@ -86,5 +86,5 @@ public class VoxelLayout2D : GridLayout2D<bool>
 /// </summary>
 public interface IVoxelLayout2DSource
 {
-    IReadOnlyList<VoxelLayout2D> Layouts { get; }
+    IEnumerable<VoxelLayout2D> Layouts { get; }
 }

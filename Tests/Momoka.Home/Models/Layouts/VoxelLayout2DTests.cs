@@ -23,7 +23,7 @@ public class VoxelLayout2DTests
 
         foreach (var local in new[] { new Int2(0, 0), new Int2(3, 7), new Int2(9, 1) })
         {
-            Assert.Equal(local, layout.ToLocal(layout.ToWorld(local)));
+            Assert.Equal(local, layout.AsRelative(layout.AsAbsolute(local)));
         }
     }
 

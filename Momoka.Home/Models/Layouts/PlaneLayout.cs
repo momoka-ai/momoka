@@ -30,13 +30,15 @@ public class PlaneLayout<T> : VoxelLayout2D, IVoxelLayout2DSource where T : clas
     /// All attachment surfaces of this plane: the plane itself, then each layer
     /// surface, ordered by height.
     /// </summary>
-    public IReadOnlyList<VoxelLayout2D> Layouts
+    public IEnumerable<VoxelLayout2D> Layouts
     {
         get
         {
-            var surfaces = new List<VoxelLayout2D> { this };
-            surfaces.AddRange(_layers.Select(l => l.Surface));
-            return surfaces;
+            yield return this;
+            foreach (var layer in _layers)
+            {
+                yield return layer.Surface;
+            }
         }
     }
 

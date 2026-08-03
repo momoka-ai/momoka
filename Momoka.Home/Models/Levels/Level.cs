@@ -34,18 +34,11 @@ public class Level : VoxelGridEntity, IVoxelLayout2DSource
     /// queries this single catalog and uses each surface's
     /// <see cref="VoxelLayout2D.Direction"/> to orient objects.
     /// </summary>
-    public IReadOnlyList<VoxelLayout2D> Layouts
+    public IEnumerable<VoxelLayout2D> Layouts
     {
-        get
-        {
-            var layouts = new List<VoxelLayout2D>();
-            layouts.AddRange(Floor.Layouts);
-            layouts.AddRange(Ceiling.Layouts);
-            foreach (var wall in Entities.OfType<Wall>())
-            {
-                layouts.AddRange(wall.Layouts);
-            }
-            return layouts;
-        }
+        get => Entities.OfType<Wall>()
+                .SelectMany(x => x.Layouts)
+                .Concat(Floor.Layouts)
+                .Concat(Ceiling.Layouts);
     }
 }

@@ -28,7 +28,7 @@ public class Wall : VoxelEntity, IVoxelLayout2DSource
     /// axis-aligned case. Diagonal walls currently expose no faces — their
     /// normals cannot be expressed by <see cref="VoxelLayout2D.Direction"/>.
     /// </summary>
-    public IReadOnlyList<VoxelLayout2D> Layouts => ComputeFaces();
+    public IEnumerable<VoxelLayout2D> Layouts => ComputeFaces();
 
     private List<VoxelLayout2D> ComputeFaces()
     {
