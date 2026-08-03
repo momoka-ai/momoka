@@ -79,6 +79,8 @@
 待实现：
 
 - [ ] **设备抽象层 `Providers`**：`IDeviceProvider` 接口、`ProviderRegistry`、HomeAssistant 实现、GIIC 协议桥接
+- [ ] **设备类型定义配置化（高优先级）**：`DeviceTemplateRegistry` + 通用 `DeviceEntity`；JSON 模板声明 shape / properties / components，`Key` 做类型身份，Provider 按标准协议驱动；无需写代码即可适配品牌家电
+- [ ] **多形态设备（低优先级）**：设备壳 `DeviceShell` + 具象形态（静态网格占用 ↔ 移动 `RobotEntity` 连续位置），`Activate` / `Deactivate` spawn / release 生命周期，身份贯穿形态切换（如扫地机器人）
 - [ ] **安全约束 `Security`（L3–L4）**：Blackboard + 规则评估，拦截燃气 / 门锁 / 高压等危险操作
 - [ ] **Build 管线**：视频流 → 3D 重建 → 网格（消费结构化户型数据）
 - [ ] **存档 `HomeSerializer`**：Home / Level / 实体序列化与反序列化
