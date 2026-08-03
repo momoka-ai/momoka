@@ -7,11 +7,11 @@ using Momoka.Home.Shapes;
 namespace Momoka.Home.Tests.Models.Layouts;
 
 /// <summary>
-/// GraphLayout2D = boundary partition graph TOPOLOGY only: positioning an edge
-/// entity and registering its nodes/edge. Occupancy rasterization is
+/// FloorPlanLayout = boundary partition graph TOPOLOGY only: positioning an
+/// edge entity and registering its nodes/edge. Occupancy rasterization is
 /// VoxelLayout3D's job, coordinated by the caller.
 /// </summary>
-public class GraphLayout2DTests
+public class FloorPlanLayoutTests
 {
     private sealed class FenceEntity : VoxelEntity
     {
@@ -21,7 +21,7 @@ public class GraphLayout2DTests
     [Fact]
     public void Build_PositionsPartitionAndRegistersEdge()
     {
-        var graph = new GraphLayout2D();
+        var graph = new FloorPlanLayout();
         var wall = new Wall();
 
         Assert.True(graph.Build(new Int2(2, 0), new Int2(7, 0), wall));
@@ -34,7 +34,7 @@ public class GraphLayout2DTests
     [Fact]
     public void Build_WorksWithAnyLineShapeEntity()
     {
-        var graph = new GraphLayout2D();
+        var graph = new FloorPlanLayout();
 
         Assert.True(graph.Build(new Int2(0, 0), new Int2(0, 5), new FenceEntity()));
         Assert.Single(graph.Edges);
@@ -43,7 +43,7 @@ public class GraphLayout2DTests
     [Fact]
     public void Build_NonLineShape_ReturnsFalse()
     {
-        var graph = new GraphLayout2D();
+        var graph = new FloorPlanLayout();
 
         Assert.False(graph.Build(new Int2(0, 0), new Int2(3, 0), new Appliance()));
         Assert.Empty(graph.Edges);
@@ -52,7 +52,7 @@ public class GraphLayout2DTests
     [Fact]
     public void Destroy_RemovesEdge()
     {
-        var graph = new GraphLayout2D();
+        var graph = new FloorPlanLayout();
         var wall = new Wall();
         graph.Build(new Int2(2, 0), new Int2(7, 0), wall);
 

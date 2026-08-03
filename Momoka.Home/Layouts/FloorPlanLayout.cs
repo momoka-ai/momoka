@@ -5,13 +5,14 @@ using Momoka.Home.Shapes;
 namespace Momoka.Home.Layouts;
 
 /// <summary>
-/// 2D boundary layout: a planar graph whose edges are partitions (walls, fences,
-/// …). Handles the TOPOLOGY of partitions — positioning an edge entity and
-/// registering its nodes/edge. Occupancy rasterization and collision are the
-/// <see cref="VoxelLayout3D"/>'s job and are coordinated by the caller (e.g. an
-/// editor command).
+/// Floor-plan boundary layout: a planar graph whose edges are the partitions
+/// (walls, fences, …) that define a space's outline and interior divisions —
+/// the topology of a floor plan. Handles TOPOLOGY only: positioning an edge
+/// entity and registering its nodes/edge. Occupancy rasterization and collision
+/// are the <see cref="VoxelLayout3D"/>'s job and are coordinated by the caller
+/// (e.g. an editor command).
 /// </summary>
-public class GraphLayout2D : Graph2D<VoxelEntity>
+public class FloorPlanLayout : Graph2D<VoxelEntity>
 {
     /// <summary>
     /// 创建隔断：在 <paramref name="from"/>–<paramref name="to"/> 之间建造一条分区边

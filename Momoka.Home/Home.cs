@@ -23,7 +23,7 @@ namespace Momoka.Home;
 public class Home : VoxelEntity
 {
     public VoxelLayout3D Layout { get; } = new();
-    public GraphLayout2D Boundary { get; } = new();
+    public FloorPlanLayout Boundary { get; } = new();
     public Subdivision<TileEntity> Ground { get; } = new();
     public GridLayout2D<Region> Regions { get; } = new(new Int2(50, 50));
     public List<Building> Buildings { get; } = new();

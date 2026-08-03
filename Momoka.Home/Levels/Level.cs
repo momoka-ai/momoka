@@ -29,7 +29,7 @@ public class Level : VoxelEntity, IVoxelLayout2DSource
     public PlaneLayout<TileEntity> Ceiling { get; } = new(new Int2(50, 50)) { Direction = Int3.Down };
 
     /// <summary>Boundary partition graph (walls, fences…) with build/demolish.</summary>
-    public GraphLayout2D Boundary { get; } = new();
+    public FloorPlanLayout Boundary { get; } = new();
 
     public GridLayout2D<Region> Regions { get; } = new(new Int2(50, 50));
 
