@@ -19,9 +19,9 @@ public class Region
 
     public bool Contains(VoxelEntity entity)
     {
-        foreach (var pos in entity.Shape.Locations())
+        foreach (var pos in entity.Shape.GetVoxels())
         {
-            if (!Contains(pos.Int2))
+            if (!Contains(pos.Xz))
                 return false;
         }
         return true;
@@ -31,10 +31,10 @@ public class Region
     {
         var total = 0;
         var inside = 0;
-        foreach (var pos in entity.Shape.Locations())
+        foreach (var pos in entity.Shape.GetVoxels())
         {
             total++;
-            if (Contains(pos.Int2))
+            if (Contains(pos.Xz))
                 inside++;
         }
         return total == 0 ? 0f : (float)inside / total;

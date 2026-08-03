@@ -53,9 +53,9 @@ public class VoxelGridEntity : VoxelEntity
         var result = new List<VoxelEntity>();
         foreach (var entity in Entities.OfType<VoxelEntity>())
         {
-            foreach (var loc in entity.Shape.Locations())
+            foreach (var loc in entity.Shape.GetVoxels())
             {
-                var p = loc.Int2;
+                var p = loc.Xz;
                 if (p.X >= min.X && p.X <= max.X && p.Z >= min.Z && p.Z <= max.Z)
                 {
                     result.Add(entity);

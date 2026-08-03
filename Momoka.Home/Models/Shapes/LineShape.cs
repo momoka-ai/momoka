@@ -9,7 +9,8 @@ public class LineShape : Shape
     public float Curvature { get; set; }
     public int Thickness { get; set; } = 1;
 
-    public override IEnumerable<Float3> Locations()
+    /// <summary>Rasterizes the line (with thickness) into grid cells.</summary>
+    public override IEnumerable<Int3> GetVoxels()
     {
         var dx = End.X - Start.X;
         var dz = End.Z - Start.Z;
@@ -18,7 +19,7 @@ public class LineShape : Shape
         if (steps == 0)
         {
             foreach (var pos in RasterizeCross(Start, Thickness))
-                yield return pos;
+                yield return pos.Int3;
             yield break;
         }
 
@@ -32,8 +33,18 @@ public class LineShape : Shape
             var center = new Float3(x, Start.Y, z);
 
             foreach (var pos in RasterizeCross(center, Thickness))
-                yield return pos;
+                yield return pos.Int3;
         }
+    }
+
+    /// <summary>
+    /// Support footprint: the line projected onto its local XZ plane (drop Y).
+    /// A wall's support footprint is its own XZ extent.
+    /// </summary>
+    public override IEnumerable<Int2> GetVoxelsOnAngle()
+    {
+        foreach (var voxel in GetVoxels())
+            yield return new Int2(voxel.X, voxel.Z);
     }
 
     private static IEnumerable<Float3> RasterizeCross(Float3 center, int thickness)

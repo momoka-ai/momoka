@@ -1,6 +1,6 @@
 using Momoka.Home.Models.States;
 
-namespace Momoka.Home.Models.Entities;
+namespace Momoka.Home.Models.Components;
 
 public enum EventType
 {

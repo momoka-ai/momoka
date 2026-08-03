@@ -14,6 +14,7 @@ public class Level : VoxelGridEntity
 {
     public Canvas<TileEntity, Int2> FloorCanvas { get; } = new();
     public Canvas<TileEntity, Int2> CeilingCanvas { get; } = new();
+    public Subdivision<TileEntity> Ground { get; } = new();
     public Graph2D<VoxelEntity> Boundary { get; } = new();
     public GridLayout2D<Region> Regions { get; } = new(new Int2(50, 50));
 }

@@ -16,7 +16,13 @@ public class PalettedContainer<TKey, T> : PalettedContainerRO<TKey, T>
 
     public void Set(TKey key, T value)
     {
-        _storage.Set(_strategy.AsIndexed(key), _palette.IdFor(value));
+        // NOTE: resolve the palette id BEFORE touching _storage — IdFor may
+        // grow the palette and resize _storage (via the Resized event). The
+        // receiver of a member call is evaluated before its arguments, so
+        // inlining IdFor into Set(...) would write to the OLD storage and lose
+        // the very first (resize-triggering) write.
+        var id = _palette.IdFor(value);
+        _storage.Set(_strategy.AsIndexed(key), id);
     }
 
     public new T? this[TKey key]
@@ -27,7 +33,7 @@ public class PalettedContainer<TKey, T> : PalettedContainerRO<TKey, T>
             if (value is null)
                 Clear(key);
             else
-                _storage.Set(_strategy.AsIndexed(key), _palette.IdFor(value));
+                Set(key, value);
         }
     }
 

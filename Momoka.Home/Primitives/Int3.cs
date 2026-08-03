@@ -13,6 +13,10 @@ public readonly record struct Int3(int X, int Y, int Z)
     public static readonly Int3 One = new(1, 1, 1);
     public static readonly Int3 Up = new(0, 1, 0);
     public static readonly Int3 Down = new(0, -1, 0);
+    public static readonly Int3 East = new(1, 0, 0);
+    public static readonly Int3 West = new(-1, 0, 0);
+    public static readonly Int3 North = new(0, 0, 1);
+    public static readonly Int3 South = new(0, 0, -1);
 
     // ── Conversion ─────────────────────────────────────────
 

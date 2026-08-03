@@ -18,9 +18,9 @@ public static class WallBuildingService
         level.Boundary.AddNode(to);
         level.Boundary.AddEdge(from, to, wall);
 
-        foreach (var cell in shape.Locations())
+        foreach (var cell in shape.GetVoxels())
         {
-            level[cell.Int3] = wall;
+            level[cell] = wall;
         }
 
         level.Entities.Add(wall);

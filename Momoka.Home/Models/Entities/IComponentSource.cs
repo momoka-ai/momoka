@@ -1,0 +1,34 @@
+using Momoka.Home.Models.Components;
+
+namespace Momoka.Home.Models.Entities;
+
+/// <summary>
+/// Capability of an object to hold behavior components — pure property carriers
+/// (data sources, event sources, command targets...) attached to the host.
+/// </summary>
+public interface IComponentSource
+{
+    IList<Component> Components { get; }
+
+    void AddComponent(Component component) => Components.Add(component);
+
+    void RemoveComponent(Component component) => Components.Remove(component);
+
+    T? GetComponent<T>() where T : Component => Components
+        .OfType<T>()
+        .FirstOrDefault();
+
+    bool TryGetComponent<T>(out T result) where T : Component;
+
+    Component? GetComponent(Type type);
+
+    List<Component> GetComponents(Type type) => Components
+        .Where(type.IsInstanceOfType)
+        .ToList();
+
+    List<T> GetComponents<T>() where T : Component => Components
+        .OfType<T>()
+        .ToList();
+
+    Component? GetComponent(Guid id);
+}

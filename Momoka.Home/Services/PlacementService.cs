@@ -11,21 +11,10 @@ public static class PlacementService
         if (space.HasEntity(pos))
             return false;
 
-        // Embedded entities need a host surface
-        if (entity.Parent is VoxelEntity host)
+        // Check no collision in entity's shape area
+        foreach (var cell in entity.Shape.GetVoxels())
         {
-            foreach (var cell in entity.Shape.Locations())
-            {
-                if (space[cell.Int3] == host)
-                    return true;
-            }
-            return false;
-        }
-
-        // Non-embedded: check no collision in entity's shape area
-        foreach (var cell in entity.Shape.Locations())
-        {
-            if (space.HasEntity(cell.Int3))
+            if (space.HasEntity(cell))
                 return false;
         }
 
