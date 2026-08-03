@@ -23,6 +23,9 @@ public abstract class GridLayout<T, TKey>(TKey chunkSize)
 
     public TKey ChunkSize { get; } = chunkSize;
 
+    /// <summary>Non-negative remainder — C#'s % can be negative for negative operands.</summary>
+    protected static int FloorMod(int value, int size) => ((value % size) + size) % size;
+
     private readonly Dictionary<TKey, Chunk> _innerDictionary = new();
 
     public abstract TKey AsChunkIndex(TKey coords);
@@ -62,7 +65,11 @@ public class GridLayout3D<T> : GridLayout<T, Int3>
         (coords.Z >= 0 ? coords.Z : coords.Z - (ChunkSize.Z - 1)) / ChunkSize.Z
     );
 
-    public override Int3 AsChunkRelative(Int3 coords) => coords % ChunkSize;
+    public override Int3 AsChunkRelative(Int3 coords) => new(
+        FloorMod(coords.X, ChunkSize.X),
+        FloorMod(coords.Y, ChunkSize.Y),
+        FloorMod(coords.Z, ChunkSize.Z)
+    );
 
     public override Palette<T>.Strategy<Int3> GetStrategy() => new Palette<T>.Int3ChunkStrategy(ChunkSize, 4);
 }
@@ -79,7 +86,10 @@ public class GridLayout2D<T> : GridLayout<T, Int2>
         (coords.Z >= 0 ? coords.Z : coords.Z - (ChunkSize.Z - 1)) / ChunkSize.Z
     );
 
-    public override Int2 AsChunkRelative(Int2 coords) => coords % ChunkSize;
+    public override Int2 AsChunkRelative(Int2 coords) => new(
+        FloorMod(coords.X, ChunkSize.X),
+        FloorMod(coords.Z, ChunkSize.Z)
+    );
 
     public override Palette<T>.Strategy<Int2> GetStrategy() => new Palette<T>.Int2ChunkStrategy(ChunkSize, 4);
 }

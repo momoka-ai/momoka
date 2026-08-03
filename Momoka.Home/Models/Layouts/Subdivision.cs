@@ -100,17 +100,27 @@ public class Subdivision<TEntity> : Graph2D<TEntity> where TEntity : class
             $"{nameof(Face)}[{string.Join(" → ", Vertices)}]";
     }
 
-    private readonly Dictionary<HashSet<Int2>, TEntity?> _faceEntities = new();
+    // Face-entity persistence keyed by the face's vertex SET (order-insensitive
+    // and stable across recomputation). A HashSet cannot serve as a dictionary
+    // key — it does not override GetHashCode (object-identity hash), so two
+    // identically-populated sets never match.
+    private readonly Dictionary<string, TEntity?> _faceEntities = new();
 
     /// <summary>Binds a content entity (e.g. a material marker) to a face. Survives recomputation.</summary>
     public void AssignEntity(Face face, TEntity? entity) =>
-        _faceEntities[new HashSet<Int2>(face.Vertices)] = entity;
+        _faceEntities[FaceKey(face.Vertices)] = entity;
 
     /// <summary>Returns the content entity bound to the given face, or default.</summary>
     public TEntity? EntityOf(Face face) =>
-        _faceEntities.TryGetValue(new HashSet<Int2>(face.Vertices), out var entity)
+        _faceEntities.TryGetValue(FaceKey(face.Vertices), out var entity)
             ? entity
             : default;
+
+    private static string FaceKey(IReadOnlyList<Int2> vertices) =>
+        string.Join("|", vertices
+            .OrderBy(v => v.X)
+            .ThenBy(v => v.Z)
+            .Select(v => $"{v.X},{v.Z}"));
 
     // ── Face enumeration ─────────────────────────────────
 
@@ -148,6 +158,9 @@ public class Subdivision<TEntity> : Graph2D<TEntity> where TEntity : class
     /// </summary>
     public bool Merge(Face a, Face b)
     {
+        if (ReferenceEquals(a, b))
+            return false;
+
         var shared = Edges
             .Where(e => IsEdgeOfFace(e, a) && IsEdgeOfFace(e, b))
             .ToList();
@@ -188,7 +201,7 @@ public class Subdivision<TEntity> : Graph2D<TEntity> where TEntity : class
         if (vertices.Count >= 3)
         {
             var face = new Face(vertices);
-            _faceEntities.TryGetValue(new HashSet<Int2>(vertices), out var entity);
+            _faceEntities.TryGetValue(FaceKey(vertices), out var entity);
             face.Entity = entity;
             faces.Add(face);
         }

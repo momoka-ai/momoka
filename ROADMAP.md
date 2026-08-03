@@ -36,7 +36,7 @@
 
 - [ ] 初始化 Git 仓库并完成首次提交
 - [ ] 创建 GitHub 仓库、分支保护规则（`main` 需 PR + CI 通过）
-- [ ] 引入测试框架（xUnit）：`Momoka.Home.Tests` 作为首个测试项目
+- [x] 引入测试框架（xUnit）：`Tests/Momoka.Home/` 作为首个测试项目；`Benchmarks/Momoka.Home/` 基准项目（BenchmarkDotNet）
 - [ ] 完善 CI：接入真实 Godot 导出检查、C++ 构建（vcpkg）
 - [ ] 引入 `dotnet format` 与 `ruff` 校验进 CI
 - [ ] 添加 Issue / PR 模板与自动化标签
