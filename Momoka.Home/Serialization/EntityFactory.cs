@@ -3,22 +3,32 @@ namespace Momoka.Home.Serialization;
 
 /// <summary>
 /// Materializes an <see cref="EntityTemplate"/> into a typed entity instance.
-/// A constructor is registered per template type name (e.g. "template_entity"
-/// for plain config-driven blocks/devices, "wall" for behavior-carrying types);
-/// it builds the target type and fills shape / property values / components from
-/// the template's <see cref="EntityTemplate.Values"/> table. Templates stay pure
-/// data — this is the only place that interprets them, so no single wrapper type
-/// is forced onto every entity.
+/// A constructor is registered per template type name (e.g. "wall" for
+/// behavior-carrying types), or a single fallback constructor via
+/// <see cref="SetDefault"/> (e.g. the plain <see cref="TemplateEntity"/> builder)
+/// handles everything else. Templates stay pure data — this is the only place
+/// that interprets them, so no single wrapper type is forced onto every entity.
 /// </summary>
 public class EntityFactory
 {
     private readonly Dictionary<string, Func<EntityTemplate, Entity>> _constructors = new();
+    private Func<EntityTemplate, Entity>? _default;
 
     /// <summary>Registers how to build an entity for the given template type name.</summary>
     public void Register(string typeName, Func<EntityTemplate, Entity> constructor)
     {
         ArgumentNullException.ThrowIfNull(constructor);
         _constructors[typeName] = constructor;
+    }
+
+    /// <summary>
+    /// Registers the fallback constructor used when a template's type name has no
+    /// explicit constructor (e.g. the default <see cref="TemplateEntity"/> builder).
+    /// </summary>
+    public void SetDefault(Func<EntityTemplate, Entity> constructor)
+    {
+        ArgumentNullException.ThrowIfNull(constructor);
+        _default = constructor;
     }
 
     /// <summary>
@@ -35,23 +45,25 @@ public class EntityFactory
     /// <summary>Builds the entity for the template. Throws if no constructor is registered for its type name.</summary>
     public Entity Create(EntityTemplate template)
     {
-        if (!_constructors.TryGetValue(template.TypeName, out var constructor))
-        {
-            throw new InvalidOperationException(
+        var constructor = Resolve(template.TypeName)
+            ?? throw new InvalidOperationException(
                 $"No constructor registered for entity type '{template.TypeName}' (template '{template.Key}').");
-        }
         return constructor(template);
     }
 
-    /// <summary>Builds the entity for the template, or false when the type name is unregistered.</summary>
+    /// <summary>Builds the entity for the template, or false when no constructor is available.</summary>
     public bool TryCreate(EntityTemplate template, out Entity? entity)
     {
-        if (_constructors.TryGetValue(template.TypeName, out var constructor))
+        var constructor = Resolve(template.TypeName);
+        if (constructor is null)
         {
-            entity = constructor(template);
-            return true;
+            entity = null;
+            return false;
         }
-        entity = null;
-        return false;
+        entity = constructor(template);
+        return true;
     }
+
+    private Func<EntityTemplate, Entity>? Resolve(string typeName) =>
+        _constructors.TryGetValue(typeName, out var constructor) ? constructor : _default;
 }

@@ -19,11 +19,9 @@ public class EntityTemplate
 
     /// <summary>
     /// Target type name; a constructor must be registered for it in
-    /// <see cref="EntityFactory"/> (e.g. "template_entity", "wall").
+    /// <see cref="EntityFactory"/> (e.g. "entity.appliance.air_conditioner", "wall").
     /// </summary>
     public string TypeName { get; }
-
-    public string? Description { get; }
 
     /// <summary>
     /// Everything not captured by <see cref="Key"/> / <see cref="TypeName"/>:
@@ -34,13 +32,11 @@ public class EntityTemplate
     public EntityTemplate(
         Key key,
         string typeName,
-        IReadOnlyDictionary<string, object?> values,
-        string? description = null)
+        IReadOnlyDictionary<string, object?> values)
     {
         Key = key;
         TypeName = typeName;
         Values = values;
-        Description = description;
     }
 
     /// <summary>Raw value for a table entry, or null.</summary>
