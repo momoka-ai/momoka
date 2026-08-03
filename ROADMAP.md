@@ -32,6 +32,23 @@
 
 ---
 
+## 架构决策（2026-08）
+
+> 系统拓扑与模块通信的既定决策，落地时参照。**当前只做 Home 模块，暂不写 Core 相关代码。**
+
+- **Momoka.Core = 插件宿主**：通过 `AssemblyLoadContext` + 反射发现并加载模块（每次启动加载 / 运行期热插拔）
+- **模块自注册为 Service**：每个模块实现 `IMomokaModule`，加载时把自己的能力注册成服务（`HomeService` / `AgenticService` / ...）
+- **契约 = 类型安全的接口 + DTO + 事件**：能力接口与消息类型定义在共享 Contracts 层，Core 与模块静态引用它保证编译期检查；模块实现动态加载（发现靠反射，类型靠共享接口）
+- **通信 = 本地函数调用**：模块间通过服务接口直接调用，事件走内存发布/订阅；无序列化、无状态副本
+- **Core 零业务状态**：只维护「服务注册表 + 事件订阅表」两张表，数据全在模块内
+- **Security 内嵌 Core**：危险命令（燃气/门锁/高压）拦截逻辑与 Core 强耦合，不作为可裁剪插件
+- **Agentic 独立模块**：LLM 推理/意图/工具调用/记忆独立于 Core（或并入 Momoka.Ai）；Core 不依赖 LLM
+- **Ui = 唯一远程边界**：Godot/C++ 无法进程内引用 .NET，经 WebSocket/MessagePack 连 Core 的 Ui 网关（网关本身也按模块注册）
+- **Sense 数据不属 Home**：心率/体温/心情等用户状态仅供 LLM 推理决策，不写入 Home 孪生模型
+- **Home = 纯模型库**：零外部依赖、零网络，作为模块由 Core 托管
+
+---
+
 ## Phase 0 — 基础设施（规划中）
 
 - [ ] 初始化 Git 仓库并完成首次提交
@@ -99,13 +116,17 @@
 - [ ] 与终端建立 WebSocket + MessagePack 通信
 - [ ] 终端侧配套（Momoka.Ui）：Live2D 渲染（Cubism → GDExtension）、情绪参数 → 动画映射、VAD、ASR（whisper.cpp）、摄像头 / 人脸检测（ONNX）、音频 I/O（miniaudio）
 
-## Phase 5 — Momoka.Core Agent 执行层（未开始 · AI 伴侣阶段）
+## Phase 5 — Momoka.Core 中枢 / 插件宿主（未开始 · 在 Home 完成后实施）
 
-- [ ] 意图识别：调用轻量 LLM（Ollama HTTP API）
-- [ ] 快慢通道路由：读取 Ai 情感状态，选择快速指令映射或 Agent 推理
-- [ ] Agent 推理循环：独立上下文，不污染角色对话链
-- [ ] 工具集成与调度（MCP 风格）：HA API、日历、天气、Web 等
-- [ ] 知识记忆：用户行为偏好（LiteDB）
+> 依据「架构决策（2026-08）」：Core 是插件宿主 + 服务注册 + 事件总线，不再承担 Agent 逻辑（Agentic 独立）。
+
+- [ ] `IMomokaModule` 契约 + `ModuleHost`：`AssemblyLoadContext` 加载模块 DLL，反射发现，生命周期管理（启动 / 停止 / 热插拔）
+- [ ] 共享 Contracts 层：能力接口（`IHomeService` / `IAgenticService` / ...）+ 消息 DTO + 事件类型
+- [ ] 服务注册表 + 事件订阅表（内存发布 / 订阅，本地函数调用）
+- [ ] Ui 网关：WebSocket / MessagePack 远程边界，按模块注册
+- [ ] Security 内嵌：危险命令拦截（规则评估）
+- [ ] 会话 / 身份 / 鉴权：Ui 连接鉴权、用户会话
+- [ ] Agentic 模块（或并入 Ai）：意图识别（Ollama）、快慢通道、Agent 推理循环、工具集成（MCP 风格）、知识记忆（LiteDB）
 
 ## Phase 6 — Momoka.Sense 后台感知层（未开始 · AI 伴侣阶段）
 
