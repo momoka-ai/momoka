@@ -36,5 +36,5 @@ public class Home : VoxelEntity
     /// <summary>Accessory structures attached to or standing on the property.</summary>
     public List<Building> Buildings { get; } = new();
 
-    public Home() => Boundary = new GraphLayout2D(Layout);
+    public Home() => Boundary = new GraphLayout2D();
 }

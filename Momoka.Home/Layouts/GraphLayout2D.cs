@@ -4,20 +4,17 @@ namespace Momoka.Home;
 
 /// <summary>
 /// 2D boundary layout: a planar graph whose edges are partitions (walls, fences,
-/// …). Owns build/demolish of edge entities, keeping the graph, the occupancy
-/// grid, and the entity list in sync. The graph itself is inherited from
-/// <see cref="Graph2D{TEntity}"/>; the occupancy container is composed in.
+/// …). Handles the TOPOLOGY of partitions — positioning an edge entity and
+/// registering its nodes/edge. Occupancy rasterization and collision are the
+/// <see cref="VoxelLayout3D"/>'s job and are coordinated by the caller (e.g. an
+/// editor command).
 /// </summary>
 public class GraphLayout2D : Graph2D<VoxelEntity>
 {
-    private readonly VoxelLayout3D _occupancy;
-
-    public GraphLayout2D(VoxelLayout3D occupancy) => _occupancy = occupancy;
-
     /// <summary>
     /// 创建隔断：在 <paramref name="from"/>–<paramref name="to"/> 之间建造一条分区边
-    /// （墙 / 围栏 / …）：锚定分区（LineShape 为局部）、注册图节点与边，并把分区
-    /// 栅格化到占用网格。
+    /// （墙 / 围栏 / …）：锚定分区的 LineShape（局部坐标）并注册图节点与边。
+    /// 占用栅格化由调用方通过 <see cref="VoxelLayout3D.ConstructAt"/> 完成。
     /// </summary>
     public bool BuildPartition(Int2 from, Int2 to, VoxelEntity partition)
     {
@@ -31,18 +28,13 @@ public class GraphLayout2D : Graph2D<VoxelEntity>
         AddNode(from);
         AddNode(to);
         AddEdge(from, to, partition);
-
-        foreach (var cell in line.GetVoxels())
-        {
-            _occupancy[partition.Coords + cell] = partition;
-        }
-        _occupancy.Entities.Add(partition);
         return true;
     }
 
     /// <summary>
-    /// 拆除隔断：移除 <paramref name="from"/>–<paramref name="to"/> 之间的分区边，
-    /// 清空其占用体素并注销实体。图节点保留（可能被其他边共享）。
+    /// 拆除隔断：移除 <paramref name="from"/>–<paramref name="to"/> 之间的分区边。
+    /// 图节点保留（可能被其他边共享）；占用清理由调用方通过
+    /// <see cref="VoxelLayout3D.DestructAt"/> 完成。
     /// </summary>
     public bool DemolishPartition(Int2 from, Int2 to)
     {
@@ -52,17 +44,10 @@ public class GraphLayout2D : Graph2D<VoxelEntity>
             return false;
 
         var edge = FindEdge(a.Value, b.Value);
-        if (edge is null || edge.Value.Entity is not VoxelEntity partition)
+        if (edge is null)
             return false;
 
         Edges.Remove(edge.Value);
-        foreach (var cell in partition.Shape.GetVoxels())
-        {
-            var pos = partition.Coords + cell;
-            if (_occupancy[pos] == partition)
-                _occupancy[pos] = null;
-        }
-        _occupancy.Entities.Remove(partition);
         return true;
     }
 }
