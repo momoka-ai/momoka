@@ -6,8 +6,7 @@ namespace Momoka.Home.Tests.Models.Serialization;
 
 /// <summary>
 /// EntityFactory dispatches by the template's type name to a registered
-/// constructor, stamps the template key onto the produced entity, and treats
-/// the template's value table as pure data.
+/// constructor and stamps the template key onto the produced entity.
 /// </summary>
 public class EntityFactoryTests
 {
@@ -21,22 +20,17 @@ public class EntityFactoryTests
         var factory = new EntityFactory();
         factory.Register<DummyEntity>("dummy");
 
-        var template = new EntityTemplate(
-            new Key("test", "dummy"),
-            "dummy",
-            new Dictionary<string, object?> { ["color"] = "red" });
+        var template = new EntityTemplate(new Key("test", "dummy"), "dummy");
 
         var entity = Assert.IsType<DummyEntity>(factory.Create(template));
         Assert.Equal(new Key("test", "dummy"), entity.Key);
-        Assert.Equal("red", template.GetValue<string>("color"));
-        Assert.True(template.Has("color"));
     }
 
     [Fact]
     public void Create_UnregisteredType_Throws()
     {
         var factory = new EntityFactory();
-        var template = new EntityTemplate(new Key("test", "ghost"), "ghost", new Dictionary<string, object?>());
+        var template = new EntityTemplate(new Key("test", "ghost"), "ghost");
 
         Assert.Throws<InvalidOperationException>(() => factory.Create(template));
         Assert.False(factory.TryCreate(template, out var entity));
@@ -49,7 +43,7 @@ public class EntityFactoryTests
         var factory = new EntityFactory();
         factory.Register<DummyEntity>("dummy");
 
-        var template = new EntityTemplate(new Key("dummy"), "dummy", new Dictionary<string, object?>());
+        var template = new EntityTemplate(new Key("dummy"), "dummy");
 
         Assert.True(factory.TryCreate(template, out var entity));
         Assert.IsType<DummyEntity>(entity);

@@ -3,30 +3,23 @@ using Newtonsoft.Json.Linq;
 namespace Momoka.Home.Serialization;
 
 /// <summary>
-/// Top-level entity config: which registered type to build from ("typename",
-/// resolved in the factory registry) plus the content table. The template's key
-/// is NOT stored here — it is derived from the file path (folder = namespace,
-/// filename = key path).
+/// Flat JSON model of an entity config file, mirroring <see cref="EntityTemplate"/>'s
+/// fields. The template key is NOT stored here — it is derived from the file path
+/// (folder = namespace, filename = key path). Deserialized by the loader, which
+/// then resolves the "typename" and merges content into an <see cref="EntityTemplate"/>.
 /// </summary>
 public sealed class EntityConfigDto
 {
-    /// <summary>Registered type name this config builds from (looked up in the factory registry).</summary>
-    [JsonProperty("typename")] public string TypeName { get; set; } = "";
+    /// <summary>Registered type this config inherits from (resolved in the template registry).</summary>
+    [JsonProperty("typename"), JsonRequired]
+    public string Typename { get; set; } = "";
 
-    [JsonProperty("version")] public int Version { get; set; } = 1;
-
-    [JsonProperty("content")] public EntityContentDto? Content { get; set; }
-}
-
-/// <summary>Shape + properties + components of a config-driven entity.</summary>
-public sealed class EntityContentDto
-{
     [JsonProperty("shape")] public ShapeDto? Shape { get; set; }
 
-    [JsonProperty("properties")] public List<PropertyDto> Properties { get; set; } = new();
+    [JsonProperty("properties")] public List<PropertyDto>? Properties { get; set; }
 
     /// <summary>Component keys (resolution not implemented yet).</summary>
-    [JsonProperty("components")] public List<string> Components { get; set; } = new();
+    [JsonProperty("components")] public List<string>? Components { get; set; }
 }
 
 /// <summary>

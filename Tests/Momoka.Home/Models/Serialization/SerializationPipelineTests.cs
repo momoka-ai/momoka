@@ -3,29 +3,27 @@ using Momoka.Home.Entities;
 using Momoka.Home.Primitives;
 using Momoka.Home.Serialization;
 using Momoka.Home.Shapes;
+using Momoka.Home.States;
 namespace Momoka.Home.Tests.Models.Serialization;
 
 /// <summary>
-/// End-to-end config pipeline: a config JSON file → typed entity. Key is derived
-/// from the file path (folder = namespace, filename = key path), the "typename"
-/// resolves through the factory registry (with the TemplateEntity default), and
-/// shape + properties are filled from the content table.
+/// Config pipeline: JSON config file → typed EntityTemplate (key from path,
+/// "typename" resolved against the registry with inheritance + merge) → entity.
 /// </summary>
 public class SerializationPipelineTests
 {
+    private static readonly string[] AiModeValues = ["disabled", "skyscreen_mode", "no_direct_wind_mode", "fast_cooling_mode"];
+
     private const string ConfigJson = """
     {
         "typename": "entity.appliance.air_conditioner",
-        "version": 1,
-        "content": {
-            "shape": { "kind": "box", "size": { "x": 1, "y": 2, "z": 1 } },
-            "properties": [
-                { "key": "ai_mode", "type": "literals", "values": ["disabled", "skyscreen_mode", "no_direct_wind_mode", "fast_cooling_mode"], "value": "disabled" },
-                { "key": "clean_mode", "type": "boolean" },
-                { "key": "texture", "type": "texture", "value": "texture.midea.air_conditioner.ac_1523" }
-            ],
-            "components": [ "" ]
-        }
+        "shape": { "kind": "box", "size": { "x": 1, "y": 2, "z": 1 } },
+        "properties": [
+            { "key": "ai_mode", "type": "literals", "values": ["disabled", "skyscreen_mode", "no_direct_wind_mode", "fast_cooling_mode"], "value": "disabled" },
+            { "key": "clean_mode", "type": "boolean" },
+            { "key": "texture", "type": "texture", "value": "texture.midea.air_conditioner.ac_1523" }
+        ],
+        "components": [ "" ]
     }
     """;
 
@@ -39,7 +37,7 @@ public class SerializationPipelineTests
 
         var templateEntity = Assert.IsType<TemplateEntity>(entity);
         Assert.Equal(new Key("midea", "air_conditioner.ac_1523"), templateEntity.Key);
-        Assert.Equal("entity.appliance.air_conditioner", templateEntity.Template.TypeName);
+        Assert.Equal("entity.appliance.air_conditioner", templateEntity.Template.Typename);
 
         var box = Assert.IsType<BoxShape>(templateEntity.Shape);
         Assert.Equal(1, box.SizeX);
@@ -47,7 +45,7 @@ public class SerializationPipelineTests
         Assert.Equal(1, box.SizeZ);
 
         Assert.Equal("disabled", templateEntity.GetValue("ai_mode"));
-        Assert.False((bool)templateEntity.GetValue("clean_mode"));
+        Assert.False(templateEntity.GetValue("clean_mode") is true);
         Assert.Equal("texture.midea.air_conditioner.ac_1523", templateEntity.GetValue("texture"));
     }
 
@@ -61,9 +59,49 @@ public class SerializationPipelineTests
         var schema = entity.GetSchema();
 
         var aiMode = schema.Single(s => (string)s["name"]! == "ai_mode");
-        Assert.Equal(
-            new[] { "disabled", "skyscreen_mode", "no_direct_wind_mode", "fast_cooling_mode" },
-            aiMode["validValues"]);
+        Assert.Equal(AiModeValues, aiMode["validValues"]);
+    }
+
+    [Fact]
+    public void Load_InheritsParentTemplate_AndMergesProperties()
+    {
+        var loader = new EntityConfigLoader();
+        // Pre-register a base type: a generic air conditioner carrying a shared property.
+        var baseTemplate = new EntityTemplate(
+            new Key("entity", "appliance.air_conditioner"), "voxelentity")
+        {
+            Properties = new List<Property>
+            {
+                new BooleanProperty("power", new Key("entity.appliance.air_conditioner"))
+            }
+        };
+        loader.Registry.Register("entity.appliance.air_conditioner", baseTemplate);
+
+        var childPath = WriteTempConfig("midea", "air_conditioner.ac_1523.json", ConfigJson);
+        var entity = (TemplateEntity)loader.Load(childPath);
+
+        // Child's own properties load, and the parent's "power" property is inherited.
+        Assert.Equal("disabled", entity.GetValue("ai_mode"));
+        Assert.False(entity.GetValue("power") is true);
+        Assert.Contains(entity.Template.Properties!, p => p.Name == "power");
+    }
+
+    [Fact]
+    public void LoadedTemplate_IsRegisteredForFurtherInheritance()
+    {
+        var loader = new EntityConfigLoader();
+        var path = WriteTempConfig("brand", "series.json", """
+        {
+            "typename": "voxelentity",
+            "properties": [ { "key": "series", "type": "string", "value": "AC-1" } ]
+        }
+        """);
+
+        loader.LoadTemplate(path);
+
+        var registered = loader.Registry.Resolve("brand:series");
+        Assert.NotNull(registered);
+        Assert.Equal("voxelentity", registered!.Typename);
     }
 
     [Fact]

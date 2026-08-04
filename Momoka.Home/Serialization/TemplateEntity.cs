@@ -1,12 +1,14 @@
+using Momoka.Home.Components;
 using Momoka.Home.Entities;
+using Momoka.Home.Shapes;
+using Momoka.Home.States;
 namespace Momoka.Home.Serialization;
 
 /// <summary>
 /// Default concrete target for config-driven entities: a <see cref="VoxelEntity"/>
-/// that materializes itself from an <see cref="EntityTemplate"/> — adopts the
-/// template's key as its type identity, builds its shape and registers its
-/// properties from the template's value table. Special entity types register
-/// their own constructor in the factory instead of using this default.
+/// that adopts a typed <see cref="EntityTemplate"/> wholesale — its key as type
+/// identity, plus its shape, properties and components. Special entity types
+/// register their own constructor in the factory instead of using this default.
 /// </summary>
 public class TemplateEntity : VoxelEntity
 {
@@ -16,16 +18,11 @@ public class TemplateEntity : VoxelEntity
     {
         Template = template;
         Key = template.Key;
+        Shape = template.Shape ?? new BoxShape();
 
-        if (template.GetValue<ShapeDto>("shape") is { } shape)
-            Shape = ShapeFactory.Create(shape);
-
-        if (template.GetValue<List<PropertyDto>>("properties") is { } properties)
-        {
-            foreach (var prop in properties)
-                AddProperty(PropertyFactory.Create(prop, template.Key));
-        }
-
-        // Components: keys are parsed into the value table; resolution comes later.
+        foreach (var property in template.Properties ?? Enumerable.Empty<Property>())
+            AddProperty(property);
+        foreach (var component in template.Components ?? Enumerable.Empty<Component>())
+            AddComponent(component);
     }
 }

@@ -1,50 +1,48 @@
+using Momoka.Home.Components;
 using Momoka.Home.Entities;
 using Momoka.Home.Primitives;
+using Momoka.Home.Shapes;
+using Momoka.Home.States;
+using Newtonsoft.Json;
 namespace Momoka.Home.Serialization;
 
 /// <summary>
-/// Schema-less descriptor of an entity type, loaded from config (JSON) and
-/// materialized into a typed entity by <see cref="EntityFactory"/>. Only the
-/// identity (<see cref="Key"/>) and the target type name (<see cref="TypeName"/>)
-/// are first-class; everything else lives in the <see cref="Values"/> table
-/// (shape, property definitions, components…), interpreted by the factory.
+/// Typed descriptor of an entity type: the identity (<see cref="Key"/>,
+/// <see cref="Typename"/>) plus the limited, known set of content fields (shape,
+/// properties, components). Built by <see cref="EntityConfigLoader"/> from a config
+/// file — key derived from the path, "typename" resolved against the template
+/// registry (inheritance + merge) — and materialized by <see cref="EntityFactory"/>.
 /// </summary>
 public class EntityTemplate
 {
     /// <summary>
     /// The template's type identity — also stamped onto produced entities'
-    /// <see cref="Entity.Key"/>. Reuses the namespaced <see cref="Key"/> primitive.
+    /// <see cref="Entity.Key"/>. Derived from the config file path, never from JSON.
     /// </summary>
     public Key Key { get; }
 
     /// <summary>
-    /// Target type name; a constructor must be registered for it in
-    /// <see cref="EntityFactory"/> (e.g. "entity.appliance.air_conditioner", "wall").
+    /// Registered type this template inherits from, resolved in the template
+    /// registry (e.g. "voxelentity", "entity.appliance.air_conditioner").
     /// </summary>
-    public string TypeName { get; }
+    [JsonProperty("typename"), JsonRequired]
+    public string Typename { get; }
 
-    /// <summary>
-    /// Everything not captured by <see cref="Key"/> / <see cref="TypeName"/>:
-    /// the shape descriptor, property definitions, components… read by the factory.
-    /// </summary>
-    public IReadOnlyDictionary<string, object?> Values { get; }
+    /// <summary>Shape, inherited from the parent template and overridden by this config.</summary>
+    [JsonProperty("shape")]
+    public Shape? Shape { get; set; }
 
-    public EntityTemplate(
-        Key key,
-        string typeName,
-        IReadOnlyDictionary<string, object?> values)
+    /// <summary>Properties, merged from the parent template by name.</summary>
+    [JsonProperty("properties")]
+    public List<Property>? Properties { get; set; }
+
+    /// <summary>Components (resolution not implemented yet).</summary>
+    [JsonProperty("components")]
+    public List<Component>? Components { get; set; }
+
+    public EntityTemplate(Key key, string typename)
     {
         Key = key;
-        TypeName = typeName;
-        Values = values;
+        Typename = typename;
     }
-
-    /// <summary>Raw value for a table entry, or null.</summary>
-    public object? GetValue(string name) => Values.TryGetValue(name, out var v) ? v : null;
-
-    /// <summary>Typed value for a table entry, or default when missing/mismatched.</summary>
-    public T? GetValue<T>(string name) =>
-        Values.TryGetValue(name, out var v) && v is T t ? t : default;
-
-    public bool Has(string name) => Values.ContainsKey(name);
 }

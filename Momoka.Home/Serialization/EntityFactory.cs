@@ -45,16 +45,16 @@ public class EntityFactory
     /// <summary>Builds the entity for the template. Throws if no constructor is registered for its type name.</summary>
     public Entity Create(EntityTemplate template)
     {
-        var constructor = Resolve(template.TypeName)
+        var constructor = Resolve(template.Typename)
             ?? throw new InvalidOperationException(
-                $"No constructor registered for entity type '{template.TypeName}' (template '{template.Key}').");
+                $"No constructor registered for entity type '{template.Typename}' (template '{template.Key}').");
         return constructor(template);
     }
 
     /// <summary>Builds the entity for the template, or false when no constructor is available.</summary>
     public bool TryCreate(EntityTemplate template, out Entity? entity)
     {
-        var constructor = Resolve(template.TypeName);
+        var constructor = Resolve(template.Typename);
         if (constructor is null)
         {
             entity = null;
