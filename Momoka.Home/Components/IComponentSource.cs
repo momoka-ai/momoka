@@ -17,9 +17,16 @@ public interface IComponentSource
         .OfType<T>()
         .FirstOrDefault();
 
-    bool TryGetComponent<T>(out T result) where T : Component;
+    bool TryGetComponent<T>(out T result) where T : Component
+    {
+        var comp = GetComponent<T>();
+        if (comp is not null) { result = comp; return true; }
+        result = default!;
+        return false;
+    }
 
-    Component? GetComponent(Type type);
+    Component? GetComponent(Type type) => Components
+        .FirstOrDefault(type.IsInstanceOfType);
 
     List<Component> GetComponents(Type type) => Components
         .Where(type.IsInstanceOfType)
@@ -29,5 +36,6 @@ public interface IComponentSource
         .OfType<T>()
         .ToList();
 
-    Component? GetComponent(Guid id);
+    Component? GetComponent(Guid id) => Components
+        .FirstOrDefault(c => c.Id == id);
 }

@@ -56,12 +56,12 @@ classDiagram
         +Coords 连续坐标（活物/机器人）
     }
     class Wall {
-        +Height + SurfaceSource
+        +Height + VoxelLayoutSource
     }
     class Component {
         +SourceId 行为载体
     }
-    class SurfaceSource {
+    class VoxelLayoutSource {
         +Layouts 放置表面
     }
     class DataSource {
@@ -78,7 +78,7 @@ classDiagram
     Entity <|-- EntityInt3
     Entity <|-- EntityFloat3
     EntityInt3 <|-- Wall
-    Component <|-- SurfaceSource
+    Component <|-- VoxelLayoutSource
     Component <|-- DataSource
     Component <|-- EventSource
     Component <|-- CommandTarget
@@ -121,7 +121,7 @@ classDiagram
 
 | 实体 | 继承 | Shape | 表面/属性 |
 |------|------|-------|------|
-| `Wall` | `Entity<Int3>` | `LineShape` | `SurfaceSource` 双面 + `TEXTURE` |
+| `Wall` | `Entity<Int3>` | `LineShape` | `VoxelLayoutSource` 双面 + `TEXTURE` |
 | `Door` | `Entity<Int3>` | `BoxShape` | `open`, `locked`, `TEXTURE` |
 | `Window` | `Entity<Int3>` | `BoxShape` | `open`, `TEXTURE` |
 | `Appliance` | `Entity<Int3>` | `BoxShape` | `power`, `connection`, `TEXTURE` |

@@ -11,17 +11,17 @@ namespace Momoka.Home.Tests.Models.Levels;
 /// <summary>
 /// End-to-end checks of the level as the unified placement-surface catalog:
 /// the level aggregates its floor/ceiling planes and every contained entity's
-/// SurfaceSource component (walls' faces and any other surface source placed in
-/// the occupancy grid).
+/// VoxelLayoutSource component (walls' faces and any other surface source placed
+/// in the occupancy grid).
 /// </summary>
 public class LevelTests
 {
-    private sealed class SurfaceSourceEntity : Entity<Int3>
+    private sealed class VoxelLayoutSourceEntity : Entity<Int3>
     {
-        public SurfaceSourceEntity()
+        public VoxelLayoutSourceEntity()
         {
             Shape = new BoxShape();
-            AddComponent(new SurfaceSource { Layouts = { new VoxelLayout2D(new Int2(2, 2)) } });
+            AddComponent(new VoxelLayoutSource { Layouts = { new VoxelLayout2D(new Int2(2, 2)) } });
         }
     }
     [Fact]
@@ -31,6 +31,7 @@ public class LevelTests
         var wall = new Wall();
         level.Plan.Build(new Int2(2, 0), new Int2(7, 0), wall);
         level.Layout.BuildAt(wall, new Int3(2, 0, 0));
+        wall.RefreshSurfaces(); // 构建命令负责把派生表面物化进组件
 
         // floor + ceiling + wall's two faces (E-W wall → south + north)
         Assert.Equal(4, level.Layouts.Count());
@@ -44,15 +45,15 @@ public class LevelTests
     }
 
     [Fact]
-    public void Layouts_IncludesAnySurfaceSourceEntity_NotJustWalls()
+    public void Layouts_IncludesAnyVoxelLayoutSourceEntity_NotJustWalls()
     {
         var level = new Level();
-        var source = new SurfaceSourceEntity();
+        var source = new VoxelLayoutSourceEntity();
         level.Layout.BuildAt(source, new Int3(2, 0, 0));
 
         // floor + ceiling + the custom surface-source entity's surface
         Assert.Equal(3, level.Layouts.Count());
-        var surface = source.GetComponent<SurfaceSource>()!.Layouts.Single();
+        var surface = source.GetComponent<VoxelLayoutSource>()!.Layouts.Single();
         Assert.Contains(surface, level.Layouts);
     }
 

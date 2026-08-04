@@ -31,10 +31,6 @@ public class FloorPlanLayout : Graph2D<Entity<Int3>>
         AddNode(from);
         AddNode(to);
         AddEdge(from, to, partition);
-
-        // Derived surfaces (wall faces…) depend on the freshly anchored line —
-        // refresh them so the SurfaceSource catalog is always current.
-        (partition as IRefreshableSurfaces)?.RefreshSurfaces();
         return true;
     }
 

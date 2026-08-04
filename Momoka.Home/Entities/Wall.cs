@@ -9,9 +9,9 @@ namespace Momoka.Home.Entities;
 /// <summary>
 /// A wall segment: a straight line (see <see cref="LineShape"/>) with a
 /// thickness. Its two faces are exposed as placement surfaces through a
-/// <see cref="SurfaceSource"/> component (refreshed after the line is anchored).
+/// <see cref="VoxelLayoutSource"/> component, refreshed after the line is anchored.
 /// </summary>
-public class Wall : Entity<Int3>, IRefreshableSurfaces
+public class Wall : Entity<Int3>
 {
     public static readonly TextureProperty TEXTURE = new("texture", new Key("wall"));
 
@@ -22,7 +22,7 @@ public class Wall : Entity<Int3>, IRefreshableSurfaces
     {
         Shape = new LineShape();
         AddProperty(TEXTURE);
-        AddComponent(new SurfaceSource());
+        AddComponent(new VoxelLayoutSource());
     }
 
     /// <summary>
@@ -34,14 +34,14 @@ public class Wall : Entity<Int3>, IRefreshableSurfaces
         get
         {
             RefreshSurfaces();
-            return GetComponent<SurfaceSource>()!.Layouts;
+            return GetComponent<VoxelLayoutSource>()!.Layouts;
         }
     }
 
-    /// <summary>Recomputes the face surfaces into the <see cref="SurfaceSource"/> component.</summary>
+    /// <summary>Recomputes the face surfaces into the <see cref="VoxelLayoutSource"/> component.</summary>
     public void RefreshSurfaces()
     {
-        var source = GetComponent<SurfaceSource>()!;
+        var source = GetComponent<VoxelLayoutSource>()!;
         source.Layouts.Clear();
         source.Layouts.AddRange(ComputeFaces());
     }

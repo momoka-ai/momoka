@@ -7,7 +7,7 @@ using Momoka.Home.Shapes;
 namespace Momoka.Home.Tests.Models.Entities;
 
 /// <summary>
-/// A wall exposes its two faces as placement surfaces (via its SurfaceSource
+/// A wall exposes its two faces as placement surfaces (via its VoxelLayoutSource
 /// component, refreshed on Layouts access), axis-aligned only. Face geometry is
 /// driven by the LineShape (local) + Coords + Height.
 /// </summary>
