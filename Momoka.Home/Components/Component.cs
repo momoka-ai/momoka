@@ -1,23 +1,14 @@
-using Momoka.Home;
-using Momoka.Home.Entities;
-using Momoka.Home.Primitives;
-using Momoka.Home.States;
 namespace Momoka.Home.Components;
 
 /// <summary>
-/// Base for behavior components attached to an <see cref="IComponentSource"/>.
-/// A component is a pure property carrier (source id, type, value...) — it is
-/// not an <see cref="Entity"/>, so it cannot host components or participate in
-/// the spatial model.
+/// A behavior component attached to an <see cref="IComponentSource"/> — a pure,
+/// typed behavior carrier (data source, event source, command target…). Not a
+/// property-value holder: it carries its own typed fields.
 /// </summary>
-public abstract class Component : PropertyValueObject
+public abstract class Component
 {
-    public static readonly StringProperty SOURCE_ID = new("source_id", new Key("component"));
-
     public Guid Id { get; init; } = Guid.NewGuid();
 
-    protected Component()
-    {
-        AddProperty(SOURCE_ID);
-    }
+    /// <summary>Identity of the integration/source this component binds to.</summary>
+    public string SourceId { get; set; } = "";
 }

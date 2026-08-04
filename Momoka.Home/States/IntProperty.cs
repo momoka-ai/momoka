@@ -9,5 +9,8 @@ public class IntProperty : Property<int>
     {
     }
 
+    protected override Property<int> CreateCopy(string name, Key templateKey, int defaultValue, string description) =>
+        new IntProperty(name, templateKey, defaultValue, description);
+
     protected override string SchemaTypeName() => "integer";
 }

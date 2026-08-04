@@ -63,7 +63,7 @@ Traditional voice assistants can only answer questions; they cannot understand r
 
 - **Momoka.Home — Spatial data model**:
   - Coordinate system: `Int2` / `Int3` / `Float3` / `Key` (10cm grid steps)
-  - Property system: `Property<T>` with 6 types (boolean / enum / float / int / string / texture), `PropertyValueObject` (get/set/events/serialization)
+  - Property system: `Property<T>` with 6 types (boolean / enum / float / int / string / texture), Entity property system (get/set/events/serialization, value stored on `Property.Value`)
   - Entity system: `Entity` inheritance chain (`BlockEntity` / `LivingEntity` / `RobotEntity` / `TileEntity`) + `Component` behavior scripts; `Wall`, `Door`, `Window`, `Appliance`, `Curtain`, `Human`, `Pet`, etc.
   - Spatial structures: `Home → Level → LevelChunk` (20×20×Y chunks), Minecraft-style `PalettedContainer`, `BlockGraph` wall topology, `Region` polygon areas, `Canvas` floors/ceilings
   - Service layer: `PlacementService` (placement validation), `RegionService` (region queries), `WallBuildingService` (wall drawing), `SelectionService` (selection state)

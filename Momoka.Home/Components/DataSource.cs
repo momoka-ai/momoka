@@ -1,6 +1,3 @@
-using Momoka.Home;
-using Momoka.Home.Primitives;
-using Momoka.Home.States;
 namespace Momoka.Home.Components;
 
 public enum DataSourceType
@@ -20,14 +17,14 @@ public enum DataSourceType
     Camera
 }
 
+/// <summary>A sensor data source: a typed carrier of the measured quantity.</summary>
 public class DataSource : Component
 {
-    public static readonly EnumProperty<DataSourceType> TYPE = new("type", new Key("datasource"), DataSourceType.Temperature);
-    public static readonly FloatProperty VALUE = new("value", new Key("datasource"));
+    public DataSourceType Type { get; set; }
+    public float Value { get; set; }
 
     public DataSource(DataSourceType type)
     {
-        AddProperty(TYPE, VALUE);
-        SetValue(TYPE, type);
+        Type = type;
     }
 }

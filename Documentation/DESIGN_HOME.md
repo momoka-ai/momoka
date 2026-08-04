@@ -39,12 +39,10 @@ Momoka.Home 是家庭数字孪生模块：
 classDiagram
     direction TB
 
-    class PropertyValueObject {
-        +get/set/event/coerce/serialize
-    }
     class Entity {
         +Id
         +Key
+        +Properties 属性系统(get/set/event/serialize)
     }
     class BlockEntity {
         +Shape 网格锚定
@@ -61,7 +59,7 @@ classDiagram
         2D 地板/天花板
     }
     class Component {
-        +SOURCE_ID 行为脚本
+        +SourceId 行为脚本
     }
     class DataSource {
         连续读数
@@ -73,12 +71,10 @@ classDiagram
         命令列表
     }
 
-    PropertyValueObject <|-- Entity
     Entity <|-- BlockEntity
     Entity <|-- LivingEntity
     Entity <|-- RobotEntity
     Entity <|-- TileEntity
-    Entity <|-- Component
     Component <|-- DataSource
     Component <|-- EventSource
     Component <|-- CommandTarget
@@ -90,11 +86,13 @@ classDiagram
 
 ### 3.3 Property API
 
-`Name` / `TemplateKey` / `PropertyType` / `Description` / `DefaultValue` / `IsReadOnly` / `ValidateValueCallback` / `IsValidType` / `IsValidValue` / `ToSchema()` / `GetValidValues()` / `Create(...)`。
+`Name` / `TemplateKey` / `PropertyType` / `Description` / `DefaultValue` / `Value`（每实例，null=用默认）/ `IsReadOnly` / `ValidateValueCallback` / `ValidValues` / `IsValidType` / `IsValidValue` / `ToSchema()` / `GetValidValues()` / `Clone()` / `Create(...)`。
 
-### 3.4 PropertyValueObject API
+### 3.4 Entity 属性系统 API
 
-`AddProperty` / `GetValue`/`SetValue`（Property 或 string 键）/ `ClearValue` / 索引器 / `CoerceValue` / `event PropertyValueChanged` / `GetSchema()` / `ToDictionary()` / `Deserialize()`。
+`AddProperty` / `AddProperties` / `GetValue`/`SetValue`（Property 或 string 键）/ `ClearValue` / 索引器 / `event PropertyValueChanged` / `GetSchema()` / `ToDictionary()` / `Deserialize()`。
+
+属性为**每实例对象**，值存放在 `Property.Value`；`CoerceValue` 已移除（无使用）。
 
 ### 3.5 序列化
 
@@ -295,7 +293,6 @@ Momoka.Home/
 ├── Models/
 │   ├── States/
 │   │   ├── Property.cs + 6 个 Property 子类
-│   │   ├── PropertyValueObject.cs
 │   │   └── PropertyValueChangedEventArgs.cs
 │   ├── Entities/
 │   │   ├── Entity.cs / BlockEntity.cs / LivingEntity.cs / RobotEntity.cs / TileEntity.cs

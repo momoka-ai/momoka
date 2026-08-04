@@ -9,5 +9,8 @@ public class FloatProperty : Property<float>
     {
     }
 
+    protected override Property<float> CreateCopy(string name, Key templateKey, float defaultValue, string description) =>
+        new FloatProperty(name, templateKey, defaultValue, description);
+
     protected override string SchemaTypeName() => "number";
 }

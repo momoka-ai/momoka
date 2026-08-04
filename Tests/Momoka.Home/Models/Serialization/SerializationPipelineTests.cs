@@ -8,7 +8,7 @@ namespace Momoka.Home.Tests.Models.Serialization;
 
 /// <summary>
 /// Config pipeline: JSON config file → typed EntityTemplate (key from path,
-/// "typename" resolved against the registry with inheritance + merge) → entity.
+/// "class" resolved against the registry with inheritance + merge) → entity.
 /// </summary>
 public class SerializationPipelineTests
 {
@@ -16,7 +16,7 @@ public class SerializationPipelineTests
 
     private const string ConfigJson = """
     {
-        "typename": "entity.appliance.air_conditioner",
+        "class": "entity.appliance.air_conditioner",
         "shape": { "kind": "box", "size": { "x": 1, "y": 2, "z": 1 } },
         "properties": [
             { "key": "ai_mode", "type": "literals", "values": ["disabled", "skyscreen_mode", "no_direct_wind_mode", "fast_cooling_mode"], "value": "disabled" },
@@ -37,7 +37,7 @@ public class SerializationPipelineTests
 
         var templateEntity = Assert.IsType<TemplateEntity>(entity);
         Assert.Equal(new Key("midea", "air_conditioner.ac_1523"), templateEntity.Key);
-        Assert.Equal("entity.appliance.air_conditioner", templateEntity.Template.Typename);
+        Assert.Equal("entity.appliance.air_conditioner", templateEntity.Template.Class);
 
         var box = Assert.IsType<BoxShape>(templateEntity.Shape);
         Assert.Equal(1, box.SizeX);
@@ -67,9 +67,10 @@ public class SerializationPipelineTests
     {
         var loader = new EntityConfigLoader();
         // Pre-register a base type: a generic air conditioner carrying a shared property.
-        var baseTemplate = new EntityTemplate(
-            new Key("entity", "appliance.air_conditioner"), "voxelentity")
+        var baseTemplate = new EntityTemplate
         {
+            Key = new Key("entity", "appliance.air_conditioner"),
+            Class = "voxelentity",
             Properties = new List<Property>
             {
                 new BooleanProperty("power", new Key("entity.appliance.air_conditioner"))
@@ -92,7 +93,7 @@ public class SerializationPipelineTests
         var loader = new EntityConfigLoader();
         var path = WriteTempConfig("brand", "series.json", """
         {
-            "typename": "voxelentity",
+            "class": "voxelentity",
             "properties": [ { "key": "series", "type": "string", "value": "AC-1" } ]
         }
         """);
@@ -101,7 +102,7 @@ public class SerializationPipelineTests
 
         var registered = loader.Registry.Resolve("brand:series");
         Assert.NotNull(registered);
-        Assert.Equal("voxelentity", registered!.Typename);
+        Assert.Equal("voxelentity", registered!.Class);
     }
 
     [Fact]

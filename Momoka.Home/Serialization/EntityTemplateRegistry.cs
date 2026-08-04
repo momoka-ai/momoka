@@ -3,7 +3,7 @@ namespace Momoka.Home.Serialization;
 
 /// <summary>
 /// Registry of entity templates: pre-registered base types (e.g. "voxelentity")
-/// plus every template loaded from config. Used to resolve a config's "typename"
+/// plus every template loaded from config. Used to resolve a config's "class"
 /// to its inherited template, and to make loaded templates inheritable in turn.
 /// </summary>
 public class EntityTemplateRegistry

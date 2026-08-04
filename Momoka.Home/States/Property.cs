@@ -10,11 +10,20 @@ public abstract class Property
     public string Description { get; }
     public abstract Type PropertyType { get; }
 
-    public bool IsReadOnly { get; init; }
-    public Func<object?, bool>? ValidateValueCallback { get; init; }
+    public bool IsReadOnly { get; set; }
+    public Func<object?, bool>? ValidateValueCallback { get; set; }
 
     /// <summary>Optional closed set of valid values (config-driven "literals").</summary>
-    public IReadOnlyList<string>? ValidValues { get; init; }
+    public IReadOnlyList<string>? ValidValues { get; set; }
+
+    /// <summary>
+    /// Per-instance value (config-driven: each entity owns its properties, so the
+    /// value lives on the property itself). Null means "use <see cref="DefaultValue"/>.
+    /// </summary>
+    public object? Value { get; set; }
+
+    /// <summary>Creates a fresh property with the same definition and value (per-instance materialization).</summary>
+    public abstract Property Clone();
 
     protected Property(string name, Key templateKey, string description = "")
     {
@@ -103,6 +112,19 @@ public abstract class Property<T> : Property
 
     public override object? SerializeValue(object value) => Serialize((T)value);
     public override object DeserializeValue(object? raw) => Deserialize(raw)!;
+
+    public override Property Clone()
+    {
+        var copy = CreateCopy(Name, TemplateKey, DefaultValue, Description);
+        copy.ValidateValueCallback = ValidateValueCallback;
+        copy.IsReadOnly = IsReadOnly;
+        copy.ValidValues = ValidValues;
+        copy.Value = Value;
+        return copy;
+    }
+
+    /// <summary>Constructs a fresh instance of the concrete property subclass (used by <see cref="Clone"/>).</summary>
+    protected abstract Property<T> CreateCopy(string name, Key templateKey, T defaultValue, string description);
 
     protected virtual object? Serialize(T value) => value;
     protected virtual T Deserialize(object? raw) =>

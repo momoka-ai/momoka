@@ -63,7 +63,7 @@ Momoka 想解决的问题是：**让 AI 不仅「会说话」，还「懂这个�
 
 - **Momoka.Home — 空间数据模型**：
   - 坐标系统：`Int2` / `Int3` / `Float3` / `Key`（10cm 网格步长）
-  - 属性系统：`Property<T>` 及 6 种类型（布尔 / 枚举 / 浮点 / 整数 / 字符串 / 纹理）、`PropertyValueObject`（get/set/事件/序列化）
+  - 属性系统：`Property<T>` 及 6 种类型（布尔 / 枚举 / 浮点 / 整数 / 字符串 / 纹理）、Entity 属性系统（get/set/事件/序列化，值存于 `Property.Value`）
   - 实体系统：`Entity` 继承链（`BlockEntity` / `LivingEntity` / `RobotEntity` / `TileEntity`）+ `Component` 行为脚本，已实现 `Wall`、`Door`、`Window`、`Appliance`、`Curtain`、`Human`、`Pet` 等
   - 空间结构：`Home → Level → LevelChunk`（20×20×Y 分块）、体素风格 `PalettedContainer`、`BlockGraph` 墙体拓扑、`Region` 多边形区域、`Canvas` 地板/天花板
   - 服务层：`PlacementService`（放置校验）、`RegionService`（区域查询）、`WallBuildingService`（墙体绘制）、`SelectionService`（选中状态）

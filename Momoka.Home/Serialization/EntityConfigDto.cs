@@ -6,13 +6,13 @@ namespace Momoka.Home.Serialization;
 /// Flat JSON model of an entity config file, mirroring <see cref="EntityTemplate"/>'s
 /// fields. The template key is NOT stored here — it is derived from the file path
 /// (folder = namespace, filename = key path). Deserialized by the loader, which
-/// then resolves the "typename" and merges content into an <see cref="EntityTemplate"/>.
+/// then resolves the "class" and merges content into an <see cref="EntityTemplate"/>.
 /// </summary>
 public sealed class EntityConfigDto
 {
     /// <summary>Registered type this config inherits from (resolved in the template registry).</summary>
-    [JsonProperty("typename"), JsonRequired]
-    public string Typename { get; set; } = "";
+    [JsonProperty("class"), JsonRequired]
+    public string Class { get; set; } = "";
 
     [JsonProperty("shape")] public ShapeDto? Shape { get; set; }
 

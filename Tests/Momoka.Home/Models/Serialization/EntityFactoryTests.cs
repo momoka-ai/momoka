@@ -20,7 +20,7 @@ public class EntityFactoryTests
         var factory = new EntityFactory();
         factory.Register<DummyEntity>("dummy");
 
-        var template = new EntityTemplate(new Key("test", "dummy"), "dummy");
+        var template = new EntityTemplate { Key = new Key("test", "dummy"), Class = "dummy" };
 
         var entity = Assert.IsType<DummyEntity>(factory.Create(template));
         Assert.Equal(new Key("test", "dummy"), entity.Key);
@@ -30,7 +30,7 @@ public class EntityFactoryTests
     public void Create_UnregisteredType_Throws()
     {
         var factory = new EntityFactory();
-        var template = new EntityTemplate(new Key("test", "ghost"), "ghost");
+        var template = new EntityTemplate { Key = new Key("test", "ghost"), Class = "ghost" };
 
         Assert.Throws<InvalidOperationException>(() => factory.Create(template));
         Assert.False(factory.TryCreate(template, out var entity));
@@ -43,7 +43,7 @@ public class EntityFactoryTests
         var factory = new EntityFactory();
         factory.Register<DummyEntity>("dummy");
 
-        var template = new EntityTemplate(new Key("dummy"), "dummy");
+        var template = new EntityTemplate { Key = new Key("dummy"), Class = "dummy" };
 
         Assert.True(factory.TryCreate(template, out var entity));
         Assert.IsType<DummyEntity>(entity);

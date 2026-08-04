@@ -9,5 +9,8 @@ public class TextureProperty : Property<string>
     {
     }
 
+    protected override Property<string> CreateCopy(string name, Key templateKey, string defaultValue, string description) =>
+        new TextureProperty(name, templateKey, defaultValue, description);
+
     protected override string SchemaTypeName() => "texture";
 }

@@ -1,6 +1,3 @@
-using Momoka.Home;
-using Momoka.Home.Primitives;
-using Momoka.Home.States;
 namespace Momoka.Home.Components;
 
 public enum EventType
@@ -11,13 +8,13 @@ public enum EventType
     ThresholdReached
 }
 
+/// <summary>An event source: a typed carrier of the event kind.</summary>
 public class EventSource : Component
 {
-    public static readonly EnumProperty<EventType> TYPE = new("event_type", new Key("eventsource"), EventType.ButtonPress);
+    public EventType Type { get; set; }
 
     public EventSource(EventType type)
     {
-        AddProperty(TYPE);
-        SetValue(TYPE, type);
+        Type = type;
     }
 }

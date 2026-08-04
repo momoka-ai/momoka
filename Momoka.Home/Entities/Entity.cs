@@ -4,20 +4,110 @@ using Momoka.Home.Primitives;
 using Momoka.Home.States;
 namespace Momoka.Home.Entities;
 
-public abstract class Entity : PropertyValueObject, IComponentSource
+/// <summary>
+/// Base for everything that carries behavior components and per-instance
+/// properties. Properties are declared per instance (config-driven: entities get
+/// cloned properties from their template at materialization); each
+/// <see cref="Property"/> holds its own <see cref="Property.Value"/>.
+/// </summary>
+public abstract class Entity : IComponentSource
 {
     public Guid Id { get; init; } = Guid.NewGuid();
+    public Key Key { get; init; }
 
-    private Key? _key;
+    // ── Properties (per-instance, config-driven) ─────────
 
-    /// <summary>
-    /// Type identity of this entity. Defaults to the runtime type name in
-    /// lowercase; can be set so a config-driven entity adopts its template's key.
-    /// </summary>
-    public virtual Key Key
+    private readonly List<Property> _properties = new();
+
+    public event EventHandler<PropertyValueChangedEventArgs>? PropertyValueChanged;
+
+    /// <summary>Declares properties on this instance (definition + default).</summary>
+    protected void AddProperty(params Property[] properties)
     {
-        get => _key ?? new(GetType().Name.ToLowerInvariant());
-        set => _key = value;
+        _properties.AddRange(properties);
+    }
+
+    /// <summary>Declares properties from a template at materialization (cloned per instance by the caller).</summary>
+    public void AddProperties(IEnumerable<Property> properties)
+    {
+        _properties.AddRange(properties);
+    }
+
+    public T GetValue<T>(Property<T> property) =>
+        (T)(property.Value ?? property.DefaultValue)!;
+
+    public void SetValue<T>(Property<T> property, T value)
+    {
+        if (property.IsReadOnly)
+            throw new InvalidOperationException($"Property '{property.Name}' is read-only.");
+
+        if (!property.IsValidValue(value))
+            throw new ArgumentException($"Invalid value for property '{property.Name}'.");
+
+        property.Value = value;
+        NotifyChanged(property);
+    }
+
+    public void ClearValue(Property property)
+    {
+        property.Value = null;
+        NotifyChanged(property);
+    }
+
+    public object? GetValue(string name)
+    {
+        var property = FindProperty(name)
+            ?? throw new KeyNotFoundException($"Property '{name}' not found.");
+        return property.Value ?? property.GetDefaultValue();
+    }
+
+    public void SetValue(string name, object? value)
+    {
+        var property = FindProperty(name)
+            ?? throw new KeyNotFoundException($"Property '{name}' not found.");
+        property.Value = value;
+        NotifyChanged(property);
+    }
+
+    public void ClearValue(string name)
+    {
+        var property = FindProperty(name);
+        if (property is not null)
+            ClearValue(property);
+    }
+
+    public object? this[Property property]
+    {
+        get => property.Value ?? property.GetDefaultValue();
+        set => property.Value = value;
+    }
+
+    public object? this[string name]
+    {
+        get => GetValue(name);
+        set => SetValue(name, value);
+    }
+
+    public List<Dictionary<string, object?>> GetSchema() =>
+        _properties.Select(p => p.ToSchema()).ToList();
+
+    public Dictionary<string, object?> ToDictionary()
+    {
+        var result = new Dictionary<string, object?>();
+        foreach (var property in _properties)
+        {
+            result[property.Name] = property.SerializeValue(property.Value ?? property.GetDefaultValue()!);
+        }
+        return result;
+    }
+
+    public void Deserialize(Dictionary<string, object?> data)
+    {
+        foreach (var property in _properties)
+        {
+            if (data.TryGetValue(property.Name, out var raw))
+                property.Value = property.DeserializeValue(raw);
+        }
     }
 
     // ── Behavior components ──────────────────────────────
@@ -57,4 +147,12 @@ public abstract class Entity : PropertyValueObject, IComponentSource
 
     public Component? GetComponent(Guid id) =>
         _components.FirstOrDefault(c => c.Id == id);
+
+    // ── Private helpers ──────────────────────────────────
+
+    private Property? FindProperty(string name) =>
+        _properties.FirstOrDefault(p => p.Name == name);
+
+    private void NotifyChanged(Property property) =>
+        PropertyValueChanged?.Invoke(this, new PropertyValueChangedEventArgs(property, property.Value ?? property.GetDefaultValue()));
 }

@@ -8,25 +8,35 @@ namespace Momoka.Home.Serialization;
 
 /// <summary>
 /// Typed descriptor of an entity type: the identity (<see cref="Key"/>,
-/// <see cref="Typename"/>) plus the limited, known set of content fields (shape,
+/// <see cref="Class"/>) plus the limited, known set of content fields (shape,
 /// properties, components). Built by <see cref="EntityConfigLoader"/> from a config
-/// file — key derived from the path, "typename" resolved against the template
+/// file — key derived from the path, "class" resolved against the template
 /// registry (inheritance + merge) — and materialized by <see cref="EntityFactory"/>.
 /// </summary>
 public class EntityTemplate
 {
     /// <summary>
     /// The template's type identity — also stamped onto produced entities'
-    /// <see cref="Entity.Key"/>. Derived from the config file path, never from JSON.
+    /// <see cref="Entity.Key"/>. Derived from the config file path, set after
+    /// deserialization (never read from JSON).
     /// </summary>
-    public Key Key { get; }
+    [JsonIgnore]
+    public Key Key { get; set; }
 
     /// <summary>
     /// Registered type this template inherits from, resolved in the template
     /// registry (e.g. "voxelentity", "entity.appliance.air_conditioner").
     /// </summary>
-    [JsonProperty("typename"), JsonRequired]
-    public string Typename { get; }
+    [JsonProperty("class"), JsonRequired]
+    public string Class { get; set; } = "";
+
+    /// <summary>
+    /// Target CLR type, inherited from the top-level base template (e.g.
+    /// "universal.voxel" → <see cref="VoxelEntity"/>). Never read from JSON —
+    /// it is carried down the inheritance chain and used at materialization.
+    /// </summary>
+    [JsonIgnore]
+    public Type? Type { get; set; }
 
     /// <summary>Shape, inherited from the parent template and overridden by this config.</summary>
     [JsonProperty("shape")]
@@ -39,10 +49,4 @@ public class EntityTemplate
     /// <summary>Components (resolution not implemented yet).</summary>
     [JsonProperty("components")]
     public List<Component>? Components { get; set; }
-
-    public EntityTemplate(Key key, string typename)
-    {
-        Key = key;
-        Typename = typename;
-    }
 }

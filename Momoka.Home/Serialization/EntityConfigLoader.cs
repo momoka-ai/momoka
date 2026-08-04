@@ -8,7 +8,7 @@ namespace Momoka.Home.Serialization;
 /// Loads entity config files into typed <see cref="EntityTemplate"/>s and
 /// materializes entities:
 ///  1. the key is derived from the file path (folder = namespace, filename = key path);
-///  2. the config's "typename" is resolved against the template registry to find the
+///  2. the config's "class" is resolved against the template registry to find the
 ///     inherited template, which is copied as the base;
 ///  3. the config's remaining content (shape, properties) is merged into the copy,
 ///     which is then stored in the registry.
@@ -32,7 +32,12 @@ public class EntityConfigLoader
         _factory = factory ?? new EntityFactory();
         _factory.SetDefault(template => new TemplateEntity(template));
         _registry = new EntityTemplateRegistry();
-        _registry.Register("voxelentity", new EntityTemplate(new Key("voxelentity"), "voxelentity"));
+        _registry.Register("voxelentity", new EntityTemplate
+        {
+            Key = new Key("voxelentity"),
+            Class = "voxelentity",
+            Type = typeof(VoxelEntity)
+        });
     }
 
     /// <summary>Loads the config file and materializes the entity.</summary>
@@ -49,13 +54,16 @@ public class EntityConfigLoader
 
     /// <summary>
     /// Builds a template from a DTO: inherits the parent template (resolved by
-    /// "typename"), then merges this config's shape and properties over it.
+    /// "class"), then merges this config's shape and properties over it.
     /// </summary>
     public EntityTemplate Build(Key key, EntityConfigDto dto)
     {
-        var parent = _registry.Resolve(dto.Typename);
-        var template = new EntityTemplate(key, dto.Typename)
+        var parent = _registry.Resolve(dto.Class);
+        var template = new EntityTemplate
         {
+            Key = key,
+            Class = dto.Class,
+            Type = parent?.Type,
             Shape = parent?.Shape,
             Properties = parent?.Properties?.ToList(),
             Components = parent?.Components?.ToList()

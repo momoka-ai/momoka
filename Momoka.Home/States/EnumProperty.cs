@@ -10,6 +10,9 @@ public class EnumProperty<T> : Property<T>
     {
     }
 
+    protected override Property<T> CreateCopy(string name, Key templateKey, T defaultValue, string description) =>
+        new EnumProperty<T>(name, templateKey, defaultValue, description);
+
     public override IEnumerable<string> GetValidValues() =>
         Enum.GetNames(typeof(T));
 

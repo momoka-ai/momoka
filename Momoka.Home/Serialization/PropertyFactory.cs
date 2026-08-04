@@ -15,14 +15,15 @@ public static class PropertyFactory
         ArgumentNullException.ThrowIfNull(dto);
         return dto.Type switch
         {
-            "boolean" => new BooleanProperty(dto.Key, templateKey, dto.Value?.Value<bool>() ?? false),
-            "int" => new IntProperty(dto.Key, templateKey, dto.Value?.Value<int>() ?? 0),
-            "float" => new FloatProperty(dto.Key, templateKey, dto.Value?.Value<float>() ?? 0f),
-            "string" => new StringProperty(dto.Key, templateKey, dto.Value?.Value<string>() ?? ""),
-            "texture" => new TextureProperty(dto.Key, templateKey, dto.Value?.Value<string>() ?? ""),
-            "literals" => new StringProperty(dto.Key, templateKey, dto.Value?.Value<string>() ?? "")
+            "boolean" => new BooleanProperty(dto.Key, templateKey) { Value = dto.Value?.Value<bool>() },
+            "int" => new IntProperty(dto.Key, templateKey) { Value = dto.Value?.Value<int>() },
+            "float" => new FloatProperty(dto.Key, templateKey) { Value = dto.Value?.Value<float>() },
+            "string" => new StringProperty(dto.Key, templateKey) { Value = dto.Value?.Value<string>() },
+            "texture" => new TextureProperty(dto.Key, templateKey) { Value = dto.Value?.Value<string>() },
+            "literals" => new StringProperty(dto.Key, templateKey)
             {
-                ValidValues = dto.Values
+                ValidValues = dto.Values,
+                Value = dto.Value?.Value<string>()
             },
             _ => throw new NotSupportedException($"Unknown property type '{dto.Type}'.")
         };

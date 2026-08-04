@@ -21,7 +21,7 @@ public class TemplateEntity : VoxelEntity
         Shape = template.Shape ?? new BoxShape();
 
         foreach (var property in template.Properties ?? Enumerable.Empty<Property>())
-            AddProperty(property);
+            AddProperty(property.Clone());
         foreach (var component in template.Components ?? Enumerable.Empty<Component>())
             AddComponent(component);
     }

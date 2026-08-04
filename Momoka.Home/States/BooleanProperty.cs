@@ -9,5 +9,8 @@ public class BooleanProperty : Property<bool>
     {
     }
 
+    protected override Property<bool> CreateCopy(string name, Key templateKey, bool defaultValue, string description) =>
+        new BooleanProperty(name, templateKey, defaultValue, description);
+
     protected override string SchemaTypeName() => "boolean";
 }
