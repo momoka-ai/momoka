@@ -10,7 +10,7 @@ namespace Momoka.Home.Tests.Models.Serialization;
 /// </summary>
 public class EntityFactoryTests
 {
-    private sealed class DummyEntity : VoxelEntity
+    private sealed class DummyEntity : Entity<Int3>
     {
     }
 

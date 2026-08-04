@@ -12,7 +12,7 @@ namespace Momoka.Home.Serialization;
 ///     inherited template, which is copied as the base;
 ///  3. the config's remaining content (shape, properties) is merged into the copy,
 ///     which is then stored in the registry.
-/// The factory's default constructor (a plain <see cref="TemplateEntity"/>) is
+/// The factory's default constructor (a plain <see cref="EntityMaterializer"/>) is
 /// wired in here — special entity types override it by registering their own
 /// constructor for their type name.
 /// </summary>
@@ -30,13 +30,13 @@ public class EntityConfigLoader
     public EntityConfigLoader(EntityFactory? factory = null)
     {
         _factory = factory ?? new EntityFactory();
-        _factory.SetDefault(template => new TemplateEntity(template));
+        _factory.SetDefault(EntityMaterializer.Build);
         _registry = new EntityTemplateRegistry();
         _registry.Register("voxelentity", new EntityTemplate
         {
             Key = new Key("voxelentity"),
             Class = "voxelentity",
-            Type = typeof(VoxelEntity)
+            Type = typeof(Entity<Int3>)
         });
     }
 

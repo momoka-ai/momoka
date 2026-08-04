@@ -32,7 +32,7 @@ public class EntityTemplate
 
     /// <summary>
     /// Target CLR type, inherited from the top-level base template (e.g.
-    /// "universal.voxel" → <see cref="VoxelEntity"/>). Never read from JSON —
+    /// "voxelentity" → <c>Entity&lt;Int3&gt;</c>). Never read from JSON —
     /// it is carried down the inheritance chain and used at materialization.
     /// </summary>
     [JsonIgnore]

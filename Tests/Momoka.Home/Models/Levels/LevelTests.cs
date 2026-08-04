@@ -1,5 +1,6 @@
 using Xunit;
 using Momoka.Home;
+using Momoka.Home.Components;
 using Momoka.Home.Entities;
 using Momoka.Home.Layouts;
 using Momoka.Home.Levels;
@@ -9,23 +10,19 @@ namespace Momoka.Home.Tests.Models.Levels;
 
 /// <summary>
 /// End-to-end checks of the level as the unified placement-surface catalog:
-/// Level : IVoxelLayout2DSource aggregates its floor/ceiling planes and every
-/// contained surface-source entity's surfaces (walls' faces and any other
-/// IVoxelLayout2DSource placed in the occupancy grid).
+/// the level aggregates its floor/ceiling planes and every contained entity's
+/// SurfaceSource component (walls' faces and any other surface source placed in
+/// the occupancy grid).
 /// </summary>
 public class LevelTests
 {
-    private sealed class SurfaceSourceEntity : VoxelEntity, IVoxelLayout2DSource
+    private sealed class SurfaceSourceEntity : Entity<Int3>
     {
         public SurfaceSourceEntity()
         {
             Shape = new BoxShape();
-            Surface = new VoxelLayout2D(new Int2(2, 2));
+            AddComponent(new SurfaceSource { Layouts = { new VoxelLayout2D(new Int2(2, 2)) } });
         }
-
-        public VoxelLayout2D Surface { get; }
-
-        public IEnumerable<VoxelLayout2D> Layouts => new[] { Surface };
     }
     [Fact]
     public void Layouts_IncludesFloorCeilingAndWallFaces()
@@ -55,14 +52,15 @@ public class LevelTests
 
         // floor + ceiling + the custom surface-source entity's surface
         Assert.Equal(3, level.Layouts.Count());
-        Assert.Contains(source.Surface, level.Layouts);
+        var surface = source.GetComponent<SurfaceSource>()!.Layouts.Single();
+        Assert.Contains(surface, level.Layouts);
     }
 
     [Fact]
     public void Floor_IsAPlaneLayoutWithMaterialSubdivision()
     {
         var level = new Level();
-        Assert.IsType<PlaneLayout<TileEntity>>(level.Floor);
+        Assert.IsType<PlaneLayout<Entity<Int2>>>(level.Floor);
         Assert.NotNull(level.Floor.Subdivision);
     }
 

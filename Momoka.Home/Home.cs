@@ -24,7 +24,7 @@ public class Home : Entity
 {
     public VoxelLayout3D Layout { get; } = new();
     public FloorPlanLayout Boundary { get; } = new();
-    public Subdivision<TileEntity> Ground { get; } = new();
+    public Subdivision<Entity<Int2>> Ground { get; } = new();
     public GridLayout2D<Region> Regions { get; } = new(new Int2(50, 50));
     public List<Building> Buildings { get; } = new();
 }

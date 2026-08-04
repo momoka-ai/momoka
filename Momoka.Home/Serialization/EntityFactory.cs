@@ -5,7 +5,7 @@ namespace Momoka.Home.Serialization;
 /// Materializes an <see cref="EntityTemplate"/> into a typed entity instance.
 /// A constructor is registered per template type name (e.g. "wall" for
 /// behavior-carrying types), or a single fallback constructor via
-/// <see cref="SetDefault"/> (e.g. the plain <see cref="TemplateEntity"/> builder)
+/// <see cref="SetDefault"/> (e.g. the plain <see cref="EntityMaterializer"/>)
 /// handles everything else. Templates stay pure data — this is the only place
 /// that interprets them, so no single wrapper type is forced onto every entity.
 /// </summary>
@@ -23,7 +23,7 @@ public class EntityFactory
 
     /// <summary>
     /// Registers the fallback constructor used when a template's type name has no
-    /// explicit constructor (e.g. the default <see cref="TemplateEntity"/> builder).
+    /// explicit constructor (e.g. the default <see cref="EntityMaterializer"/>).
     /// </summary>
     public void SetDefault(Func<EntityTemplate, Entity> constructor)
     {

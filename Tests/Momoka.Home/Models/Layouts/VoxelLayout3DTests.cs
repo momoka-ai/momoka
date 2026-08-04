@@ -12,7 +12,7 @@ namespace Momoka.Home.Tests.Models.Layouts;
 /// </summary>
 public class VoxelLayout3DTests
 {
-    private sealed class TestEntity : VoxelEntity
+    private sealed class TestEntity : Entity<Int3>
     {
         public TestEntity(Shape shape) => Shape = shape;
     }

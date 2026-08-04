@@ -12,14 +12,14 @@ namespace Momoka.Home.Layouts;
 /// are the <see cref="VoxelLayout3D"/>'s job and are coordinated by the caller
 /// (e.g. an editor command).
 /// </summary>
-public class FloorPlanLayout : Graph2D<VoxelEntity>
+public class FloorPlanLayout : Graph2D<Entity<Int3>>
 {
     /// <summary>
     /// 创建隔断：在 <paramref name="from"/>–<paramref name="to"/> 之间建造一条分区边
     /// （墙 / 围栏 / …）：锚定分区的 LineShape（局部坐标）并注册图节点与边。
     /// 占用栅格化由调用方通过 <see cref="VoxelLayout3D.BuildAt"/> 完成。
     /// </summary>
-    public bool Build(Int2 from, Int2 to, VoxelEntity partition)
+    public bool Build(Int2 from, Int2 to, Entity<Int3> partition)
     {
         if (partition.Shape is not LineShape line)
             return false;
@@ -31,6 +31,10 @@ public class FloorPlanLayout : Graph2D<VoxelEntity>
         AddNode(from);
         AddNode(to);
         AddEdge(from, to, partition);
+
+        // Derived surfaces (wall faces…) depend on the freshly anchored line —
+        // refresh them so the SurfaceSource catalog is always current.
+        (partition as IRefreshableSurfaces)?.RefreshSurfaces();
         return true;
     }
 

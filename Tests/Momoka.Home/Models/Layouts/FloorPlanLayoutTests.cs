@@ -13,7 +13,7 @@ namespace Momoka.Home.Tests.Models.Layouts;
 /// </summary>
 public class FloorPlanLayoutTests
 {
-    private sealed class FenceEntity : VoxelEntity
+    private sealed class FenceEntity : Entity<Int3>
     {
         public FenceEntity() => Shape = new LineShape();
     }

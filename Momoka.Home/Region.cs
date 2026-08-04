@@ -15,7 +15,7 @@ public class Region
 
     public bool Contains(Int2 point) => RayCasting(point, Boundary);
 
-    public bool Contains(VoxelEntity entity)
+    public bool Contains(Entity<Int3> entity)
     {
         foreach (var pos in entity.Shape.GetVoxels())
         {
@@ -25,7 +25,7 @@ public class Region
         return true;
     }
 
-    public float ContainmentRatio(VoxelEntity entity)
+    public float ContainmentRatio(Entity<Int3> entity)
     {
         var total = 0;
         var inside = 0;

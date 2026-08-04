@@ -25,7 +25,7 @@ public class MoveEntityCommand : EditorCommand
     private readonly Int3 _from;
     private readonly Int3 _to;
 
-    public MoveEntityCommand(VoxelEntity entity, Int3 from, Int3 to)
+    public MoveEntityCommand(Entity<Int3> entity, Int3 from, Int3 to)
     {
         _entityId = entity.Id;
         _from = from;

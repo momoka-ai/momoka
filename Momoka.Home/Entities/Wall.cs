@@ -1,4 +1,5 @@
 using Momoka.Home;
+using Momoka.Home.Components;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
 using Momoka.Home.Shapes;
@@ -7,10 +8,10 @@ namespace Momoka.Home.Entities;
 
 /// <summary>
 /// A wall segment: a straight line (see <see cref="LineShape"/>) with a
-/// thickness. Exposes its two faces as placement surfaces
-/// (<see cref="IVoxelLayout2DSource"/>) so objects can be mounted on either side.
+/// thickness. Its two faces are exposed as placement surfaces through a
+/// <see cref="SurfaceSource"/> component (refreshed after the line is anchored).
 /// </summary>
-public class Wall : VoxelEntity, IVoxelLayout2DSource
+public class Wall : Entity<Int3>, IRefreshableSurfaces
 {
     public static readonly TextureProperty TEXTURE = new("texture", new Key("wall"));
 
@@ -21,14 +22,29 @@ public class Wall : VoxelEntity, IVoxelLayout2DSource
     {
         Shape = new LineShape();
         AddProperty(TEXTURE);
+        AddComponent(new SurfaceSource());
     }
 
     /// <summary>
-    /// The two face placement surfaces (front/back) of this wall, for the
-    /// axis-aligned case. Diagonal walls currently expose no faces — their
-    /// normals cannot be expressed by <see cref="VoxelLayout2D.Direction"/>.
+    /// The two face placement surfaces (front/back) of this wall, refreshed from
+    /// the current geometry on access. Diagonal walls expose no faces.
     /// </summary>
-    public IEnumerable<VoxelLayout2D> Layouts => ComputeFaces();
+    public IEnumerable<VoxelLayout2D> Layouts
+    {
+        get
+        {
+            RefreshSurfaces();
+            return GetComponent<SurfaceSource>()!.Layouts;
+        }
+    }
+
+    /// <summary>Recomputes the face surfaces into the <see cref="SurfaceSource"/> component.</summary>
+    public void RefreshSurfaces()
+    {
+        var source = GetComponent<SurfaceSource>()!;
+        source.Layouts.Clear();
+        source.Layouts.AddRange(ComputeFaces());
+    }
 
     private List<VoxelLayout2D> ComputeFaces()
     {

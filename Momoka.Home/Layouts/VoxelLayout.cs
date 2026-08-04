@@ -80,17 +80,6 @@ public class VoxelLayout2D : GridLayout2D<bool>
 }
 
 /// <summary>
-/// Capability of an entity to provide one or more 2D placement layouts
-/// (surfaces) that can host placed objects — a wall (two faces), a floor, or a
-/// bookshelf (one layout per shelf). Placement attaches to a layout and the
-/// surface's cells define where objects may rest.
-/// </summary>
-public interface IVoxelLayout2DSource
-{
-    IEnumerable<VoxelLayout2D> Layouts { get; }
-}
-
-/// <summary>
 /// A 3D voxel occupancy container: chunked paletted storage (inherits
 /// <see cref="GridLayout3D{T}"/>) plus the entities it holds. Owns the
 /// consistency between the cell grid and the entity list — every construction
@@ -98,10 +87,10 @@ public interface IVoxelLayout2DSource
 /// never drift apart. The 3D counterpart of <see cref="VoxelLayout2D"/> (the 2D
 /// placement surface on a plane).
 /// </summary>
-public class VoxelLayout3D : GridLayout3D<VoxelEntity>
+public class VoxelLayout3D : GridLayout3D<Entity<Int3>>
 {
     /// <summary>All entities held by this space, kept in sync with the cell grid.</summary>
-    public List<Entity> Entities { get; } = new();
+    public List<Entity<Int3>> Entities { get; } = new();
 
     /// <summary>Inclusive footprint of the space (optional, set by the owner).</summary>
     public Bound Bound { get; set; } = Bound.Empty;
@@ -110,7 +99,7 @@ public class VoxelLayout3D : GridLayout3D<VoxelEntity>
     {
     }
 
-    /// <summary>True if a VoxelEntity occupies the given position.</summary>
+    /// <summary>True if an Entity&lt;Int3&gt; occupies the given position.</summary>
     public bool HasEntity(Int3 pos) => this[pos] is not null;
 
     /// <summary>
@@ -118,7 +107,7 @@ public class VoxelLayout3D : GridLayout3D<VoxelEntity>
     /// collide: the anchor or any of its (local) shape voxels lands on an
     /// occupied cell.
     /// </summary>
-    public bool IsEntityCollided(VoxelEntity entity, Int3 cs)
+    public bool IsEntityCollided(Entity<Int3> entity, Int3 cs)
     {
         if (HasEntity(cs))
             return true;
@@ -135,7 +124,7 @@ public class VoxelLayout3D : GridLayout3D<VoxelEntity>
     /// True if placing <paramref name="src"/> at <paramref name="cs"/> intersects
     /// the specific <paramref name="dest"/> entity (dest voxels vs src voxels).
     /// </summary>
-    public bool IsEntityCollided(VoxelEntity dest, VoxelEntity src, Int3 cs)
+    public bool IsEntityCollided(Entity<Int3> dest, Entity<Int3> src, Int3 cs)
     {
         var destCells = dest.Shape.GetVoxels()
             .Select(v => dest.Coords + v)
@@ -147,7 +136,7 @@ public class VoxelLayout3D : GridLayout3D<VoxelEntity>
     /// Builds (places) the entity at <paramref name="cs"/>: writes EVERY one of
     /// its shape voxels into the grid and registers it. False if collided.
     /// </summary>
-    public bool BuildAt(VoxelEntity entity, Int3 cs)
+    public bool BuildAt(Entity<Int3> entity, Int3 cs)
     {
         if (IsEntityCollided(entity, cs))
             return false;
@@ -167,26 +156,26 @@ public class VoxelLayout3D : GridLayout3D<VoxelEntity>
     /// </summary>
     public bool DestroyAt(Int3 pos)
     {
-        var entity = Entities.OfType<VoxelEntity>().FirstOrDefault(e => e.Coords == pos);
+        var entity = Entities.FirstOrDefault(e => e.Coords == pos);
         return entity is not null && Remove(entity);
     }
 
     /// <summary>Removes the entity covering the given target cell.</summary>
     public bool DestroyTarget(Int3 target)
     {
-        if (this[target] is not VoxelEntity entity)
+        if (this[target] is not Entity<Int3> entity)
             return false;
         return Remove(entity);
     }
 
     /// <summary>
-    /// Clears the current storage and re-rasterizes every held VoxelEntity into
+    /// Clears the current storage and re-rasterizes every held Entity&lt;Int3&gt; into
     /// the grid — a forced flush/refresh after direct low-level cell writes.
     /// </summary>
     public void Rebuild()
     {
         Clear();
-        foreach (var entity in Entities.OfType<VoxelEntity>())
+        foreach (var entity in Entities)
         {
             foreach (var cell in entity.Shape.GetVoxels())
             {
@@ -195,7 +184,7 @@ public class VoxelLayout3D : GridLayout3D<VoxelEntity>
         }
     }
 
-    private bool Remove(VoxelEntity entity)
+    private bool Remove(Entity<Int3> entity)
     {
         if (!Entities.Remove(entity))
             return false;
@@ -213,10 +202,10 @@ public class VoxelLayout3D : GridLayout3D<VoxelEntity>
     /// Returns all entities whose shape intersects the axis-aligned box
     /// <paramref name="min"/>–<paramref name="max"/> (inclusive). Drag-select.
     /// </summary>
-    public List<VoxelEntity> GetEntitiesInBound(Int2 min, Int2 max)
+    public List<Entity<Int3>> GetEntitiesInBound(Int2 min, Int2 max)
     {
-        var result = new List<VoxelEntity>();
-        foreach (var entity in Entities.OfType<VoxelEntity>())
+        var result = new List<Entity<Int3>>();
+        foreach (var entity in Entities)
         {
             foreach (var loc in entity.Shape.GetVoxels())
             {
@@ -236,10 +225,10 @@ public class VoxelLayout3D : GridLayout3D<VoxelEntity>
         Entities.OfType<T>().ToList();
 
     /// <summary>The entity at the given position, or null.</summary>
-    public VoxelEntity? GetEntityAtPoint(Int3 pos) => this[pos];
+    public Entity<Int3>? GetEntityAtPoint(Int3 pos) => this[pos];
 
     /// <summary>Nearest entity by expanding spiral search, or null.</summary>
-    public VoxelEntity? GetEntityAtNearest(Int3 pos)
+    public Entity<Int3>? GetEntityAtNearest(Int3 pos)
     {
         for (var radius = 0; radius < 1000; radius++)
         {

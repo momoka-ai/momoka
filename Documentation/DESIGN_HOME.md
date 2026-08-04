@@ -44,22 +44,25 @@ classDiagram
         +Key
         +Properties 属性系统(get/set/event/serialize)
     }
-    class BlockEntity {
-        +Shape 网格锚定
+    class EntityInt3["Entity&lt;Int3&gt;"] {
+        +Coords
+        +Shape 体素内容（模板化）
     }
-    class LivingEntity {
-        +Location
-        +Vel 活物
+    class EntityInt2["Entity&lt;Int2&gt;"] {
+        +Coords
+        +Shape 2D 瓦片（材质入属性表）
     }
-    class RobotEntity {
-        +Location
-        +Vel 自主移动机器人
+    class EntityFloat3["Entity&lt;Float3&gt;"] {
+        +Coords 连续坐标（活物/机器人）
     }
-    class TileEntity {
-        2D 地板/天花板
+    class Wall {
+        +Height + SurfaceSource
     }
     class Component {
-        +SourceId 行为脚本
+        +SourceId 行为载体
+    }
+    class SurfaceSource {
+        +Layouts 放置表面
     }
     class DataSource {
         连续读数
@@ -71,10 +74,11 @@ classDiagram
         命令列表
     }
 
-    Entity <|-- BlockEntity
-    Entity <|-- LivingEntity
-    Entity <|-- RobotEntity
-    Entity <|-- TileEntity
+    Entity <|-- EntityInt2
+    Entity <|-- EntityInt3
+    Entity <|-- EntityFloat3
+    EntityInt3 <|-- Wall
+    Component <|-- SurfaceSource
     Component <|-- DataSource
     Component <|-- EventSource
     Component <|-- CommandTarget
@@ -115,16 +119,15 @@ classDiagram
 
 ### 4.2 已实现实体
 
-| 实体 | 继承 | Shape | 属性 |
+| 实体 | 继承 | Shape | 表面/属性 |
 |------|------|-------|------|
-| `Wall` | `BlockEntity` | `LineShape` | `TEXTURE` |
-| `Door` | `BlockEntity` | `BoxShape` | `open`, `locked`, `TEXTURE` |
-| `Window` | `BlockEntity` | `BoxShape` | `open`, `TEXTURE` |
-| `Appliance` | `BlockEntity` | `BoxShape` | `power`, `connection`, `TEXTURE` |
+| `Wall` | `Entity<Int3>` | `LineShape` | `SurfaceSource` 双面 + `TEXTURE` |
+| `Door` | `Entity<Int3>` | `BoxShape` | `open`, `locked`, `TEXTURE` |
+| `Window` | `Entity<Int3>` | `BoxShape` | `open`, `TEXTURE` |
+| `Appliance` | `Entity<Int3>` | `BoxShape` | `power`, `connection`, `TEXTURE` |
 | `Curtain` | `Appliance` | `BoxShape` | + `position` (0-100) |
-| `DataSourceEntity` | `Entity` | — | type/value/source_id |
-| `Human` / `Pet` | `LivingEntity` | — | 待定义 |
-| `RobotEntity` | `Entity` | — | 待定义 |
+| 瓦片 | `Entity<Int2>` | — | 材质进属性表 |
+| 活物/机器人 | `Entity<Float3>` | 留空 | 安全参与用属性标记 |
 
 ### 4.3 Shape 系统
 
@@ -247,7 +250,7 @@ flowchart TB
 | Build 管线 | 视频流 → 3D 重建 → 网格 |
 | Security | Blackboard + 规则评估 |
 | 墙壁开口联动 | 删除墙 → 级联删除门窗 |
-| ~~TileEntity~~ | ✅ 已实现（`Models/Entities/TileEntity.cs`） |
+| ~~TileEntity~~ | ✅ 已并入 `Entity<Int2>`（材质入属性表） |
 | 设备配置 JSON | `/devices/` JSON 定义第三方设备，无需写代码 |
 | DSL 安全规则 | 复杂约束的表达式解析 |
 
@@ -295,9 +298,8 @@ Momoka.Home/
 │   │   ├── Property.cs + 6 个 Property 子类
 │   │   └── PropertyValueChangedEventArgs.cs
 │   ├── Entities/
-│   │   ├── Entity.cs / BlockEntity.cs / LivingEntity.cs / RobotEntity.cs / TileEntity.cs
-│   │   ├── Wall.cs / Door.cs / Window.cs / Appliance.cs / Curtain.cs / DataSourceEntity.cs
-│   │   └── Livings/ (Human.cs, Pet.cs)
+│   │   ├── Entity.cs（属性系统+组件）/ EntityT.cs（Entity&lt;Int2/Int3/Float3&gt;）
+│   │   ├── Wall.cs / Door.cs / Window.cs / Appliance.cs / Curtain.cs / Building.cs
 │   ├── Levels/
 │   │   ├── Level.cs / LevelChunk.cs
 │   │   ├── Palette.cs / PackedBitStorage.cs

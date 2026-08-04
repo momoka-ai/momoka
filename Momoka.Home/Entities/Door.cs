@@ -4,7 +4,7 @@ using Momoka.Home.Shapes;
 using Momoka.Home.States;
 namespace Momoka.Home.Entities;
 
-public class Door : VoxelEntity
+public class Door : Entity<Int3>
 {
     public static readonly BooleanProperty OPEN = new("open", new Key("door"));
     public static readonly BooleanProperty LOCKED = new("locked", new Key("door"));

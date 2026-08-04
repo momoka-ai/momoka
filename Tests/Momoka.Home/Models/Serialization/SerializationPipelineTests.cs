@@ -35,18 +35,17 @@ public class SerializationPipelineTests
 
         var entity = loader.Load(path);
 
-        var templateEntity = Assert.IsType<TemplateEntity>(entity);
-        Assert.Equal(new Key("midea", "air_conditioner.ac_1523"), templateEntity.Key);
-        Assert.Equal("entity.appliance.air_conditioner", templateEntity.Template.Class);
+        var spatial = Assert.IsType<Entity<Int3>>(entity);
+        Assert.Equal(new Key("midea", "air_conditioner.ac_1523"), spatial.Key);
 
-        var box = Assert.IsType<BoxShape>(templateEntity.Shape);
+        var box = Assert.IsType<BoxShape>(spatial.Shape);
         Assert.Equal(1, box.SizeX);
         Assert.Equal(2, box.SizeY);
         Assert.Equal(1, box.SizeZ);
 
-        Assert.Equal("disabled", templateEntity.GetValue("ai_mode"));
-        Assert.False(templateEntity.GetValue("clean_mode") is true);
-        Assert.Equal("texture.midea.air_conditioner.ac_1523", templateEntity.GetValue("texture"));
+        Assert.Equal("disabled", spatial.GetValue("ai_mode"));
+        Assert.False(spatial.GetValue("clean_mode") is true);
+        Assert.Equal("texture.midea.air_conditioner.ac_1523", spatial.GetValue("texture"));
     }
 
     [Fact]
@@ -55,7 +54,7 @@ public class SerializationPipelineTests
         var path = WriteTempConfig("midea", "air_conditioner.ac_1523.json", ConfigJson);
         var loader = new EntityConfigLoader();
 
-        var entity = (TemplateEntity)loader.Load(path);
+        var entity = (Entity<Int3>)loader.Load(path);
         var schema = entity.GetSchema();
 
         var aiMode = schema.Single(s => (string)s["name"]! == "ai_mode");
@@ -79,12 +78,12 @@ public class SerializationPipelineTests
         loader.Registry.Register("entity.appliance.air_conditioner", baseTemplate);
 
         var childPath = WriteTempConfig("midea", "air_conditioner.ac_1523.json", ConfigJson);
-        var entity = (TemplateEntity)loader.Load(childPath);
+        var entity = (Entity<Int3>)loader.Load(childPath);
 
         // Child's own properties load, and the parent's "power" property is inherited.
         Assert.Equal("disabled", entity.GetValue("ai_mode"));
         Assert.False(entity.GetValue("power") is true);
-        Assert.Contains(entity.Template.Properties!, p => p.Name == "power");
+        Assert.Contains(entity.GetSchema(), s => (string)s["name"]! == "power");
     }
 
     [Fact]

@@ -18,7 +18,7 @@ public enum ConnectionState
     Paired
 }
 
-public class Appliance : VoxelEntity
+public class Appliance : Entity<Int3>
 {
     public static readonly EnumProperty<PowerState> POWER = new("power", new Key("appliance"), PowerState.Off);
     public static readonly EnumProperty<ConnectionState> CONNECTION = new("connection", new Key("appliance"), ConnectionState.Offline);
