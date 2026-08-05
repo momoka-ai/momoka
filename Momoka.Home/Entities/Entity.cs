@@ -59,7 +59,7 @@ public abstract class Entity : IComponentSource
     {
         var property = FindProperty(name)
             ?? throw new KeyNotFoundException($"Property '{name}' not found.");
-        return property.BoxedValue ?? property.GetDefaultValue();
+        return property.BoxedValue ?? property.GetUnsetValue();
     }
 
     /// <summary>
@@ -77,7 +77,7 @@ public abstract class Entity : IComponentSource
             return false;
         }
 
-        value = property.BoxedValue ?? property.GetDefaultValue();
+        value = property.BoxedValue ?? property.GetUnsetValue();
         return true;
     }
 
@@ -98,7 +98,7 @@ public abstract class Entity : IComponentSource
 
     public object? this[Property property]
     {
-        get => property.BoxedValue ?? property.GetDefaultValue();
+        get => property.BoxedValue ?? property.GetUnsetValue();
         set => property.BoxedValue = value;
     }
 
@@ -157,7 +157,7 @@ public abstract class Entity : IComponentSource
         _properties.FirstOrDefault(p => p.Name == name);
 
     private void NotifyChanged(Property property) =>
-        PropertyValueChanged?.Invoke(this, new PropertyValueChangedEventArgs(property, property.BoxedValue ?? property.GetDefaultValue()));
+        PropertyValueChanged?.Invoke(this, new PropertyValueChangedEventArgs(property, property.BoxedValue ?? property.GetUnsetValue()));
 }
 
 /// <summary>

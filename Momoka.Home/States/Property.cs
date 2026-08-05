@@ -28,7 +28,7 @@ public abstract class Property
     public abstract Type ValueType { get; }
 
     /// <summary>
-    /// The current value in boxed form (null = unset → <see cref="GetDefaultValue"/>).
+    /// The current value in boxed form (null = unset → <see cref="GetUnsetValue"/>).
     /// Subclasses store it TYPED; this uniform accessor serves name-based consumers.
     /// </summary>
     [JsonIgnore]
@@ -45,8 +45,8 @@ public abstract class Property
     /// <summary>Creates a fresh property with the same definition and value (per-instance materialization).</summary>
     public abstract Property Clone();
 
-    /// <summary>The default value (used when <see cref="BoxedValue"/> is null).</summary>
-    public abstract object? GetDefaultValue();
+    /// <summary>The value used when <see cref="BoxedValue"/> is null (the unset value).</summary>
+    public abstract object? GetUnsetValue();
 
     /// <summary>True when the value is null or of the property's CLR type.</summary>
     public bool IsValidValue(object? value) =>
@@ -69,7 +69,7 @@ public abstract class Property
         {
             ["name"] = Name,
             ["type"] = SchemaTypeName(),
-            ["default"] = GetDefaultValue(),
+            ["default"] = GetUnsetValue(),
             ["isReadOnly"] = IsReadOnly
         };
 
@@ -98,12 +98,12 @@ public abstract class Property<T> : Property
 
     /// <summary>The default value; <see cref="Value"/> equals it until explicitly set.</summary>
     [JsonIgnore]
-    public T DefaultValue { get; } = default!;
+    public T UnsetValue { get; } = default!;
 
     private T _value = default!;
 
     /// <summary>
-    /// Typed per-instance value, seeded with <see cref="DefaultValue"/> and only
+    /// Typed per-instance value, seeded with <see cref="UnsetValue"/> and only
     /// replaced by an explicit set — no separate "unset" flag. Maps to the JSON
     /// "value" field. NOTE: in a generic class <c>T?</c> is not
     /// <c>Nullable&lt;T&gt;</c> for value types (Property&lt;bool&gt;.Value is
@@ -121,7 +121,7 @@ public abstract class Property<T> : Property
     public override object? BoxedValue
     {
         get => _value;
-        set => _value = value is null ? DefaultValue : (T)value;
+        set => _value = value is null ? UnsetValue : (T)value;
     }
 
     protected Property() { }
@@ -129,15 +129,15 @@ public abstract class Property<T> : Property
     protected Property(string name, T defaultValue, string description = "")
         : base(name, description)
     {
-        DefaultValue = defaultValue;
+        UnsetValue = defaultValue;
         _value = defaultValue;
     }
 
-    public override object? GetDefaultValue() => DefaultValue;
+    public override object? GetUnsetValue() => UnsetValue;
 
     public override Property Clone()
     {
-        var copy = CreateCopy(Name, DefaultValue, Description);
+        var copy = CreateCopy(Name, UnsetValue, Description);
         copy.IsReadOnly = IsReadOnly;
         copy.BoxedValue = BoxedValue;
         return copy;
