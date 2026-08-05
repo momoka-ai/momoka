@@ -92,7 +92,7 @@ public abstract class Property
 /// converts to the concrete CLR type (never a JToken). Subclasses add their own
 /// storage and constraints (a closed literal set, an enum, …).
 /// </summary>
-public abstract class Property<T> : Property
+public abstract class Property<T> : Property, ICloneable
 {
     public override Type ValueType => typeof(T);
 
@@ -145,4 +145,9 @@ public abstract class Property<T> : Property
 
     /// <summary>Constructs a fresh instance of the concrete property subclass (used by <see cref="Clone"/>).</summary>
     protected abstract Property<T> CreateCopy(string name, T defaultValue, string description);
+
+    object ICloneable.Clone()
+    {
+        return Clone();
+    }
 }
