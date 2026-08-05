@@ -8,11 +8,10 @@ public class LineShape : Shape
     public Float3 Start { get; set; }
     /// <summary>End of the segment, in the host entity's LOCAL frame.</summary>
     public Float3 End { get; set; }
-    public float Curvature { get; set; }
     public int Thickness { get; set; } = 1;
 
-    /// <summary>Rasterizes the line (with thickness) into grid cells.</summary>
-    public override IEnumerable<Int3> GetVoxels()
+    /// <summary>Rasterizes the straight line (with thickness) into grid cells.</summary>
+    public override IEnumerable<Int3> Cells()
     {
         var dx = End.X - Start.X;
         var dz = End.Z - Start.Z;
@@ -45,8 +44,8 @@ public class LineShape : Shape
     /// </summary>
     public override IEnumerable<Int2> GetVoxelsOnAngle()
     {
-        foreach (var voxel in GetVoxels())
-            yield return new Int2(voxel.X, voxel.Z);
+        foreach (var cell in Cells())
+            yield return new Int2(cell.X, cell.Z);
     }
 
     private static IEnumerable<Float3> RasterizeCross(Float3 center, int thickness)

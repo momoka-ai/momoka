@@ -112,7 +112,7 @@ public class VoxelLayout3D : GridLayout3D<Entity<Int3>>
         if (HasEntity(cs))
             return true;
 
-        foreach (var cell in entity.Shape.GetVoxels())
+        foreach (var cell in entity.Shape.Cells())
         {
             if (HasEntity(cs + cell))
                 return true;
@@ -126,10 +126,10 @@ public class VoxelLayout3D : GridLayout3D<Entity<Int3>>
     /// </summary>
     public bool IsEntityCollided(Entity<Int3> dest, Entity<Int3> src, Int3 cs)
     {
-        var destCells = dest.Shape.GetVoxels()
+        var destCells = dest.Shape.Cells()
             .Select(v => dest.Coords + v)
             .ToHashSet();
-        return src.Shape.GetVoxels().Any(v => destCells.Contains(cs + v));
+        return src.Shape.Cells().Any(v => destCells.Contains(cs + v));
     }
 
     /// <summary>
@@ -142,7 +142,7 @@ public class VoxelLayout3D : GridLayout3D<Entity<Int3>>
             return false;
 
         entity.Coords = cs;
-        foreach (var cell in entity.Shape.GetVoxels())
+        foreach (var cell in entity.Shape.Cells())
         {
             this[cs + cell] = entity;
         }
@@ -169,6 +169,39 @@ public class VoxelLayout3D : GridLayout3D<Entity<Int3>>
     }
 
     /// <summary>
+    /// Copies another layout's occupancy into this space, offset by
+    /// <paramref name="offset"/> (a child container at its position in the parent).
+    /// Cells keep referencing the leaf entities; the same entity may live in both
+    /// the child's and the parent's <see cref="Entities"/> list (upward composition).
+    /// </summary>
+    public void MergeFrom(VoxelLayout3D child, Int3 offset)
+    {
+        foreach (var entity in child.Entities)
+        {
+            Entities.Add(entity);
+            foreach (var cell in entity.Shape.Cells())
+            {
+                this[offset + entity.Coords + cell] = entity;
+            }
+        }
+    }
+
+    /// <summary>Undoes <see cref="MergeFrom"/>: removes the child's entities and clears their cells.</summary>
+    public void RemoveFrom(VoxelLayout3D child, Int3 offset)
+    {
+        foreach (var entity in child.Entities)
+        {
+            Entities.Remove(entity);
+            foreach (var cell in entity.Shape.Cells())
+            {
+                var pos = offset + entity.Coords + cell;
+                if (this[pos] == entity)
+                    this[pos] = null;
+            }
+        }
+    }
+
+    /// <summary>
     /// Clears the current storage and re-rasterizes every held Entity&lt;Int3&gt; into
     /// the grid — a forced flush/refresh after direct low-level cell writes.
     /// </summary>
@@ -177,7 +210,7 @@ public class VoxelLayout3D : GridLayout3D<Entity<Int3>>
         Clear();
         foreach (var entity in Entities)
         {
-            foreach (var cell in entity.Shape.GetVoxels())
+            foreach (var cell in entity.Shape.Cells())
             {
                 this[entity.Coords + cell] = entity;
             }
@@ -189,7 +222,7 @@ public class VoxelLayout3D : GridLayout3D<Entity<Int3>>
         if (!Entities.Remove(entity))
             return false;
 
-        foreach (var cell in entity.Shape.GetVoxels())
+        foreach (var cell in entity.Shape.Cells())
         {
             var pos = entity.Coords + cell;
             if (this[pos] == entity)
@@ -207,7 +240,7 @@ public class VoxelLayout3D : GridLayout3D<Entity<Int3>>
         var result = new List<Entity<Int3>>();
         foreach (var entity in Entities)
         {
-            foreach (var loc in entity.Shape.GetVoxels())
+            foreach (var loc in entity.Shape.Cells())
             {
                 var p = (entity.Coords + loc).Xz;
                 if (p.X >= min.X && p.X <= max.X && p.Z >= min.Z && p.Z <= max.Z)

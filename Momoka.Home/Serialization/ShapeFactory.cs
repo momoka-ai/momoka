@@ -17,6 +17,7 @@ public static class ShapeFactory
         {
             "box" => CreateBox(dto),
             "line" => CreateLine(dto),
+            "curve" => CreateCurve(dto),
             _ => throw new NotSupportedException($"Unknown shape kind '{dto.Kind}'.")
         };
     }
@@ -35,6 +36,16 @@ public static class ShapeFactory
     private static LineShape CreateLine(ShapeDto dto)
     {
         return new LineShape
+        {
+            Start = ReadVec3(dto.Params, "start"),
+            End = ReadVec3(dto.Params, "end"),
+            Thickness = ReadInt(dto.Params, "thickness", 1)
+        };
+    }
+
+    private static CurveShape CreateCurve(ShapeDto dto)
+    {
+        return new CurveShape
         {
             Start = ReadVec3(dto.Params, "start"),
             End = ReadVec3(dto.Params, "end"),

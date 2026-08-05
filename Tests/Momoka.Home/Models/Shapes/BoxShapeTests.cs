@@ -16,7 +16,7 @@ public class BoxShapeTests
         // 2(thickness) × 3(height) × 3(width)
         var cabinet = new BoxShape { SizeX = 2, SizeY = 3, SizeZ = 3 };
 
-        Assert.Equal(2 * 3 * 3, cabinet.GetVoxels().Count());
+        Assert.Equal(2 * 3 * 3, cabinet.Cells().Count());
     }
 
     [Fact]
@@ -38,10 +38,10 @@ public class BoxShapeTests
     }
 
     [Fact]
-    public void GetVoxels_AreLocal_ZeroBased()
+    public void Cells_AreLocal_ZeroBased()
     {
         var box = new BoxShape { SizeX = 2, SizeY = 1, SizeZ = 2 };
-        var voxels = box.GetVoxels().ToList();
+        var voxels = box.Cells().ToList();
 
         Assert.All(voxels, v => Assert.InRange(v.X, 0, 1));
         Assert.All(voxels, v => Assert.InRange(v.Z, 0, 1));

@@ -1,0 +1,73 @@
+using Momoka.Home.Primitives;
+namespace Momoka.Home.Shapes;
+
+/// <summary>
+/// A curved wall segment: a quadratic Bézier arc through <see cref="Start"/>,
+/// <see cref="End"/> and a bowed midpoint (Start+End)/2 + perpendicular·Curvature.
+/// Curvature = 0 degenerates to a straight line (same as <see cref="LineShape"/>);
+/// positive/negative bows to either side. Rasterized by sampling the curve and
+/// expanding by <see cref="Thickness"/>.
+/// </summary>
+public class CurveShape : Shape
+{
+    /// <summary>Start of the segment, in the host entity's LOCAL frame (relative to Coords).</summary>
+    public Float3 Start { get; set; }
+
+    /// <summary>End of the segment, in the host entity's LOCAL frame.</summary>
+    public Float3 End { get; set; }
+
+    /// <summary>Signed bow distance (cells) at the midpoint, perpendicular to the chord.</summary>
+    public float Curvature { get; set; }
+
+    public int Thickness { get; set; } = 1;
+
+    public override IEnumerable<Int3> Cells()
+    {
+        var dx = End.X - Start.X;
+        var dz = End.Z - Start.Z;
+        var chord = Math.Sqrt(dx * dx + dz * dz);
+        if (chord < 0.001)
+        {
+            foreach (var pos in RasterizeCross(Start, Thickness))
+                yield return pos.Int3;
+            yield break;
+        }
+
+        var dirX = dx / chord;
+        var dirZ = dz / chord;
+        var perpX = -dirZ;
+        var perpZ = dirX;
+        var midX = (Start.X + End.X) / 2f;
+        var midZ = (Start.Z + End.Z) / 2f;
+        var ctrlX = midX + perpX * Curvature;
+        var ctrlZ = midZ + perpZ * Curvature;
+
+        var steps = Math.Max(8, (int)Math.Ceiling(chord * 2));
+        for (var i = 0; i <= steps; i++)
+        {
+            var t = i / (double)steps;
+            var u = 1 - t;
+            var x = (float)(u * u * Start.X + 2 * u * t * ctrlX + t * t * End.X);
+            var z = (float)(u * u * Start.Z + 2 * u * t * ctrlZ + t * t * End.Z);
+            var center = new Float3(x, Start.Y, z);
+
+            foreach (var pos in RasterizeCross(center, Thickness))
+                yield return pos.Int3;
+        }
+    }
+
+    public override IEnumerable<Int2> GetVoxelsOnAngle() =>
+        Cells().Select(c => c.Xz).Distinct();
+
+    private static IEnumerable<Float3> RasterizeCross(Float3 center, int thickness)
+    {
+        var half = thickness / 2;
+        for (var dx = -half; dx <= half; dx++)
+        {
+            for (var dz = -half; dz <= half; dz++)
+            {
+                yield return center.Offset(dx, 0, dz);
+            }
+        }
+    }
+}

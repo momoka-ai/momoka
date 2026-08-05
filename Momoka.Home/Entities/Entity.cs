@@ -62,6 +62,25 @@ public abstract class Entity : IComponentSource
         return property.Value ?? property.GetDefaultValue();
     }
 
+    /// <summary>
+    /// Non-throwing lookup of a property-table value: true with the effective value
+    /// (instance value or default) when the property exists, false otherwise. Used by
+    /// generic consumers (e.g. the floor plan) that read config-driven properties by
+    /// name from any entity without knowing its concrete type.
+    /// </summary>
+    public bool TryGetValue(string name, out object? value)
+    {
+        var property = FindProperty(name);
+        if (property is null)
+        {
+            value = null;
+            return false;
+        }
+
+        value = property.Value ?? property.GetDefaultValue();
+        return true;
+    }
+
     public void SetValue(string name, object? value)
     {
         var property = FindProperty(name)

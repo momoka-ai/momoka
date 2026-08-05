@@ -13,7 +13,7 @@ public class BoxShape : Shape
     /// host entity's Coords (world = Coords + cell). The shape carries no
     /// position; it only describes its own geometry.
     /// </summary>
-    public override IEnumerable<Int3> GetVoxels()
+    public override IEnumerable<Int3> Cells()
     {
         for (var dy = 0; dy < SizeY; dy++)
         {

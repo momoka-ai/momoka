@@ -17,7 +17,7 @@ public class Region
 
     public bool Contains(Entity<Int3> entity)
     {
-        foreach (var pos in entity.Shape.GetVoxels())
+        foreach (var pos in entity.Shape.Cells())
         {
             if (!Contains((entity.Coords + pos).Xz))
                 return false;
@@ -29,7 +29,7 @@ public class Region
     {
         var total = 0;
         var inside = 0;
-        foreach (var pos in entity.Shape.GetVoxels())
+        foreach (var pos in entity.Shape.Cells())
         {
             total++;
             if (Contains((entity.Coords + pos).Xz))

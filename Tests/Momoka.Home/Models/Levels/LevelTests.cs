@@ -3,16 +3,15 @@ using Momoka.Home;
 using Momoka.Home.Components;
 using Momoka.Home.Entities;
 using Momoka.Home.Layouts;
-using Momoka.Home.Levels;
 using Momoka.Home.Primitives;
 using Momoka.Home.Shapes;
 namespace Momoka.Home.Tests.Models.Levels;
 
 /// <summary>
 /// End-to-end checks of the level as the unified placement-surface catalog:
-/// the level aggregates its floor/ceiling planes and every contained entity's
-/// VoxelLayoutSource component (walls' faces and any other surface source placed
-/// in the occupancy grid).
+/// the level aggregates its floor/ceiling planes, the floor plan's derived
+/// partition surfaces (walls' faces), and every contained entity's
+/// VoxelLayoutSource component (shelves, any other surface source).
 /// </summary>
 public class LevelTests
 {
@@ -31,9 +30,8 @@ public class LevelTests
         var wall = new Wall();
         level.Plan.Build(new Int2(2, 0), new Int2(7, 0), wall);
         level.Layout.BuildAt(wall, new Int3(2, 0, 0));
-        wall.RefreshSurfaces(); // 构建命令负责把派生表面物化进组件
 
-        // floor + ceiling + wall's two faces (E-W wall → south + north)
+        // floor + ceiling + wall's two faces (E-W wall → south + north, plan-derived)
         Assert.Equal(4, level.Layouts.Count());
     }
 
