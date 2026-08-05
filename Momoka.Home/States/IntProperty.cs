@@ -6,6 +6,8 @@ namespace Momoka.Home.States;
 [JsonTypeName("int")]
 public class IntProperty : Property<int>
 {
+    public IntProperty() { }
+
     public IntProperty(string name, int defaultValue = 0, string description = "")
         : base(name, defaultValue, description)
     {

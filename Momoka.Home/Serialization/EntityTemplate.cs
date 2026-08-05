@@ -32,6 +32,7 @@ public class EntityTemplate
 
     /// <summary>Volume, inherited from the extended templates and overridden by this config.</summary>
     [JsonProperty("shape")]
+    [JsonConverter(typeof(JsonGeometryConverter))]
     public Volume? Volume { get; set; }
 
     /// <summary>Properties, merged from the extended templates by name.</summary>

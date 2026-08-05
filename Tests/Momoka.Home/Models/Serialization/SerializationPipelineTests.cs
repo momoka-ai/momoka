@@ -5,6 +5,7 @@ using Momoka.Home.Geometry;
 using Momoka.Home.Primitives;
 using Momoka.Home.Serialization;
 using Momoka.Home.States;
+using Newtonsoft.Json;
 namespace Momoka.Home.Tests.Models.Serialization;
 
 /// <summary>
@@ -146,7 +147,7 @@ public class SerializationPipelineTests
 
         var registered = factory.Resolve("brand:series");
         Assert.NotNull(registered);
-        Assert.Equal("AC-1", registered!.Properties!.Single(p => p.Name == "series").Value);
+        Assert.Equal("AC-1", registered!.Properties!.Single(p => p.Name == "series").BoxedValue);
     }
 
     [Fact]
@@ -168,7 +169,7 @@ public class SerializationPipelineTests
         Assert.Equal(EntityTemplateFactory.KeyFromPath(path), loaded.Key);
         var box = Assert.IsType<Box3D>(loaded.Volume);
         Assert.Equal(2, box.SizeX);
-        Assert.True(loaded.Properties!.Single(p => p.Name == "on").Value is true);
+        Assert.True(loaded.Properties!.Single(p => p.Name == "on").BoxedValue is true);
     }
 
     [Fact]
@@ -176,6 +177,17 @@ public class SerializationPipelineTests
     {
         var key = EntityTemplateFactory.KeyFromPath("/data/midea/air_conditioner.ac_1523.json");
         Assert.Equal(new Key("midea", "air_conditioner.ac_1523"), key);
+    }
+
+    [Fact]
+    public void EntityTemplate_Volume_DeserializesViaMemberConverter()
+    {
+        // [JsonConverter] on EntityTemplate.Volume works without any registered settings.
+        var template = JsonConvert.DeserializeObject<EntityTemplate>("""{ "shape": { "kind": "box", "size_x": 1, "size_y": 2, "size_z": 3 } }""");
+        var box = Assert.IsType<Box3D>(template!.Volume);
+        Assert.Equal(1, box.SizeX);
+        Assert.Equal(2, box.SizeY);
+        Assert.Equal(3, box.SizeZ);
     }
 
     private static string WriteTempConfig(string folder, string file, string json)

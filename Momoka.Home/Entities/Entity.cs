@@ -35,7 +35,7 @@ public abstract class Entity : IComponentSource
     }
 
     public T GetValue<T>(Property<T> property) =>
-        (T)(property.Value ?? property.DefaultValue)!;
+        property.Value;
 
     public void SetValue<T>(Property<T> property, T value)
     {
@@ -51,7 +51,7 @@ public abstract class Entity : IComponentSource
 
     public void ClearValue(Property property)
     {
-        property.Value = null;
+        property.BoxedValue = null;
         NotifyChanged(property);
     }
 
@@ -59,7 +59,7 @@ public abstract class Entity : IComponentSource
     {
         var property = FindProperty(name)
             ?? throw new KeyNotFoundException($"Property '{name}' not found.");
-        return property.Value ?? property.GetDefaultValue();
+        return property.BoxedValue ?? property.GetDefaultValue();
     }
 
     /// <summary>
@@ -77,7 +77,7 @@ public abstract class Entity : IComponentSource
             return false;
         }
 
-        value = property.Value ?? property.GetDefaultValue();
+        value = property.BoxedValue ?? property.GetDefaultValue();
         return true;
     }
 
@@ -85,7 +85,7 @@ public abstract class Entity : IComponentSource
     {
         var property = FindProperty(name)
             ?? throw new KeyNotFoundException($"Property '{name}' not found.");
-        property.Value = value;
+        property.BoxedValue = value;
         NotifyChanged(property);
     }
 
@@ -98,8 +98,8 @@ public abstract class Entity : IComponentSource
 
     public object? this[Property property]
     {
-        get => property.Value ?? property.GetDefaultValue();
-        set => property.Value = value;
+        get => property.BoxedValue ?? property.GetDefaultValue();
+        set => property.BoxedValue = value;
     }
 
     public object? this[string name]
@@ -157,7 +157,7 @@ public abstract class Entity : IComponentSource
         _properties.FirstOrDefault(p => p.Name == name);
 
     private void NotifyChanged(Property property) =>
-        PropertyValueChanged?.Invoke(this, new PropertyValueChangedEventArgs(property, property.Value ?? property.GetDefaultValue()));
+        PropertyValueChanged?.Invoke(this, new PropertyValueChangedEventArgs(property, property.BoxedValue ?? property.GetDefaultValue()));
 }
 
 /// <summary>

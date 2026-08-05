@@ -1,40 +1,59 @@
 using Momoka.Home.States;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Serialization;
 namespace Momoka.Home.Serialization;
 
 /// <summary>
 /// Serializes a <see cref="Property"/> to/from its declarative JSON form: the
 /// "type" discriminator (declared via <see cref="JsonTypeNameAttribute"/>) plus
-/// key, optional initial value and optional closed value set ("literals" — a
-/// <see cref="StringProperty"/> with a values list). Replaces the old
-/// PropertyDto + PropertyFactory.
+/// key and typed value. Members bind directly with snake_case naming — no
+/// per-kind logic. The typed <see cref="Property{T}.Value"/> converts "value"
+/// straight to the concrete CLR type (never a JToken).
 /// </summary>
-public class JsonPropertyConverter : JsonConverter<Property>
+public class JsonPropertyConverter : JsonConverter
 {
-    public override Property? ReadJson(JsonReader reader, Type objectType, Property? existingValue, bool hasExistingValue, JsonSerializer serializer)
+    private static readonly JsonSerializer Serializer = JsonSerializer.Create(new JsonSerializerSettings
+    {
+        ContractResolver = new DefaultContractResolver { NamingStrategy = new SnakeCaseNamingStrategy() },
+        Converters = { new JsonPropertyConverter() }
+    });
+
+    public override bool CanConvert(Type objectType) =>
+        typeof(Property).IsAssignableFrom(objectType);
+
+    public override object? ReadJson(JsonReader reader, Type objectType, object? existingValue, JsonSerializer serializer)
     {
         var obj = JObject.Load(reader);
-        var key = obj["key"]?.Value<string>() ?? throw new InvalidDataException("Property is missing 'key'.");
-        var type = obj["type"]?.Value<string>() ?? "";
-        var value = obj["value"];
+        var kind = obj["type"]?.Value<string>() ?? "";
+        var targetType = JsonTypeNameRegistry.TypeOf<Property>(kind);
 
-        if (type == "literals")
+        var value = CreateInstance(targetType);
+        if (Serializer.ContractResolver.ResolveContract(targetType) is JsonObjectContract contract)
         {
-            return new StringProperty(key)
+            foreach (var property in contract.Properties)
             {
-                ValidValues = obj["values"]?.ToObject<List<string>>(),
-                Value = value?.Value<string>()
-            };
+                if (!property.Writable || property.Ignored)
+                    continue;
+                if (obj[property.PropertyName!] is not JToken token)
+                    continue;
+                try
+                {
+                    property.ValueProvider!.SetValue(value, token.ToObject(property.PropertyType, Serializer));
+                }
+                catch (JsonSerializationException ex) when (ex.InnerException is ArgumentException)
+                {
+                    // A value setter's validation error (e.g. a literal outside its
+                    // closed set) must surface as-is, not wrapped.
+                    throw ex.InnerException;
+                }
+            }
         }
-
-        var property = CreateProperty(type, key);
-        if (value is not null)
-            property.Value = value.ToObject(property.PropertyType);
-        return property;
+        ((Property)value).OnConfigLoaded();
+        return value;
     }
 
-    public override void WriteJson(JsonWriter writer, Property? value, JsonSerializer serializer)
+    public override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer)
     {
         if (value is null)
         {
@@ -43,49 +62,36 @@ public class JsonPropertyConverter : JsonConverter<Property>
         }
 
         writer.WriteStartObject();
-        writer.WritePropertyName("key");
-        writer.WriteValue(value.Name);
         writer.WritePropertyName("type");
-        writer.WriteValue(TypeName(value));
+        writer.WriteValue(JsonTypeNameRegistry.NameOf<Property>(value.GetType()));
 
-        if (value.Value is not null)
+        if (Serializer.ContractResolver.ResolveContract(value.GetType()) is JsonObjectContract contract)
         {
-            writer.WritePropertyName("value");
-            writer.WriteValue(value.Value);
-        }
-
-        if (value.ValidValues is { } validValues)
-        {
-            writer.WritePropertyName("values");
-            serializer.Serialize(writer, validValues);
+            foreach (var property in contract.Properties)
+            {
+                if (!property.Readable || property.Ignored)
+                    continue;
+                if (property.ShouldSerialize is not null && !property.ShouldSerialize(value))
+                    continue;
+                var propertyValue = property.ValueProvider!.GetValue(value);
+                if (propertyValue is null && property.NullValueHandling == NullValueHandling.Ignore)
+                    continue;
+                writer.WritePropertyName(property.PropertyName!);
+                Serializer.Serialize(writer, propertyValue, property.PropertyType);
+            }
         }
 
         writer.WriteEndObject();
     }
 
     /// <summary>
-    /// Instantiates the property type registered under <paramref name="type"/>,
-    /// passing the key to its leading name parameter (optional trailing params
-    /// fall back to their defaults).
+    /// Builds the target instance via its parameterless ctor (falling back to the
+    /// longest ctor) — members are then populated by the loop above.
     /// </summary>
-    private static Property CreateProperty(string type, string key)
+    private static object CreateInstance(Type type)
     {
-        if (!JsonTypeNameRegistry.TryGetType<Property>(type, out var propertyType))
-            throw new NotSupportedException($"Unknown property type '{type}'.");
-
-        var ctor = propertyType.GetConstructors()
-            .OrderByDescending(c => c.GetParameters().Length)
-            .First();
-        var parameters = ctor.GetParameters();
-        var args = new object?[parameters.Length];
-        args[0] = key;
-        for (var i = 1; i < parameters.Length; i++)
-            args[i] = parameters[i].HasDefaultValue ? parameters[i].DefaultValue : null;
-        return (Property)ctor.Invoke(args)!;
+        var ctor = type.GetConstructor(Type.EmptyTypes)
+            ?? type.GetConstructors().OrderByDescending(c => c.GetParameters().Length).First();
+        return ctor.Invoke(null)!;
     }
-
-    private static string TypeName(Property property) =>
-        property is StringProperty { ValidValues: not null }
-            ? "literals"
-            : JsonTypeNameRegistry.NameOf<Property>(property.GetType());
 }

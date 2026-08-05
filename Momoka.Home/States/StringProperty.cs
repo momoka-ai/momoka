@@ -6,6 +6,8 @@ namespace Momoka.Home.States;
 [JsonTypeName("string")]
 public class StringProperty : Property<string>
 {
+    public StringProperty() { }
+
     public StringProperty(string name, string defaultValue = "", string description = "")
         : base(name, defaultValue, description)
     {

@@ -1,28 +1,40 @@
-using System.Text.Json;
-using Momoka.Home;
-using Momoka.Home.Primitives;
+using Newtonsoft.Json;
 namespace Momoka.Home.States;
 
+/// <summary>
+/// A property: a named, typed, per-instance value (config-driven). The abstract
+/// base carries identity and the value TYPE only; concrete subclasses own their
+/// TYPED storage (see <see cref="Property{T}.Value"/>). <see cref="BoxedValue"/>
+/// is the uniform boxed contract for generic consumers (lookup by name, config
+/// materialization). Values that need a closed range declare it themselves
+/// (e.g. <see cref="LiteralProperty"/>) — there is no universal value list on
+/// the base, and no validation callback: invalid assignments are the storage
+/// type's own job.
+/// </summary>
 public abstract class Property
 {
-    public string Name { get; }
-    public string Description { get; }
-    public abstract Type PropertyType { get; }
+    /// <summary>Identity of the property; maps to the JSON "key" field.</summary>
+    [JsonProperty("key")]
+    public string Name { get; set; } = "";
 
+    [JsonIgnore]
+    public string Description { get; set; } = "";
+
+    [JsonIgnore]
     public bool IsReadOnly { get; set; }
-    public Func<object?, bool>? ValidateValueCallback { get; set; }
 
-    /// <summary>Optional closed set of valid values (config-driven "literals").</summary>
-    public IReadOnlyList<string>? ValidValues { get; set; }
+    /// <summary>CLR type of the value carried by this property.</summary>
+    [JsonIgnore]
+    public abstract Type ValueType { get; }
 
     /// <summary>
-    /// Per-instance value (config-driven: each entity owns its properties, so the
-    /// value lives on the property itself). Null means "use <see cref="DefaultValue"/>.
+    /// The current value in boxed form (null = unset → <see cref="GetDefaultValue"/>).
+    /// Subclasses store it TYPED; this uniform accessor serves name-based consumers.
     /// </summary>
-    public object? Value { get; set; }
+    [JsonIgnore]
+    public abstract object? BoxedValue { get; set; }
 
-    /// <summary>Creates a fresh property with the same definition and value (per-instance materialization).</summary>
-    public abstract Property Clone();
+    protected Property() { }
 
     protected Property(string name, string description = "")
     {
@@ -30,27 +42,26 @@ public abstract class Property
         Description = description;
     }
 
-    public virtual IEnumerable<string>? GetValidValues() => ValidValues;
+    /// <summary>Creates a fresh property with the same definition and value (per-instance materialization).</summary>
+    public abstract Property Clone();
 
-    public bool IsValidType(object? value)
-    {
-        if (value is null)
-            return !PropertyType.IsValueType
-                || Nullable.GetUnderlyingType(PropertyType) is not null;
+    /// <summary>The default value (used when <see cref="BoxedValue"/> is null).</summary>
+    public abstract object? GetDefaultValue();
 
-        return PropertyType.IsAssignableFrom(value.GetType());
-    }
+    /// <summary>True when the value is null or of the property's CLR type.</summary>
+    public bool IsValidValue(object? value) =>
+        value is null || ValueType.IsInstanceOfType(value);
 
-    public bool IsValidValue(object? value)
-    {
-        if (!IsValidType(value))
-            return false;
+    /// <summary>Optional closed set of valid values, for schema output (literals, enums).</summary>
+    public virtual IEnumerable<string>? GetValidValues() => null;
 
-        if (ValidateValueCallback is not null)
-            return ValidateValueCallback(value);
-
-        return true;
-    }
+    /// <summary>
+    /// Called after config-driven deserialization has populated every member.
+    /// Subclasses with cross-field invariants (e.g. a literal whose value must
+    /// belong to its closed set) validate here, since member order is not
+    /// guaranteed during binding.
+    /// </summary>
+    public virtual void OnConfigLoaded() { }
 
     public Dictionary<string, object?> ToSchema()
     {
@@ -58,7 +69,7 @@ public abstract class Property
         {
             ["name"] = Name,
             ["type"] = SchemaTypeName(),
-            ["default"] = SerializeValue(GetDefaultValue()!),
+            ["default"] = GetDefaultValue(),
             ["isReadOnly"] = IsReadOnly
         };
 
@@ -72,32 +83,55 @@ public abstract class Property
         return schema;
     }
 
-    protected virtual string SchemaTypeName() => PropertyType.Name.ToLowerInvariant();
-
-    public static Property Create(
-        string name,
-        Type propertyType,
-        Func<object?, bool>? validateValueCallback = null,
-        string description = "")
-    {
-        var genericType = typeof(Property<>).MakeGenericType(propertyType);
-        var defaultValue = propertyType.IsValueType
-            ? Activator.CreateInstance(propertyType)
-            : null;
-
-        var prop = (Property)Activator.CreateInstance(genericType, name, defaultValue!)!;
-        return prop;
-    }
-
-    public abstract object? GetDefaultValue();
-    public abstract object? SerializeValue(object value);
-    public abstract object DeserializeValue(object? raw);
+    protected virtual string SchemaTypeName() => ValueType.Name.ToLowerInvariant();
 }
 
+/// <summary>
+/// A property whose value is stored TYPED as <typeparamref name="T"/>. The typed
+/// <see cref="Value"/> maps to the JSON "value" field, so direct deserialization
+/// converts to the concrete CLR type (never a JToken). Subclasses add their own
+/// storage and constraints (a closed literal set, an enum, …).
+/// </summary>
 public abstract class Property<T> : Property
 {
-    public override Type PropertyType => typeof(T);
-    public T DefaultValue { get; }
+    public override Type ValueType => typeof(T);
+
+    /// <summary>The default value, used until <see cref="Value"/> is explicitly set.</summary>
+    [JsonIgnore]
+    public T DefaultValue { get; } = default!;
+
+    private T _value = default!;
+    private bool _isSet;
+
+    /// <summary>
+    /// Typed per-instance value; returns <see cref="DefaultValue"/> until explicitly
+    /// set (so generic consumers never see an unset state). Maps to the JSON
+    /// "value" field. NOTE: in a generic class <c>T?</c> is not <c>Nullable&lt;T&gt;</c>
+    /// for value types, so set-ness is tracked separately via <see cref="BoxedValue"/>.
+    /// </summary>
+    [JsonProperty("value", NullValueHandling = NullValueHandling.Ignore)]
+    public virtual T Value
+    {
+        get => _isSet ? _value : DefaultValue;
+        set
+        {
+            _value = value;
+            _isSet = true;
+        }
+    }
+
+    /// <summary>Boxed current value; null = unset (→ <see cref="DefaultValue"/>).</summary>
+    public override object? BoxedValue
+    {
+        get => _isSet ? _value : null;
+        set
+        {
+            _isSet = value is not null;
+            _value = value is null ? default! : (T)value;
+        }
+    }
+
+    protected Property() { }
 
     protected Property(string name, T defaultValue, string description = "")
         : base(name, description)
@@ -107,23 +141,14 @@ public abstract class Property<T> : Property
 
     public override object? GetDefaultValue() => DefaultValue;
 
-    public override object? SerializeValue(object value) => Serialize((T)value);
-    public override object DeserializeValue(object? raw) => Deserialize(raw)!;
-
     public override Property Clone()
     {
         var copy = CreateCopy(Name, DefaultValue, Description);
-        copy.ValidateValueCallback = ValidateValueCallback;
         copy.IsReadOnly = IsReadOnly;
-        copy.ValidValues = ValidValues;
-        copy.Value = Value;
+        copy.BoxedValue = BoxedValue; // preserves the unset/set state
         return copy;
     }
 
     /// <summary>Constructs a fresh instance of the concrete property subclass (used by <see cref="Clone"/>).</summary>
     protected abstract Property<T> CreateCopy(string name, T defaultValue, string description);
-
-    protected virtual object? Serialize(T value) => value;
-    protected virtual T Deserialize(object? raw) =>
-        raw is JsonElement je ? JsonSerializer.Deserialize<T>(je.GetRawText())! : (T)raw!;
 }

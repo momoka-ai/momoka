@@ -17,9 +17,4 @@ public class EnumProperty<T> : Property<T>
         Enum.GetNames(typeof(T));
 
     protected override string SchemaTypeName() => "enum";
-
-    protected override object? Serialize(T value) => value.ToString();
-
-    protected override T Deserialize(object? raw) =>
-        raw is string s ? (T)Enum.Parse(typeof(T), s) : (T)raw!;
 }

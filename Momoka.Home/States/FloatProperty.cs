@@ -6,6 +6,8 @@ namespace Momoka.Home.States;
 [JsonTypeName("float")]
 public class FloatProperty : Property<float>
 {
+    public FloatProperty() { }
+
     public FloatProperty(string name, float defaultValue = 0f, string description = "")
         : base(name, defaultValue, description)
     {
