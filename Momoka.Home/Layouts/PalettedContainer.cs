@@ -1,5 +1,5 @@
 using Momoka.Home;
-namespace Momoka.Home.Levels;
+namespace Momoka.Home.Layouts;
 
 /// <summary>
 /// Paletted container: sparse entities are stored as small integer ids

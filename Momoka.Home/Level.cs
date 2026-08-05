@@ -3,7 +3,7 @@ using Momoka.Home.Components;
 using Momoka.Home.Entities;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
-namespace Momoka.Home.Levels;
+namespace Momoka.Home;
 
 /// <summary>
 /// A floor of a building: a spatial container (<see cref="IEntitySource"/>) of a

@@ -1,9 +1,8 @@
 using Xunit;
 using Momoka.Home;
 using Momoka.Home.Layouts;
-using Momoka.Home.Levels;
 using Momoka.Home.Primitives;
-namespace Momoka.Home.Tests.Models.Levels;
+namespace Momoka.Home.Tests.Models.Layouts;
 
 /// <summary>
 /// Regression coverage for the chunked paletted storage — including the
