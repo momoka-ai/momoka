@@ -96,39 +96,32 @@ public abstract class Property<T> : Property
 {
     public override Type ValueType => typeof(T);
 
-    /// <summary>The default value, used until <see cref="Value"/> is explicitly set.</summary>
+    /// <summary>The default value; <see cref="Value"/> equals it until explicitly set.</summary>
     [JsonIgnore]
     public T DefaultValue { get; } = default!;
 
     private T _value = default!;
-    private bool _isSet;
 
     /// <summary>
-    /// Typed per-instance value; returns <see cref="DefaultValue"/> until explicitly
-    /// set (so generic consumers never see an unset state). Maps to the JSON
-    /// "value" field. NOTE: in a generic class <c>T?</c> is not <c>Nullable&lt;T&gt;</c>
-    /// for value types, so set-ness is tracked separately via <see cref="BoxedValue"/>.
+    /// Typed per-instance value, seeded with <see cref="DefaultValue"/> and only
+    /// replaced by an explicit set — no separate "unset" flag. Maps to the JSON
+    /// "value" field. NOTE: in a generic class <c>T?</c> is not
+    /// <c>Nullable&lt;T&gt;</c> for value types (Property&lt;bool&gt;.Value is
+    /// <c>bool</c>, default <c>false</c>), so the storage is a plain T seeded
+    /// with the default.
     /// </summary>
     [JsonProperty("value", NullValueHandling = NullValueHandling.Ignore)]
     public virtual T Value
     {
-        get => _isSet ? _value : DefaultValue;
-        set
-        {
-            _value = value;
-            _isSet = true;
-        }
+        get => _value;
+        set => _value = value;
     }
 
-    /// <summary>Boxed current value; null = unset (→ <see cref="DefaultValue"/>).</summary>
+    /// <summary>Boxed current value; null is treated as "reset to default".</summary>
     public override object? BoxedValue
     {
-        get => _isSet ? _value : null;
-        set
-        {
-            _isSet = value is not null;
-            _value = value is null ? default! : (T)value;
-        }
+        get => _value;
+        set => _value = value is null ? DefaultValue : (T)value;
     }
 
     protected Property() { }
@@ -137,6 +130,7 @@ public abstract class Property<T> : Property
         : base(name, description)
     {
         DefaultValue = defaultValue;
+        _value = defaultValue;
     }
 
     public override object? GetDefaultValue() => DefaultValue;
@@ -145,7 +139,7 @@ public abstract class Property<T> : Property
     {
         var copy = CreateCopy(Name, DefaultValue, Description);
         copy.IsReadOnly = IsReadOnly;
-        copy.BoxedValue = BoxedValue; // preserves the unset/set state
+        copy.BoxedValue = BoxedValue;
         return copy;
     }
 

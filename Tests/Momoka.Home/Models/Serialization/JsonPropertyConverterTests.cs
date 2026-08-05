@@ -27,11 +27,15 @@ public class JsonPropertyConverterTests
     }
 
     [Fact]
-    public void Boolean_Unset_ReturnsDefault()
+    public void Boolean_Unset_DefaultsToDefaultValue()
     {
         var prop = new BooleanProperty("on", true);
-        Assert.Null(prop.BoxedValue);
         Assert.True(prop.Value);
+        Assert.True(prop.BoxedValue is true);
+
+        prop.Value = false;
+        Assert.False(prop.Value);
+        Assert.False(prop.BoxedValue is true);
     }
 
     [Fact]
