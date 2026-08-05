@@ -21,8 +21,8 @@ namespace Momoka.Home;
 public class Home : IEntitySource, IComponentSource
 {
     public VoxelLayout3D Layout { get; } = new();
-    public FloorPlanLayout Boundary { get; } = new();
-    public Subdivision<Entity<Int2>> Ground { get; } = new();
+    public FloorPlanLayout Plan { get; } = new();
+    public PlaneLayout<Entity<Int2>> Ground { get; } = new(new Int2(50, 50)) { Direction = Int3.Up };
     public GridLayout2D<Region> Regions { get; } = new(new Int2(50, 50));
     public List<Building> Buildings { get; } = new();
 
