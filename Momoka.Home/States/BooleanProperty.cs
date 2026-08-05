@@ -4,13 +4,13 @@ namespace Momoka.Home.States;
 
 public class BooleanProperty : Property<bool>
 {
-    public BooleanProperty(string name, Key templateKey, bool defaultValue = false, string description = "")
-        : base(name, templateKey, defaultValue, description)
+    public BooleanProperty(string name, bool defaultValue = false, string description = "")
+        : base(name, defaultValue, description)
     {
     }
 
-    protected override Property<bool> CreateCopy(string name, Key templateKey, bool defaultValue, string description) =>
-        new BooleanProperty(name, templateKey, defaultValue, description);
+    protected override Property<bool> CreateCopy(string name, bool defaultValue, string description) =>
+        new BooleanProperty(name, defaultValue, description);
 
     protected override string SchemaTypeName() => "boolean";
 }

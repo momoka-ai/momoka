@@ -1,12 +1,12 @@
 using Momoka.Home.Primitives;
-namespace Momoka.Home.Shapes;
+namespace Momoka.Home.Geometry;
 
 /// <summary>
 /// An arbitrary (convex or concave) polygon footprint in the local XZ plane,
 /// rasterized by bounding-box sampling + even-odd point-in-polygon. The precise
 /// footprint for irregular building shapes — no bounding-box overreach.
 /// </summary>
-public class Polygon2D : Shape2D
+public class Polygon2D : Shape
 {
     public List<Int2> Vertices { get; } = new();
 
@@ -14,7 +14,7 @@ public class Polygon2D : Shape2D
     public Polygon2D(params Int2[] vertices) => Vertices.AddRange(vertices);
     public Polygon2D(IEnumerable<Int2> vertices) => Vertices.AddRange(vertices);
 
-    public override IEnumerable<Int2> GetCells()
+    public override IEnumerable<Int2> Cells2D()
     {
         if (Vertices.Count < 3)
             yield break;

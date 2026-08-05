@@ -1,8 +1,8 @@
 using Momoka.Home;
 using Momoka.Home.Primitives;
-namespace Momoka.Home.Shapes;
+namespace Momoka.Home.Geometry;
 
-public class LineShape : Shape
+public class Line3D : Volume
 {
     /// <summary>Start of the segment, in the host entity's LOCAL frame (relative to Coords).</summary>
     public Float3 Start { get; set; }
@@ -11,7 +11,7 @@ public class LineShape : Shape
     public int Thickness { get; set; } = 1;
 
     /// <summary>Rasterizes the straight line (with thickness) into grid cells.</summary>
-    public override IEnumerable<Int3> Cells()
+    public override IEnumerable<Int3> Cells3D()
     {
         var dx = End.X - Start.X;
         var dz = End.Z - Start.Z;
@@ -42,9 +42,9 @@ public class LineShape : Shape
     /// Support footprint: the line projected onto its local XZ plane (drop Y).
     /// A wall's support footprint is its own XZ extent.
     /// </summary>
-    public override IEnumerable<Int2> GetVoxelsOnAngle()
+    public override IEnumerable<Int2> Cells2D()
     {
-        foreach (var cell in Cells())
+        foreach (var cell in Cells3D())
             yield return new Int2(cell.X, cell.Z);
     }
 

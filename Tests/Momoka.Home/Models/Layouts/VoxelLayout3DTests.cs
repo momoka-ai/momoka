@@ -1,9 +1,9 @@
 using Xunit;
 using Momoka.Home;
 using Momoka.Home.Entities;
+using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
-using Momoka.Home.Shapes;
 namespace Momoka.Home.Tests.Models.Layouts;
 
 /// <summary>
@@ -14,11 +14,11 @@ public class VoxelLayout3DTests
 {
     private sealed class TestEntity : Entity<Int3>
     {
-        public TestEntity(Shape shape) => Shape = shape;
+        public TestEntity(Volume volume) => Volume = volume;
     }
 
     private static TestEntity MakeBox(int sx, int sz) =>
-        new(new BoxShape { SizeX = sx, SizeY = 1, SizeZ = sz });
+        new(new Box3D { SizeX = sx, SizeY = 1, SizeZ = sz });
 
     [Fact]
     public void BuildAt_WritesAllVoxels_AndRegisters()

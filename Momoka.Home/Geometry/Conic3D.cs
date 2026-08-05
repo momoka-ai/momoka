@@ -1,20 +1,20 @@
 using Momoka.Home.Primitives;
-namespace Momoka.Home.Shapes;
+namespace Momoka.Home.Geometry;
 
 /// <summary>Vertical cone: circular base shrinking linearly to an apex (roofs, spires).</summary>
-public class ConeShape : Shape
+public class Cone3D : Volume
 {
     public int Radius { get; set; } = 1;
     public int Height { get; set; } = 1;
 
-    public ConeShape() { }
-    public ConeShape(int radius, int height)
+    public Cone3D() { }
+    public Cone3D(int radius, int height)
     {
         Radius = radius;
         Height = height;
     }
 
-    public override IEnumerable<Int3> Cells()
+    public override IEnumerable<Int3> Cells3D()
     {
         for (var y = 0; y < Height; y++)
         {
@@ -30,25 +30,25 @@ public class ConeShape : Shape
         }
     }
 
-    public override IEnumerable<Int2> GetVoxelsOnAngle() => new Circle2D(Radius).GetCells();
+    public override IEnumerable<Int2> Cells2D() => new Circle2D(Radius).Cells2D();
 }
 
 /// <summary>Vertical pyramid: rectangular base shrinking linearly to an apex (gable/pyramid roofs).</summary>
-public class PyramidShape : Shape
+public class Pyramid3D : Volume
 {
     public int SizeX { get; set; } = 1;
     public int SizeZ { get; set; } = 1;
     public int Height { get; set; } = 1;
 
-    public PyramidShape() { }
-    public PyramidShape(int sizeX, int sizeZ, int height)
+    public Pyramid3D() { }
+    public Pyramid3D(int sizeX, int sizeZ, int height)
     {
         SizeX = sizeX;
         SizeZ = sizeZ;
         Height = height;
     }
 
-    public override IEnumerable<Int3> Cells()
+    public override IEnumerable<Int3> Cells3D()
     {
         for (var y = 0; y < Height; y++)
         {
@@ -62,6 +62,6 @@ public class PyramidShape : Shape
         }
     }
 
-    public override IEnumerable<Int2> GetVoxelsOnAngle() =>
-        Cells().Where(c => c.Y == 0).Select(c => c.Xz).Distinct();
+    public override IEnumerable<Int2> Cells2D() =>
+        Cells3D().Where(c => c.Y == 0).Select(c => c.Xz).Distinct();
 }

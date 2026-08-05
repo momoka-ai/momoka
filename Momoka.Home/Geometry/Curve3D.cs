@@ -1,14 +1,14 @@
 using Momoka.Home.Primitives;
-namespace Momoka.Home.Shapes;
+namespace Momoka.Home.Geometry;
 
 /// <summary>
 /// A curved wall segment: a quadratic Bézier arc through <see cref="Start"/>,
 /// <see cref="End"/> and a bowed midpoint (Start+End)/2 + perpendicular·Curvature.
-/// Curvature = 0 degenerates to a straight line (same as <see cref="LineShape"/>);
+/// Curvature = 0 degenerates to a straight line (same as <see cref="Line3D"/>);
 /// positive/negative bows to either side. Rasterized by sampling the curve and
 /// expanding by <see cref="Thickness"/>.
 /// </summary>
-public class CurveShape : Shape
+public class Curve3D : Volume
 {
     /// <summary>Start of the segment, in the host entity's LOCAL frame (relative to Coords).</summary>
     public Float3 Start { get; set; }
@@ -21,7 +21,7 @@ public class CurveShape : Shape
 
     public int Thickness { get; set; } = 1;
 
-    public override IEnumerable<Int3> Cells()
+    public override IEnumerable<Int3> Cells3D()
     {
         var dx = End.X - Start.X;
         var dz = End.Z - Start.Z;
@@ -56,8 +56,8 @@ public class CurveShape : Shape
         }
     }
 
-    public override IEnumerable<Int2> GetVoxelsOnAngle() =>
-        Cells().Select(c => c.Xz).Distinct();
+    public override IEnumerable<Int2> Cells2D() =>
+        Cells3D().Select(c => c.Xz).Distinct();
 
     private static IEnumerable<Float3> RasterizeCross(Float3 center, int thickness)
     {

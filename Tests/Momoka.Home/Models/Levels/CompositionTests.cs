@@ -1,13 +1,13 @@
 using Xunit;
 using Momoka.Home;
 using Momoka.Home.Entities;
+using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
-using Momoka.Home.Shapes;
 namespace Momoka.Home.Tests.Models.Levels;
 
 /// <summary>
-/// Upward composition through <see cref="IVoxelShape3D"/>: Level → Building →
+/// Upward composition through <see cref="IVoxelGeometry3D"/>: Level → Building →
 /// Home. Containers place their whole voxel occupancy into a parent layout at an
 /// offset, and remove it again on demand.
 /// </summary>
@@ -72,7 +72,7 @@ public class CompositionTests
         var building = new Building();
         building.Levels[0] = LevelWithWall(Int3.Zero);
 
-        var cells = building.Cells().ToHashSet();
+        var cells = building.Cells3D().ToHashSet();
 
         Assert.Contains(new Int3(2, 0, 0), cells);
         Assert.Contains(new Int3(7, 0, 0), cells);

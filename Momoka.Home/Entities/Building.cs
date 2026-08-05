@@ -1,7 +1,7 @@
 using Momoka.Home;
+using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
-using Momoka.Home.Shapes;
 namespace Momoka.Home.Entities;
 
 /// <summary>
@@ -16,7 +16,7 @@ namespace Momoka.Home.Entities;
 /// coordinates; moving the building only updates its position in the parent grid,
 /// never its interior blocks.
 /// </summary>
-public class Building : Entity<Int3>, IVoxelShape3D
+public class Building : Entity<Int3>, IVoxelGeometry3D
 {
     /// <summary>Inclusive 3D footprint of this building in its parent space.</summary>
     public Bound Bound { get; set; } = Bound.Empty;
@@ -26,18 +26,18 @@ public class Building : Entity<Int3>, IVoxelShape3D
 
     public Building()
     {
-        Shape = new BoxShape { SizeX = Bound.SizeX, SizeZ = Bound.SizeZ };
+        Volume = new Box3D { SizeX = Bound.SizeX, SizeZ = Bound.SizeZ };
     }
 
     /// <summary>
     /// Sets the building's footprint, positions it in the parent space, and
-    /// updates its exterior <see cref="Shape"/> accordingly.
+    /// updates its exterior <see cref="Volume"/> accordingly.
     /// </summary>
     public void SetFootprint(Bound bound)
     {
         Bound = bound;
         Coords = bound.Min;
-        Shape = new BoxShape { SizeX = bound.SizeX, SizeZ = bound.SizeZ };
+        Volume = new Box3D { SizeX = bound.SizeX, SizeZ = bound.SizeZ };
     }
 
     /// <summary>
@@ -56,8 +56,8 @@ public class Building : Entity<Int3>, IVoxelShape3D
     }
 
     /// <inheritdoc/>
-    public IEnumerable<Int3> Cells() =>
-        Levels.Values.SelectMany(level => level.Cells().Select(c => level.Coords + c));
+    public IEnumerable<Int3> Cells3D() =>
+        Levels.Values.SelectMany(level => level.Cells3D().Select(c => level.Coords + c));
 
     /// <inheritdoc/>
     public void PlaceAt(VoxelLayout3D target, Int3 at)

@@ -1,8 +1,8 @@
 using Momoka.Home;
 using Momoka.Home.Primitives;
-namespace Momoka.Home.Shapes;
+namespace Momoka.Home.Geometry;
 
-public class BoxShape : Shape
+public class Box3D : Volume
 {
     public int SizeX { get; set; } = 1;
     public int SizeY { get; set; } = 1;
@@ -13,7 +13,7 @@ public class BoxShape : Shape
     /// host entity's Coords (world = Coords + cell). The shape carries no
     /// position; it only describes its own geometry.
     /// </summary>
-    public override IEnumerable<Int3> Cells()
+    public override IEnumerable<Int3> Cells3D()
     {
         for (var dy = 0; dy < SizeY; dy++)
         {
@@ -34,7 +34,7 @@ public class BoxShape : Shape
     /// maps to the surface plane (floor → world XZ, wall East/West → world YZ,
     /// wall North/South → world XY). Cells are LOCAL (relative to Coords).
     /// </summary>
-    public override IEnumerable<Int2> GetVoxelsOnAngle()
+    public override IEnumerable<Int2> Cells2D()
     {
         for (var dx = 0; dx < SizeX; dx++)
         {

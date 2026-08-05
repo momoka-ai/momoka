@@ -1,15 +1,15 @@
 using Momoka.Home.Primitives;
-namespace Momoka.Home.Shapes;
+namespace Momoka.Home.Geometry;
 
 /// <summary>Filled circle footprint: cells with x²+z² ≤ r².</summary>
-public class Circle2D : Shape2D
+public class Circle2D : Shape
 {
     public int Radius { get; set; } = 1;
 
     public Circle2D() { }
     public Circle2D(int radius) => Radius = radius;
 
-    public override IEnumerable<Int2> GetCells()
+    public override IEnumerable<Int2> Cells2D()
     {
         var r = Radius;
         for (var x = -r; x <= r; x++)
@@ -20,7 +20,7 @@ public class Circle2D : Shape2D
 }
 
 /// <summary>Filled ellipse footprint: (x/rx)² + (z/rz)² ≤ 1.</summary>
-public class Ellipse2D : Shape2D
+public class Ellipse2D : Shape
 {
     public int RadiusX { get; set; } = 1;
     public int RadiusZ { get; set; } = 1;
@@ -32,7 +32,7 @@ public class Ellipse2D : Shape2D
         RadiusZ = radiusZ;
     }
 
-    public override IEnumerable<Int2> GetCells()
+    public override IEnumerable<Int2> Cells2D()
     {
         var a = RadiusX;
         var b = RadiusZ;
@@ -44,7 +44,7 @@ public class Ellipse2D : Shape2D
 }
 
 /// <summary>Annulus footprint: inner² ≤ x²+z² ≤ outer² (circular corridors, colonnades, pools).</summary>
-public class Ring2D : Shape2D
+public class Ring2D : Shape
 {
     public int InnerRadius { get; set; } = 1;
     public int OuterRadius { get; set; } = 2;
@@ -56,7 +56,7 @@ public class Ring2D : Shape2D
         OuterRadius = outerRadius;
     }
 
-    public override IEnumerable<Int2> GetCells()
+    public override IEnumerable<Int2> Cells2D()
     {
         var outer = OuterRadius;
         var inner2 = InnerRadius * InnerRadius;

@@ -5,7 +5,7 @@ namespace Momoka.Home.Entities;
 
 public class Curtain : Appliance
 {
-    public static readonly FloatProperty POSITION = new("position", new Key("curtain"), 0f,
+    public static readonly FloatProperty POSITION = new("position", 0f,
         description: "Curtain openness, 0 = fully closed, 100 = fully open");
 
     public Curtain()

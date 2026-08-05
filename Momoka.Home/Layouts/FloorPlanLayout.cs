@@ -1,7 +1,7 @@
 using Momoka.Home;
 using Momoka.Home.Entities;
+using Momoka.Home.Geometry;
 using Momoka.Home.Primitives;
-using Momoka.Home.Shapes;
 namespace Momoka.Home.Layouts;
 
 /// <summary>
@@ -24,12 +24,12 @@ public class FloorPlanLayout : Graph2D<Entity<Int3>>
 
     /// <summary>
     /// 创建隔断：在 <paramref name="from"/>–<paramref name="to"/> 之间建造一条分区边
-    /// （墙 / 围栏 / …）：锚定分区的 LineShape（局部坐标）并注册图节点与边。
+    /// （墙 / 围栏 / …）：锚定分区的 Line3D（局部坐标）并注册图节点与边。
     /// 占用栅格化由调用方通过 <see cref="VoxelLayout3D.BuildAt"/> 完成。
     /// </summary>
     public bool Build(Int2 from, Int2 to, Entity<Int3> partition)
     {
-        if (partition.Shape is not LineShape line)
+        if (partition.Volume is not Line3D line)
             return false;
 
         partition.Coords = from.ToInt3();
@@ -77,7 +77,7 @@ public class FloorPlanLayout : Graph2D<Entity<Int3>>
             {
                 if (edge.Entity is not Entity<Int3> partition)
                     continue;
-                if (partition.Shape is not LineShape)
+                if (partition.Volume is not Line3D line)
                     continue;
                 if (!partition.TryGetValue(UseVoxelLayoutProperty, out var enabled) || enabled is not true)
                     continue;

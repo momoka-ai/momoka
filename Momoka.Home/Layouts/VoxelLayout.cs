@@ -1,7 +1,7 @@
 using Momoka.Home;
 using Momoka.Home.Entities;
+using Momoka.Home.Geometry;
 using Momoka.Home.Primitives;
-using Momoka.Home.Shapes;
 namespace Momoka.Home.Layouts;
 
 /// <summary>
@@ -57,12 +57,12 @@ public class VoxelLayout2D : GridLayout2D<bool>
     /// <summary>
     /// True if the shape's support footprint, placed at layout-local
     /// <paramref name="pos"/>, lands on any blocked (or out-of-bounds) cell.
-    /// The footprint cells come from <see cref="Shape.GetVoxelsOnAngle"/> and are
+    /// The footprint cells come from <see cref="IVoxelGeometry2D.Cells2D"/> and are
     /// local to the object — the object's position on this surface is added here.
     /// </summary>
-    public bool IsCollided(Shape shape, Int2 pos)
+    public bool IsCollided(IVoxelGeometry2D shape, Int2 pos)
     {
-        foreach (var cell in shape.GetVoxelsOnAngle())
+        foreach (var cell in shape.Cells2D())
         {
             if (!this[cell + pos])
                 return true;
@@ -112,7 +112,7 @@ public class VoxelLayout3D : GridLayout3D<Entity<Int3>>
         if (HasEntity(cs))
             return true;
 
-        foreach (var cell in entity.Shape.Cells())
+        foreach (var cell in entity.Volume.Cells3D())
         {
             if (HasEntity(cs + cell))
                 return true;
@@ -126,10 +126,10 @@ public class VoxelLayout3D : GridLayout3D<Entity<Int3>>
     /// </summary>
     public bool IsEntityCollided(Entity<Int3> dest, Entity<Int3> src, Int3 cs)
     {
-        var destCells = dest.Shape.Cells()
+        var destCells = dest.Volume.Cells3D()
             .Select(v => dest.Coords + v)
             .ToHashSet();
-        return src.Shape.Cells().Any(v => destCells.Contains(cs + v));
+        return src.Volume.Cells3D().Any(v => destCells.Contains(cs + v));
     }
 
     /// <summary>
@@ -142,7 +142,7 @@ public class VoxelLayout3D : GridLayout3D<Entity<Int3>>
             return false;
 
         entity.Coords = cs;
-        foreach (var cell in entity.Shape.Cells())
+        foreach (var cell in entity.Volume.Cells3D())
         {
             this[cs + cell] = entity;
         }
@@ -179,7 +179,7 @@ public class VoxelLayout3D : GridLayout3D<Entity<Int3>>
         foreach (var entity in child.Entities)
         {
             Entities.Add(entity);
-            foreach (var cell in entity.Shape.Cells())
+            foreach (var cell in entity.Volume.Cells3D())
             {
                 this[offset + entity.Coords + cell] = entity;
             }
@@ -192,7 +192,7 @@ public class VoxelLayout3D : GridLayout3D<Entity<Int3>>
         foreach (var entity in child.Entities)
         {
             Entities.Remove(entity);
-            foreach (var cell in entity.Shape.Cells())
+            foreach (var cell in entity.Volume.Cells3D())
             {
                 var pos = offset + entity.Coords + cell;
                 if (this[pos] == entity)
@@ -210,7 +210,7 @@ public class VoxelLayout3D : GridLayout3D<Entity<Int3>>
         Clear();
         foreach (var entity in Entities)
         {
-            foreach (var cell in entity.Shape.Cells())
+            foreach (var cell in entity.Volume.Cells3D())
             {
                 this[entity.Coords + cell] = entity;
             }
@@ -222,7 +222,7 @@ public class VoxelLayout3D : GridLayout3D<Entity<Int3>>
         if (!Entities.Remove(entity))
             return false;
 
-        foreach (var cell in entity.Shape.Cells())
+        foreach (var cell in entity.Volume.Cells3D())
         {
             var pos = entity.Coords + cell;
             if (this[pos] == entity)
@@ -240,7 +240,7 @@ public class VoxelLayout3D : GridLayout3D<Entity<Int3>>
         var result = new List<Entity<Int3>>();
         foreach (var entity in Entities)
         {
-            foreach (var loc in entity.Shape.Cells())
+            foreach (var loc in entity.Volume.Cells3D())
             {
                 var p = (entity.Coords + loc).Xz;
                 if (p.X >= min.X && p.X <= max.X && p.Z >= min.Z && p.Z <= max.Z)

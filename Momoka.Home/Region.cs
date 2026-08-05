@@ -1,4 +1,5 @@
 using Momoka.Home.Entities;
+using Momoka.Home.Geometry;
 using Momoka.Home.Primitives;
 namespace Momoka.Home;
 
@@ -17,7 +18,7 @@ public class Region
 
     public bool Contains(Entity<Int3> entity)
     {
-        foreach (var pos in entity.Shape.Cells())
+        foreach (var pos in entity.Volume.Cells3D())
         {
             if (!Contains((entity.Coords + pos).Xz))
                 return false;
@@ -29,7 +30,7 @@ public class Region
     {
         var total = 0;
         var inside = 0;
-        foreach (var pos in entity.Shape.Cells())
+        foreach (var pos in entity.Volume.Cells3D())
         {
             total++;
             if (Contains((entity.Coords + pos).Xz))

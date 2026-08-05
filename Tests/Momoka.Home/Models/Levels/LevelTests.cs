@@ -2,9 +2,9 @@ using Xunit;
 using Momoka.Home;
 using Momoka.Home.Components;
 using Momoka.Home.Entities;
+using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
-using Momoka.Home.Shapes;
 namespace Momoka.Home.Tests.Models.Levels;
 
 /// <summary>
@@ -19,7 +19,7 @@ public class LevelTests
     {
         public VoxelLayoutSourceEntity()
         {
-            Shape = new BoxShape();
+            Volume = new Box3D();
             AddComponent(new VoxelLayoutSource { Layouts = { new VoxelLayout2D(new Int2(2, 2)) } });
         }
     }

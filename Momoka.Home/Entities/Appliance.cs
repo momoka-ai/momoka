@@ -1,6 +1,6 @@
 using Momoka.Home;
+using Momoka.Home.Geometry;
 using Momoka.Home.Primitives;
-using Momoka.Home.Shapes;
 using Momoka.Home.States;
 namespace Momoka.Home.Entities;
 
@@ -20,13 +20,13 @@ public enum ConnectionState
 
 public class Appliance : Entity<Int3>
 {
-    public static readonly EnumProperty<PowerState> POWER = new("power", new Key("appliance"), PowerState.Off);
-    public static readonly EnumProperty<ConnectionState> CONNECTION = new("connection", new Key("appliance"), ConnectionState.Offline);
-    public static readonly TextureProperty TEXTURE = new("texture", new Key("appliance"));
+    public static readonly EnumProperty<PowerState> POWER = new("power", PowerState.Off);
+    public static readonly EnumProperty<ConnectionState> CONNECTION = new("connection", ConnectionState.Offline);
+    public static readonly TextureProperty TEXTURE = new("texture");
 
     public Appliance()
     {
-        Shape = new BoxShape();
+        Volume = new Box3D();
         AddProperty(POWER, CONNECTION, TEXTURE);
     }
 }

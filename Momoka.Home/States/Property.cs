@@ -6,7 +6,6 @@ namespace Momoka.Home.States;
 public abstract class Property
 {
     public string Name { get; }
-    public Key TemplateKey { get; }
     public string Description { get; }
     public abstract Type PropertyType { get; }
 
@@ -25,10 +24,9 @@ public abstract class Property
     /// <summary>Creates a fresh property with the same definition and value (per-instance materialization).</summary>
     public abstract Property Clone();
 
-    protected Property(string name, Key templateKey, string description = "")
+    protected Property(string name, string description = "")
     {
         Name = name;
-        TemplateKey = templateKey;
         Description = description;
     }
 
@@ -79,7 +77,6 @@ public abstract class Property
     public static Property Create(
         string name,
         Type propertyType,
-        Key templateKey,
         Func<object?, bool>? validateValueCallback = null,
         string description = "")
     {
@@ -88,7 +85,7 @@ public abstract class Property
             ? Activator.CreateInstance(propertyType)
             : null;
 
-        var prop = (Property)Activator.CreateInstance(genericType, name, templateKey, defaultValue!)!;
+        var prop = (Property)Activator.CreateInstance(genericType, name, defaultValue!)!;
         return prop;
     }
 
@@ -102,8 +99,8 @@ public abstract class Property<T> : Property
     public override Type PropertyType => typeof(T);
     public T DefaultValue { get; }
 
-    protected Property(string name, Key templateKey, T defaultValue, string description = "")
-        : base(name, templateKey, description)
+    protected Property(string name, T defaultValue, string description = "")
+        : base(name, description)
     {
         DefaultValue = defaultValue;
     }
@@ -115,7 +112,7 @@ public abstract class Property<T> : Property
 
     public override Property Clone()
     {
-        var copy = CreateCopy(Name, TemplateKey, DefaultValue, Description);
+        var copy = CreateCopy(Name, DefaultValue, Description);
         copy.ValidateValueCallback = ValidateValueCallback;
         copy.IsReadOnly = IsReadOnly;
         copy.ValidValues = ValidValues;
@@ -124,7 +121,7 @@ public abstract class Property<T> : Property
     }
 
     /// <summary>Constructs a fresh instance of the concrete property subclass (used by <see cref="Clone"/>).</summary>
-    protected abstract Property<T> CreateCopy(string name, Key templateKey, T defaultValue, string description);
+    protected abstract Property<T> CreateCopy(string name, T defaultValue, string description);
 
     protected virtual object? Serialize(T value) => value;
     protected virtual T Deserialize(object? raw) =>

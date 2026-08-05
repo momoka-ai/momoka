@@ -1,8 +1,8 @@
 using Momoka.Home.Primitives;
-namespace Momoka.Home.Shapes;
+namespace Momoka.Home.Geometry;
 
-/// <summary>Axis-aligned rectangle footprint (SizeX × SizeZ), the Shape2D of <see cref="BoxShape"/>.</summary>
-public class Rect2D : Shape2D
+/// <summary>Axis-aligned rectangle footprint (SizeX × SizeZ), the Shape of <see cref="Box3D"/>.</summary>
+public class Rect2D : Shape
 {
     public int SizeX { get; set; } = 1;
     public int SizeZ { get; set; } = 1;
@@ -14,7 +14,7 @@ public class Rect2D : Shape2D
         SizeZ = sizeZ;
     }
 
-    public override IEnumerable<Int2> GetCells()
+    public override IEnumerable<Int2> Cells2D()
     {
         for (var x = 0; x < SizeX; x++)
             for (var z = 0; z < SizeZ; z++)

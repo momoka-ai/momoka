@@ -1,15 +1,15 @@
 using Momoka.Home.Primitives;
-namespace Momoka.Home.Shapes;
+namespace Momoka.Home.Geometry;
 
 /// <summary>Solid sphere: cells with x²+y²+z² ≤ r².</summary>
-public class SphereShape : Shape
+public class Sphere3D : Volume
 {
     public int Radius { get; set; } = 1;
 
-    public SphereShape() { }
-    public SphereShape(int radius) => Radius = radius;
+    public Sphere3D() { }
+    public Sphere3D(int radius) => Radius = radius;
 
-    public override IEnumerable<Int3> Cells()
+    public override IEnumerable<Int3> Cells3D()
     {
         var r = Radius;
         for (var x = -r; x <= r; x++)
@@ -19,25 +19,25 @@ public class SphereShape : Shape
                         yield return new Int3(x, y, z);
     }
 
-    public override IEnumerable<Int2> GetVoxelsOnAngle() => new Circle2D(Radius).GetCells();
+    public override IEnumerable<Int2> Cells2D() => new Circle2D(Radius).Cells2D();
 }
 
 /// <summary>Solid ellipsoid: (x/rx)² + (y/ry)² + (z/rz)² ≤ 1.</summary>
-public class EllipsoidShape : Shape
+public class Ellipsoid3D : Volume
 {
     public int RadiusX { get; set; } = 1;
     public int RadiusY { get; set; } = 1;
     public int RadiusZ { get; set; } = 1;
 
-    public EllipsoidShape() { }
-    public EllipsoidShape(int radiusX, int radiusY, int radiusZ)
+    public Ellipsoid3D() { }
+    public Ellipsoid3D(int radiusX, int radiusY, int radiusZ)
     {
         RadiusX = radiusX;
         RadiusY = radiusY;
         RadiusZ = radiusZ;
     }
 
-    public override IEnumerable<Int3> Cells()
+    public override IEnumerable<Int3> Cells3D()
     {
         var a = RadiusX;
         var b = RadiusY;
@@ -52,5 +52,5 @@ public class EllipsoidShape : Shape
                         yield return new Int3(x, y, z);
     }
 
-    public override IEnumerable<Int2> GetVoxelsOnAngle() => new Ellipse2D(RadiusX, RadiusZ).GetCells();
+    public override IEnumerable<Int2> Cells2D() => new Ellipse2D(RadiusX, RadiusZ).Cells2D();
 }

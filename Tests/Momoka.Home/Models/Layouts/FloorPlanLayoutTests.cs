@@ -1,9 +1,9 @@
 using Xunit;
 using Momoka.Home;
 using Momoka.Home.Entities;
+using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
-using Momoka.Home.Shapes;
 namespace Momoka.Home.Tests.Models.Layouts;
 
 /// <summary>
@@ -16,7 +16,7 @@ public class FloorPlanLayoutTests
 {
     private sealed class FenceEntity : Entity<Int3>
     {
-        public FenceEntity() => Shape = new LineShape();
+        public FenceEntity() => Volume = new Line3D();
     }
 
     // ── Topology ─────────────────────────────────────────────
@@ -35,7 +35,7 @@ public class FloorPlanLayoutTests
     }
 
     [Fact]
-    public void Build_WorksWithAnyLineShapeEntity()
+    public void Build_WorksWithAnyLine3DEntity()
     {
         var graph = new FloorPlanLayout();
 
@@ -44,7 +44,7 @@ public class FloorPlanLayoutTests
     }
 
     [Fact]
-    public void Build_NonLineShape_ReturnsFalse()
+    public void Build_NonLine3D_ReturnsFalse()
     {
         var graph = new FloorPlanLayout();
 

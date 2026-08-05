@@ -1,8 +1,8 @@
 using Xunit;
 using Momoka.Home;
+using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
-using Momoka.Home.Shapes;
 namespace Momoka.Home.Tests.Models.Layouts;
 
 public class VoxelLayout2DTests
@@ -44,7 +44,7 @@ public class VoxelLayout2DTests
         var layout = new VoxelLayout2D(new Int2(10, 10));
         layout.Fill(new Int2(0, 0), new Int2(10, 10));
 
-        var cabinet = new BoxShape { SizeX = 2, SizeY = 3, SizeZ = 3 };
+        var cabinet = new Box3D { SizeX = 2, SizeY = 3, SizeZ = 3 };
         Assert.False(layout.IsCollided(cabinet, new Int2(5, 5)));
     }
 
@@ -58,8 +58,8 @@ public class VoxelLayout2DTests
             layout[new Int2(x, 0)] = false; // 模拟墙底阻挡
         }
 
-        Assert.True(layout.IsCollided(new BoxShape { SizeX = 2, SizeZ = 2 }, new Int2(2, 0)));
-        Assert.False(layout.IsCollided(new BoxShape { SizeX = 2, SizeZ = 2 }, new Int2(7, 0)));
+        Assert.True(layout.IsCollided(new Box3D { SizeX = 2, SizeZ = 2 }, new Int2(2, 0)));
+        Assert.False(layout.IsCollided(new Box3D { SizeX = 2, SizeZ = 2 }, new Int2(7, 0)));
     }
 
     [Fact]
@@ -68,6 +68,6 @@ public class VoxelLayout2DTests
         var layout = new VoxelLayout2D(new Int2(10, 10));
         layout.Fill(new Int2(0, 0), new Int2(10, 10));
 
-        Assert.True(layout.IsCollided(new BoxShape { SizeX = 4, SizeZ = 4 }, new Int2(9, 9)));
+        Assert.True(layout.IsCollided(new Box3D { SizeX = 4, SizeZ = 4 }, new Int2(9, 9)));
     }
 }

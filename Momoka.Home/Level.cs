@@ -12,7 +12,7 @@ namespace Momoka.Home;
 /// material regions) and a region layout. Hand-built, not config-driven;
 /// coordinates are local to the owning building.
 /// </summary>
-public class Level : IEntitySource, IVoxelShape3D
+public class Level : IEntitySource, IVoxelGeometry3D
 {
     /// <summary>Position of this floor within the owning building.</summary>
     public Int3 Coords { get; set; }
@@ -42,8 +42,8 @@ public class Level : IEntitySource, IVoxelShape3D
     }
 
     /// <inheritdoc/>
-    public IEnumerable<Int3> Cells() =>
-        Layout.Entities.SelectMany(e => e.Shape.Cells().Select(c => e.Coords + c));
+    public IEnumerable<Int3> Cells3D() =>
+        Layout.Entities.SelectMany(e => e.Volume.Cells3D().Select(c => e.Coords + c));
 
     /// <inheritdoc/>
     public void PlaceAt(VoxelLayout3D target, Int3 at) => target.MergeFrom(Layout, at);

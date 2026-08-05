@@ -1,22 +1,21 @@
-using Momoka.Home.Components;
 using Momoka.Home.Entities;
+using Momoka.Home.Geometry;
 using Momoka.Home.Primitives;
-using Momoka.Home.Shapes;
 using Momoka.Home.States;
 using Newtonsoft.Json;
 namespace Momoka.Home.Serialization;
 
 /// <summary>
-/// Typed descriptor of an entity type: the identity (<see cref="Key"/>,
-/// <see cref="Class"/>) plus the limited, known set of content fields (shape,
-/// properties, components). Built by <see cref="EntityConfigLoader"/> from a config
-/// file — key derived from the path, "class" resolved against the template
-/// registry (inheritance + merge) — and materialized by <see cref="EntityFactory"/>.
+/// Typed descriptor of an entity template: the identity (<see cref="Key"/>) plus
+/// the composed content (shape, properties, components). Loaded by
+/// <see cref="EntityTemplateFactory"/> from a config file — key derived from the
+/// path, "extends" resolved against the registry as mixin composition — and
+/// materialized into an <see cref="Entity{T}"/> (Entity&lt;Int3&gt;).
 /// </summary>
 public class EntityTemplate
 {
     /// <summary>
-    /// The template's type identity — also stamped onto produced entities'
+    /// The template's identity — also stamped onto produced entities'
     /// <see cref="Entity.Key"/>. Derived from the config file path, set after
     /// deserialization (never read from JSON).
     /// </summary>
@@ -24,29 +23,22 @@ public class EntityTemplate
     public Key Key { get; set; }
 
     /// <summary>
-    /// Registered type this template inherits from, resolved in the template
-    /// registry (e.g. "voxelentity", "entity.appliance.air_conditioner").
+    /// Templates this one is composed from (mixins), resolved in the registry and
+    /// merged in array order — later entries override earlier ones by name; this
+    /// config's own fields override everything. Pure data, so no diamond problem.
     /// </summary>
-    [JsonProperty("class"), JsonRequired]
-    public string Class { get; set; } = "";
+    [JsonProperty("extends")]
+    public List<string> Extends { get; set; } = new();
 
-    /// <summary>
-    /// Target CLR type, inherited from the top-level base template (e.g.
-    /// "voxelentity" → <c>Entity&lt;Int3&gt;</c>). Never read from JSON —
-    /// it is carried down the inheritance chain and used at materialization.
-    /// </summary>
-    [JsonIgnore]
-    public Type? Type { get; set; }
-
-    /// <summary>Shape, inherited from the parent template and overridden by this config.</summary>
+    /// <summary>Volume, inherited from the extended templates and overridden by this config.</summary>
     [JsonProperty("shape")]
-    public Shape? Shape { get; set; }
+    public Volume? Volume { get; set; }
 
-    /// <summary>Properties, merged from the parent template by name.</summary>
+    /// <summary>Properties, merged from the extended templates by name.</summary>
     [JsonProperty("properties")]
     public List<Property>? Properties { get; set; }
 
-    /// <summary>Components (resolution not implemented yet).</summary>
+    /// <summary>Component type keys (resolution into instances comes later).</summary>
     [JsonProperty("components")]
-    public List<Component>? Components { get; set; }
+    public List<string>? Components { get; set; }
 }
