@@ -17,7 +17,7 @@ public class SerializationPipelineTests
 
     private const string AcConfigJson = """
     {
-        "shape": { "kind": "box", "size": { "x": 1, "y": 2, "z": 1 } },
+        "shape": { "kind": "box", "size_x": 1, "size_y": 2, "size_z": 1 },
         "properties": [
             { "key": "ai_mode", "type": "literals", "values": ["disabled", "skyscreen_mode", "no_direct_wind_mode", "fast_cooling_mode"], "value": "disabled" },
             { "key": "clean_mode", "type": "boolean" },
@@ -29,7 +29,7 @@ public class SerializationPipelineTests
     private const string AcWithExtendsConfigJson = """
     {
         "extends": [ "entity.appliance.air_conditioner" ],
-        "shape": { "kind": "box", "size": { "x": 1, "y": 2, "z": 1 } },
+        "shape": { "kind": "box", "size_x": 1, "size_y": 2, "size_z": 1 },
         "properties": [
             { "key": "ai_mode", "type": "literals", "values": ["disabled", "skyscreen_mode", "no_direct_wind_mode", "fast_cooling_mode"], "value": "disabled" }
         ]

@@ -9,16 +9,16 @@ namespace Momoka.Home.Geometry;
 [JsonTypeName("composite")]
 public class Composite3D : Volume
 {
-    public List<(Volume Volume, Int3 Offset)> Children { get; } = new();
+    public List<CompositeChild3D> Children { get; set; } = new();
 
     public override IEnumerable<Int3> Cells3D()
     {
         var seen = new HashSet<Int3>();
-        foreach (var (child, offset) in Children)
+        foreach (var child in Children)
         {
-            foreach (var cell in child.Cells3D())
+            foreach (var cell in child.Shape.Cells3D())
             {
-                var p = cell + offset;
+                var p = cell + child.Offset;
                 if (seen.Add(p))
                     yield return p;
             }
@@ -28,14 +28,21 @@ public class Composite3D : Volume
     public override IEnumerable<Int2> Cells2D()
     {
         var seen = new HashSet<Int2>();
-        foreach (var (child, offset) in Children)
+        foreach (var child in Children)
         {
-            foreach (var cell in child.Cells2D())
+            foreach (var cell in child.Shape.Cells2D())
             {
-                var p = cell + offset.Xz;
+                var p = cell + child.Offset.Xz;
                 if (seen.Add(p))
                     yield return p;
             }
         }
     }
+}
+
+/// <summary>A child volume of a <see cref="Composite3D"/> at a local offset.</summary>
+public class CompositeChild3D
+{
+    public Volume Shape { get; set; } = null!;
+    public Int3 Offset { get; set; }
 }

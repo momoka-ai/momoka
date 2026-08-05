@@ -1,5 +1,6 @@
 using System.Numerics;
 using Momoka.Home;
+using Newtonsoft.Json;
 namespace Momoka.Home.Primitives;
 
 /// <summary>
@@ -40,18 +41,23 @@ public readonly record struct Float3(float X, float Y, float Z)
     // ── Properties ─────────────────────────────────────────
 
     /// <summary>Drop to XZ-plane (Int2, rounded).</summary>
+    [JsonIgnore]
     public Int2 Int2 => new((int)Math.Round(X), (int)Math.Round(Z));
 
     /// <summary>Round to Int3.</summary>
+    [JsonIgnore]
     public Int3 Int3 =>
         new((int)Math.Round(X), (int)Math.Round(Y), (int)Math.Round(Z));
 
     /// <summary>Floor to Int3 (truncate toward zero).</summary>
+    [JsonIgnore]
     public Int3 Int3Floor =>
         new((int)X, (int)Y, (int)Z);
 
+    [JsonIgnore]
     public float Magnitude => MathF.Sqrt(X * X + Y * Y + Z * Z);
 
+    [JsonIgnore]
     public Float3 Normalized => Magnitude > 1e-6f ? this / Magnitude : Zero;
 
     // ── Methods ────────────────────────────────────────────

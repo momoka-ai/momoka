@@ -10,7 +10,7 @@ namespace Momoka.Home.Geometry;
 [JsonTypeName("polygon")]
 public class Polygon2D : Shape
 {
-    public List<Int2> Vertices { get; } = new();
+    public List<Int2> Vertices { get; set; } = new();
 
     public Polygon2D() { }
     public Polygon2D(params Int2[] vertices) => Vertices.AddRange(vertices);

@@ -6,6 +6,7 @@ namespace Momoka.Home.Geometry;
 [JsonTypeName("circle")]
 public class Circle3D : Extruded3D
 {
+    public Circle3D() : base(new Circle2D(), 1) { }
     public Circle3D(int radius, int height) : base(new Circle2D(radius), height) { }
 }
 
@@ -13,6 +14,7 @@ public class Circle3D : Extruded3D
 [JsonTypeName("ellipse")]
 public class Ellipse3D : Extruded3D
 {
+    public Ellipse3D() : base(new Ellipse2D(), 1) { }
     public Ellipse3D(int radiusX, int radiusZ, int height) : base(new Ellipse2D(radiusX, radiusZ), height) { }
 }
 
@@ -20,6 +22,7 @@ public class Ellipse3D : Extruded3D
 [JsonTypeName("ring")]
 public class Ring3D : Extruded3D
 {
+    public Ring3D() : base(new Ring2D(), 1) { }
     public Ring3D(int innerRadius, int outerRadius, int height) : base(new Ring2D(innerRadius, outerRadius), height) { }
 }
 
@@ -27,6 +30,7 @@ public class Ring3D : Extruded3D
 [JsonTypeName("cylinder")]
 public class Cylinder3D : Circle3D
 {
+    public Cylinder3D() : base() { }
     public Cylinder3D(int radius, int height) : base(radius, height) { }
 }
 
@@ -34,5 +38,6 @@ public class Cylinder3D : Circle3D
 [JsonTypeName("triangle")]
 public class Triangle3D : Polygon3D
 {
+    public Triangle3D() : base() { }
     public Triangle3D(Int2 a, Int2 b, Int2 c, int height) : base(new[] { a, b, c }, height) { }
 }

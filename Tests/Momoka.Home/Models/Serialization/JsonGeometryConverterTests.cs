@@ -140,8 +140,8 @@ public class JsonGeometryConverterTests
     public void Extruded_RoundTripsWithCompositeFootprint()
     {
         var composite = new Composite2D();
-        composite.Children.Add((new Rect2D(2, 1), new Int2(0, 0)));
-        composite.Children.Add((new Circle2D(1), new Int2(3, 0)));
+        composite.Children.Add(new CompositeChild2D { Shape = new Rect2D(2, 1), Offset = new Int2(0, 0) });
+        composite.Children.Add(new CompositeChild2D { Shape = new Circle2D(1), Offset = new Int2(3, 0) });
 
         var extruded = RoundTrip(new Extruded3D(composite, 2));
         var footprint = Assert.IsType<Composite2D>(extruded.Footprint);
@@ -152,13 +152,13 @@ public class JsonGeometryConverterTests
     public void Composite_RoundTrips()
     {
         var composite = new Composite3D();
-        composite.Children.Add((new Box3D { SizeX = 1, SizeY = 1, SizeZ = 1 }, new Int3(0, 0, 0)));
-        composite.Children.Add((new Sphere3D(1), new Int3(2, 0, 0)));
+        composite.Children.Add(new CompositeChild3D { Shape = new Box3D { SizeX = 1, SizeY = 1, SizeZ = 1 }, Offset = new Int3(0, 0, 0) });
+        composite.Children.Add(new CompositeChild3D { Shape = new Sphere3D(1), Offset = new Int3(2, 0, 0) });
 
         var result = RoundTrip(composite);
         Assert.Equal(2, result.Children.Count);
-        Assert.IsType<Box3D>(result.Children[0].Volume);
-        Assert.IsType<Sphere3D>(result.Children[1].Volume);
+        Assert.IsType<Box3D>(result.Children[0].Shape);
+        Assert.IsType<Sphere3D>(result.Children[1].Shape);
         Assert.Equal(new Int3(2, 0, 0), result.Children[1].Offset);
     }
 
@@ -166,14 +166,14 @@ public class JsonGeometryConverterTests
     public void Box_SerializesToFlatKindJson()
     {
         var json = JsonConvert.SerializeObject(new Box3D { SizeX = 1, SizeY = 2, SizeZ = 3 }, Settings);
-        Assert.Equal("""{"kind":"box","size":{"x":1,"y":2,"z":3}}""", json);
+        Assert.Equal("""{"kind":"box","size_x":1,"size_y":2,"size_z":3}""", json);
     }
 
     [Fact]
     public void Composite_SerializesNestedVolumesWithKind()
     {
         var composite = new Composite3D();
-        composite.Children.Add((new Box3D { SizeX = 1, SizeY = 1, SizeZ = 1 }, new Int3(0, 0, 0)));
+        composite.Children.Add(new CompositeChild3D { Shape = new Box3D { SizeX = 1, SizeY = 1, SizeZ = 1 }, Offset = new Int3(0, 0, 0) });
 
         var json = JsonConvert.SerializeObject(composite, Settings);
         Assert.Contains("\"kind\":\"box\"", json);

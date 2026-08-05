@@ -64,8 +64,8 @@ public class ShapeFamilyTests
     public void Composite3D_UnionsChildrenAtOffsets()
     {
         var composite = new Composite3D();
-        composite.Children.Add((new Box3D { SizeX = 2, SizeY = 1, SizeZ = 2 }, Int3.Zero));
-        composite.Children.Add((new Box3D { SizeX = 1, SizeY = 1, SizeZ = 1 }, new Int3(3, 0, 0)));
+        composite.Children.Add(new CompositeChild3D { Shape = new Box3D { SizeX = 2, SizeY = 1, SizeZ = 2 }, Offset = Int3.Zero });
+        composite.Children.Add(new CompositeChild3D { Shape = new Box3D { SizeX = 1, SizeY = 1, SizeZ = 1 }, Offset = new Int3(3, 0, 0) });
 
         var cells = composite.Cells3D().ToHashSet();
 

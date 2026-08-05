@@ -1,5 +1,6 @@
 using System.Numerics;
 using Momoka.Home;
+using Newtonsoft.Json;
 namespace Momoka.Home.Primitives;
 
 /// <summary>
@@ -38,6 +39,7 @@ public readonly record struct Int3(int X, int Y, int Z)
     // ── ValueTuple decomposition ───────────────────────────
 
     /// <summary>Drop to XZ-plane (Int2).</summary>
+    [JsonIgnore]
     public Int2 Xz => new(X, Z);
 
     // ── Methods ────────────────────────────────────────────

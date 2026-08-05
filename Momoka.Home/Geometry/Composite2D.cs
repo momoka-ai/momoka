@@ -6,19 +6,26 @@ namespace Momoka.Home.Geometry;
 [JsonTypeName("composite")]
 public class Composite2D : Shape
 {
-    public List<(Shape Shape, Int2 Offset)> Children { get; } = new();
+    public List<CompositeChild2D> Children { get; set; } = new();
 
     public override IEnumerable<Int2> Cells2D()
     {
         var seen = new HashSet<Int2>();
-        foreach (var (shape, offset) in Children)
+        foreach (var child in Children)
         {
-            foreach (var cell in shape.Cells2D())
+            foreach (var cell in child.Shape.Cells2D())
             {
-                var p = cell + offset;
+                var p = cell + child.Offset;
                 if (seen.Add(p))
                     yield return p;
             }
         }
     }
+}
+
+/// <summary>A child footprint of a <see cref="Composite2D"/> at a local offset.</summary>
+public class CompositeChild2D
+{
+    public Shape Shape { get; set; } = null!;
+    public Int2 Offset { get; set; }
 }
