@@ -1,7 +1,9 @@
 using Momoka.Home;
 using Momoka.Home.Primitives;
+using Momoka.Home.Serialization;
 namespace Momoka.Home.Geometry;
 
+[JsonTypeName("box")]
 public class Box3D : Volume
 {
     public int SizeX { get; set; } = 1;

@@ -1,10 +1,12 @@
 using Momoka.Home.Primitives;
+using Momoka.Home.Serialization;
 namespace Momoka.Home.Geometry;
 
 /// <summary>
 /// Union of 3D sub-volumes at local offsets — the primitive for irregular /
 /// multi-part structures (L/U/C/T plans, house + garage, bay windows).
 /// </summary>
+[JsonTypeName("composite")]
 public class Composite3D : Volume
 {
     public List<(Volume Volume, Int3 Offset)> Children { get; } = new();

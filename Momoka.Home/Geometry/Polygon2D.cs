@@ -1,4 +1,5 @@
 using Momoka.Home.Primitives;
+using Momoka.Home.Serialization;
 namespace Momoka.Home.Geometry;
 
 /// <summary>
@@ -6,6 +7,7 @@ namespace Momoka.Home.Geometry;
 /// rasterized by bounding-box sampling + even-odd point-in-polygon. The precise
 /// footprint for irregular building shapes — no bounding-box overreach.
 /// </summary>
+[JsonTypeName("polygon")]
 public class Polygon2D : Shape
 {
     public List<Int2> Vertices { get; } = new();

@@ -1,7 +1,9 @@
 using Momoka.Home.Primitives;
+using Momoka.Home.Serialization;
 namespace Momoka.Home.Geometry;
 
 /// <summary>Solid sphere: cells with x²+y²+z² ≤ r².</summary>
+[JsonTypeName("sphere")]
 public class Sphere3D : Volume
 {
     public int Radius { get; set; } = 1;
@@ -23,6 +25,7 @@ public class Sphere3D : Volume
 }
 
 /// <summary>Solid ellipsoid: (x/rx)² + (y/ry)² + (z/rz)² ≤ 1.</summary>
+[JsonTypeName("ellipsoid")]
 public class Ellipsoid3D : Volume
 {
     public int RadiusX { get; set; } = 1;

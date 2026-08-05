@@ -1,7 +1,9 @@
 using Momoka.Home;
 using Momoka.Home.Primitives;
+using Momoka.Home.Serialization;
 namespace Momoka.Home.States;
 
+[JsonTypeName("string")]
 public class StringProperty : Property<string>
 {
     public StringProperty(string name, string defaultValue = "", string description = "")

@@ -1,7 +1,9 @@
 using Momoka.Home.Primitives;
+using Momoka.Home.Serialization;
 namespace Momoka.Home.Geometry;
 
 /// <summary>Union of 2D footprints at local offsets (L/U/T plans, attached parts).</summary>
+[JsonTypeName("composite")]
 public class Composite2D : Shape
 {
     public List<(Shape Shape, Int2 Offset)> Children { get; } = new();

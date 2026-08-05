@@ -1,7 +1,9 @@
 using Momoka.Home;
 using Momoka.Home.Primitives;
+using Momoka.Home.Serialization;
 namespace Momoka.Home.Geometry;
 
+[JsonTypeName("line")]
 public class Line3D : Volume
 {
     /// <summary>Start of the segment, in the host entity's LOCAL frame (relative to Coords).</summary>
@@ -48,7 +50,7 @@ public class Line3D : Volume
             yield return new Int2(cell.X, cell.Z);
     }
 
-    private static IEnumerable<Float3> RasterizeCross(Float3 center, int thickness)
+    protected static IEnumerable<Float3> RasterizeCross(Float3 center, int thickness)
     {
         var half = thickness / 2;
         for (var dx = -half; dx <= half; dx++)

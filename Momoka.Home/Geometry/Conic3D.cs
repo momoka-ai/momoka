@@ -1,7 +1,9 @@
 using Momoka.Home.Primitives;
+using Momoka.Home.Serialization;
 namespace Momoka.Home.Geometry;
 
 /// <summary>Vertical cone: circular base shrinking linearly to an apex (roofs, spires).</summary>
+[JsonTypeName("cone")]
 public class Cone3D : Volume
 {
     public int Radius { get; set; } = 1;
@@ -34,6 +36,7 @@ public class Cone3D : Volume
 }
 
 /// <summary>Vertical pyramid: rectangular base shrinking linearly to an apex (gable/pyramid roofs).</summary>
+[JsonTypeName("pyramid")]
 public class Pyramid3D : Volume
 {
     public int SizeX { get; set; } = 1;

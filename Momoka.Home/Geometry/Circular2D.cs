@@ -1,7 +1,9 @@
 using Momoka.Home.Primitives;
+using Momoka.Home.Serialization;
 namespace Momoka.Home.Geometry;
 
 /// <summary>Filled circle footprint: cells with x²+z² ≤ r².</summary>
+[JsonTypeName("circle")]
 public class Circle2D : Shape
 {
     public int Radius { get; set; } = 1;
@@ -20,6 +22,7 @@ public class Circle2D : Shape
 }
 
 /// <summary>Filled ellipse footprint: (x/rx)² + (z/rz)² ≤ 1.</summary>
+[JsonTypeName("ellipse")]
 public class Ellipse2D : Shape
 {
     public int RadiusX { get; set; } = 1;
@@ -44,6 +47,7 @@ public class Ellipse2D : Shape
 }
 
 /// <summary>Annulus footprint: inner² ≤ x²+z² ≤ outer² (circular corridors, colonnades, pools).</summary>
+[JsonTypeName("ring")]
 public class Ring2D : Shape
 {
     public int InnerRadius { get; set; } = 1;

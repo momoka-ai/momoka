@@ -1,25 +1,19 @@
 using Momoka.Home.Primitives;
+using Momoka.Home.Serialization;
 namespace Momoka.Home.Geometry;
 
 /// <summary>
-/// A curved wall segment: a quadratic Bézier arc through <see cref="Start"/>,
-/// <see cref="End"/> and a bowed midpoint (Start+End)/2 + perpendicular·Curvature.
+/// A curved wall segment: a quadratic Bézier arc through <see cref="Line3D.Start"/>,
+/// <see cref="Line3D.End"/> and a bowed midpoint (Start+End)/2 + perpendicular·Curvature.
 /// Curvature = 0 degenerates to a straight line (same as <see cref="Line3D"/>);
 /// positive/negative bows to either side. Rasterized by sampling the curve and
-/// expanding by <see cref="Thickness"/>.
+/// expanding by <see cref="Line3D.Thickness"/>.
 /// </summary>
-public class Curve3D : Volume
+[JsonTypeName("curve")]
+public class Curve3D : Line3D
 {
-    /// <summary>Start of the segment, in the host entity's LOCAL frame (relative to Coords).</summary>
-    public Float3 Start { get; set; }
-
-    /// <summary>End of the segment, in the host entity's LOCAL frame.</summary>
-    public Float3 End { get; set; }
-
     /// <summary>Signed bow distance (cells) at the midpoint, perpendicular to the chord.</summary>
     public float Curvature { get; set; }
-
-    public int Thickness { get; set; } = 1;
 
     public override IEnumerable<Int3> Cells3D()
     {
@@ -58,16 +52,4 @@ public class Curve3D : Volume
 
     public override IEnumerable<Int2> Cells2D() =>
         Cells3D().Select(c => c.Xz).Distinct();
-
-    private static IEnumerable<Float3> RasterizeCross(Float3 center, int thickness)
-    {
-        var half = thickness / 2;
-        for (var dx = -half; dx <= half; dx++)
-        {
-            for (var dz = -half; dz <= half; dz++)
-            {
-                yield return center.Offset(dx, 0, dz);
-            }
-        }
-    }
 }

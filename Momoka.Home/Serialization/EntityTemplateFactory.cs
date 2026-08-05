@@ -16,7 +16,7 @@ public class EntityTemplateFactory
 {
     private static readonly JsonSerializerSettings Settings = new()
     {
-        Converters = { new JsonVoxelShapeConverter(), new JsonPropertyConverter() }
+        Converters = { new JsonGeometryConverter(), new JsonPropertyConverter() }
     };
 
     private readonly Dictionary<string, EntityTemplate> _templates = new();

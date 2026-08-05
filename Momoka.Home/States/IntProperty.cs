@@ -1,7 +1,9 @@
 using Momoka.Home;
 using Momoka.Home.Primitives;
+using Momoka.Home.Serialization;
 namespace Momoka.Home.States;
 
+[JsonTypeName("int")]
 public class IntProperty : Property<int>
 {
     public IntProperty(string name, int defaultValue = 0, string description = "")

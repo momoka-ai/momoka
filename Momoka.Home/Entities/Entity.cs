@@ -111,25 +111,6 @@ public abstract class Entity : IComponentSource
     public List<Dictionary<string, object?>> GetSchema() =>
         _properties.Select(p => p.ToSchema()).ToList();
 
-    public Dictionary<string, object?> ToDictionary()
-    {
-        var result = new Dictionary<string, object?>();
-        foreach (var property in _properties)
-        {
-            result[property.Name] = property.SerializeValue(property.Value ?? property.GetDefaultValue()!);
-        }
-        return result;
-    }
-
-    public void Deserialize(Dictionary<string, object?> data)
-    {
-        foreach (var property in _properties)
-        {
-            if (data.TryGetValue(property.Name, out var raw))
-                property.Value = property.DeserializeValue(raw);
-        }
-    }
-
     // ── Behavior components ──────────────────────────────
     // Class-level API (used directly on concrete entities); IComponentSource's
     // default methods cover non-Entity implementers like Home.

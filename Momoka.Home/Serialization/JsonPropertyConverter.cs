@@ -5,8 +5,10 @@ namespace Momoka.Home.Serialization;
 
 /// <summary>
 /// Serializes a <see cref="Property"/> to/from its declarative JSON form: the
-/// "type" discriminator plus key, optional initial value and optional closed
-/// value set. Replaces the old PropertyDto + PropertyFactory.
+/// "type" discriminator (declared via <see cref="JsonTypeNameAttribute"/>) plus
+/// key, optional initial value and optional closed value set ("literals" — a
+/// <see cref="StringProperty"/> with a values list). Replaces the old
+/// PropertyDto + PropertyFactory.
 /// </summary>
 public class JsonPropertyConverter : JsonConverter<Property>
 {
@@ -17,20 +19,19 @@ public class JsonPropertyConverter : JsonConverter<Property>
         var type = obj["type"]?.Value<string>() ?? "";
         var value = obj["value"];
 
-        return type switch
+        if (type == "literals")
         {
-            "boolean" => new BooleanProperty(key) { Value = value?.Value<bool>() },
-            "int" => new IntProperty(key) { Value = value?.Value<int>() },
-            "float" => new FloatProperty(key) { Value = value?.Value<float>() },
-            "string" => new StringProperty(key) { Value = value?.Value<string>() },
-            "texture" => new TextureProperty(key) { Value = value?.Value<string>() },
-            "literals" => new StringProperty(key)
+            return new StringProperty(key)
             {
                 ValidValues = obj["values"]?.ToObject<List<string>>(),
                 Value = value?.Value<string>()
-            },
-            _ => throw new NotSupportedException($"Unknown property type '{type}'.")
-        };
+            };
+        }
+
+        var property = CreateProperty(type, key);
+        if (value is not null)
+            property.Value = value.ToObject(property.PropertyType);
+        return property;
     }
 
     public override void WriteJson(JsonWriter writer, Property? value, JsonSerializer serializer)
@@ -62,13 +63,29 @@ public class JsonPropertyConverter : JsonConverter<Property>
         writer.WriteEndObject();
     }
 
-    private static string TypeName(Property property) => property switch
+    /// <summary>
+    /// Instantiates the property type registered under <paramref name="type"/>,
+    /// passing the key to its leading name parameter (optional trailing params
+    /// fall back to their defaults).
+    /// </summary>
+    private static Property CreateProperty(string type, string key)
     {
-        BooleanProperty => "boolean",
-        IntProperty => "int",
-        FloatProperty => "float",
-        TextureProperty => "texture",
-        StringProperty => property.ValidValues is null ? "string" : "literals",
-        _ => "string"
-    };
+        if (!JsonTypeNameRegistry.TryGetType<Property>(type, out var propertyType))
+            throw new NotSupportedException($"Unknown property type '{type}'.");
+
+        var ctor = propertyType.GetConstructors()
+            .OrderByDescending(c => c.GetParameters().Length)
+            .First();
+        var parameters = ctor.GetParameters();
+        var args = new object?[parameters.Length];
+        args[0] = key;
+        for (var i = 1; i < parameters.Length; i++)
+            args[i] = parameters[i].HasDefaultValue ? parameters[i].DefaultValue : null;
+        return (Property)ctor.Invoke(args)!;
+    }
+
+    private static string TypeName(Property property) =>
+        property is StringProperty { ValidValues: not null }
+            ? "literals"
+            : JsonTypeNameRegistry.NameOf<Property>(property.GetType());
 }

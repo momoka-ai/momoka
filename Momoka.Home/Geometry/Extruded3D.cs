@@ -1,4 +1,5 @@
 using Momoka.Home.Primitives;
+using Momoka.Home.Serialization;
 namespace Momoka.Home.Geometry;
 
 /// <summary>
@@ -6,6 +7,7 @@ namespace Momoka.Home.Geometry;
 /// <see cref="Height"/> cells. Generalizes Box (rect footprint), cylinder
 /// (circle footprint), polygon buildings, and more.
 /// </summary>
+[JsonTypeName("extruded")]
 public class Extruded3D : Volume
 {
     public Shape Footprint { get; set; } = new Rect2D();
