@@ -27,8 +27,10 @@ public class Home : IEntitySource, IComponentSource
     public List<Building> Buildings { get; } = new();
 
     /// <summary>All entities in the yard: layout content plus accessory buildings.</summary>
-    public IReadOnlyList<Entity> Entities =>
-        Layout.Entities.Concat(Buildings).ToList();
+    public IReadOnlyList<Entity> Entities => Layout
+        .Entities
+        .Concat(Buildings)
+        .ToList();
 
     public IList<Component> Components => _components;
     private readonly List<Component> _components = new();
