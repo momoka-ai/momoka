@@ -1,14 +1,12 @@
-using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
-namespace Momoka.Home;
+namespace Momoka.Home.Geometry;
 
 /// <summary>
-/// The 3D voxel-occupancy contract, decomposed out of <c>Entity&lt;Int3&gt;</c>: something
-/// that occupies cells of a 3D voxel grid and can place/remove itself in a parent
-/// layout. Volumes (<see cref="Volume"/>) and containers (<c>Level</c>, <c>Building</c>)
-/// implement it — containers by copying their own voxel layout upward, the uniform
-/// upward-composition contract Home → Building → Level.
+/// The 3D voxel-occupancy contract: something that occupies cells of a 3D voxel
+/// grid and can place/remove itself in a parent layout. Volumes (<see cref="Volume"/>)
+/// and containers (<c>Level</c>, <c>Building</c>) implement it — containers by
+/// copying their own voxel layout upward, the uniform upward-composition contract.
 /// </summary>
 public interface IVoxelGeometry3D
 {
