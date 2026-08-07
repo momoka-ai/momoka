@@ -18,7 +18,7 @@ public sealed class ColumnLayout<T>
     /// A half-open Y interval [<see cref="Y0"/>, <see cref="Y1"/>) carrying a
     /// value. Strongly coupled to <see cref="ColumnLayout{T}"/>, hence nested.
     /// </summary>
-    public readonly struct Span
+    public readonly struct Span : IEquatable<Span>
     {
         public readonly int Y0;
         public readonly int Y1;
@@ -38,6 +38,25 @@ public sealed class ColumnLayout<T>
 
         /// <summary>True if <paramref name="y"/> lies in [Y0, Y1).</summary>
         public bool Contains(int y) => y >= Y0 && y < Y1;
+
+        public bool Equals(Span other) =>
+            Y0 == other.Y0 && Y1 == other.Y1 && EqualityComparer<T>.Default.Equals(Value, other.Value);
+
+        public override bool Equals(object? obj) => obj is Span other && Equals(other);
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hash = Y0;
+                hash = (hash * 397) ^ Y1;
+                hash = (hash * 397) ^ (Value is null ? 0 : EqualityComparer<T>.Default.GetHashCode(Value));
+                return hash;
+            }
+        }
+
+        public static bool operator ==(Span a, Span b) => a.Equals(b);
+        public static bool operator !=(Span a, Span b) => !a.Equals(b);
 
         public override string ToString() => $"[{Y0}, {Y1}) {Value}";
     }
@@ -145,11 +164,11 @@ public sealed class ColumnLayout<T>
         where TA : Entity
     {
         if (layout.Bound.IsEmpty)
-            return new ColumnLayout<int>.Builder(1, 1).Build();
+            return ColumnLayout<int>.Empty();
 
         var all = cells.ToList();
         if (all.Count == 0)
-            return new ColumnLayout<int>.Builder(1, 1).Build();
+            return ColumnLayout<int>.Empty();
 
         // ── 1. 站立格：按列分组，列内按 y 升序去重 ──
         var width = 0;
@@ -184,32 +203,32 @@ public sealed class ColumnLayout<T>
         var colStart = new List<int> { 0 };
         var maxY = layout.Bound.Max.Y;
         for (var z = 0; z < depth; z++)
-        for (var x = 0; x < width; x++)
-        {
-            var column = z * width + x;
-            if (byColumn.TryGetValue(column, out var ys))
+            for (var x = 0; x < width; x++)
             {
-                for (var i = 0; i < ys.Count; i++)
+                var column = z * width + x;
+                if (byColumn.TryGetValue(column, out var ys))
                 {
-                    var y0 = ys[i];
-                    var y = y0;
-                    while (y <= maxY)
+                    for (var i = 0; i < ys.Count; i++)
                     {
-                        if (i + 1 < ys.Count && y >= ys[i + 1])
-                            break;
-                        if (layout[new Int3(x, y, z)] is not null)
-                            break;
-                        y++;
-                    }
-                    if (y > y0)
-                    {
-                        spans.Add(new ColumnLayout<int>.Span(y0, y, 0));
-                        colOf.Add(column);
+                        var y0 = ys[i];
+                        var y = y0;
+                        while (y <= maxY)
+                        {
+                            if (i + 1 < ys.Count && y >= ys[i + 1])
+                                break;
+                            if (layout[new Int3(x, y, z)] is not null)
+                                break;
+                            y++;
+                        }
+                        if (y > y0)
+                        {
+                            spans.Add(new ColumnLayout<int>.Span(y0, y, 0));
+                            colOf.Add(column);
+                        }
                     }
                 }
+                colStart.Add(spans.Count);
             }
-            colStart.Add(spans.Count);
-        }
 
         // ── 3. 连通标注：邻列 span 间距 ≤ MaxClimbHeight ──
         var labelOf = new int[spans.Count];
@@ -247,33 +266,20 @@ public sealed class ColumnLayout<T>
             }
         }
 
-        // ── 4. 打包 ──
-        var builder = new ColumnLayout<int>.Builder(width, depth);
-        for (var c = 0; c < width * depth; c++)
-        {
-            for (var k = colStart[c]; k < colStart[c + 1]; k++)
-            {
-                var s = spans[k];
-                builder.AddSpan(s.Y0, s.Y1, labelOf[k]);
-            }
-            builder.NextColumn();
-        }
-        return builder.Build();
+        // ── 4. 打包：colStart 已是前缀和偏移表 ──
+        var packed = new ColumnLayout<int>.Span[spans.Count];
+        for (var k = 0; k < spans.Count; k++)
+            packed[k] = new ColumnLayout<int>.Span(spans[k].Y0, spans[k].Y1, labelOf[k]);
+        return new ColumnLayout<int>(width, depth, packed, colStart.ToArray());
     }
 
     /// <summary>Remaps every span's value (e.g. labels → region references).</summary>
     public ColumnLayout<TOut> Map<TOut>(Func<T, TOut> map)
     {
-        var builder = new ColumnLayout<TOut>.Builder(Width, Depth);
-        for (var z = 0; z < Depth; z++)
-            for (var x = 0; x < Width; x++)
-            {
-                var col = Column(x, z);
-                for (var i = 0; i < col.Length; i++)
-                    builder.AddSpan(col[i].Y0, col[i].Y1, map(col[i].Value));
-                builder.NextColumn();
-            }
-        return builder.Build();
+        var packed = new ColumnLayout<TOut>.Span[_spans.Length];
+        for (var i = 0; i < _spans.Length; i++)
+            packed[i] = new ColumnLayout<TOut>.Span(_spans[i].Y0, _spans[i].Y1, map(_spans[i].Value));
+        return new ColumnLayout<TOut>(Width, Depth, packed, _offsets);
     }
 
     private static IEnumerable<(int X, int Z)> Neighbors(int x, int z, int width, int depth)
@@ -284,55 +290,9 @@ public sealed class ColumnLayout<T>
         if (z + 1 < depth) yield return (x, z + 1);
     }
 
-    /// <summary>
-    /// Streaming builder: feed columns in column-major order. Call
-    /// <see cref="NextColumn"/> once after each column's spans; <see cref="Build"/>
-    /// pads any trailing columns.
-    /// </summary>
-    public sealed class Builder
-    {
-        private readonly int _width;
-        private readonly int _depth;
-        private readonly List<Span> _spans = new();
-        private readonly List<int> _offsets = new() { 0 };
-        private int _columns;
-        private int _columnStart;
-
-        public Builder(int width, int depth)
-        {
-            if (width <= 0 || depth <= 0)
-                throw new ArgumentOutOfRangeException(nameof(width), "Column layout requires positive width and depth.");
-            _width = width;
-            _depth = depth;
-        }
-
-        /// <summary>Finishes the current column and opens the next.</summary>
-        public void NextColumn()
-        {
-            if (_columns >= _width * _depth)
-                throw new InvalidOperationException($"Column layout already has all {_width * _depth} columns.");
-            _offsets.Add(_spans.Count);
-            _columns++;
-            _columnStart = _spans.Count;
-        }
-
-        /// <summary>Appends a span to the current column; Y0 must be non-decreasing within the column.</summary>
-        public void AddSpan(int y0, int y1, T value)
-        {
-            if (_spans.Count > _columnStart)
-            {
-                var prev = _spans[^1];
-                if (y0 < prev.Y1)
-                    throw new InvalidOperationException($"Column spans must be ascending and non-overlapping; got y0={y0} after [{prev.Y0}, {prev.Y1}).");
-            }
-            _spans.Add(new Span(y0, y1, value));
-        }
-
-        public ColumnLayout<T> Build()
-        {
-            while (_columns < _width * _depth)
-                NextColumn();
-            return new ColumnLayout<T>(_width, _depth, _spans.ToArray(), _offsets.ToArray());
-        }
-    }
+    /// <summary>A 1×1 layout with no spans (empty space / unbuildable).</summary>
+    [SuppressMessage("Design", "CA1000:Do not declare static members on generic types",
+        Justification = "Internal factory; see Build for the rationale.")]
+    internal static ColumnLayout<T> Empty() =>
+        new(1, 1, Array.Empty<Span>(), new int[2]); // offsets = [0, 0]
 }

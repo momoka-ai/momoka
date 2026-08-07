@@ -13,90 +13,73 @@ namespace Momoka.Home.Tests.Models.Regions;
 public class ColumnLayoutTests
 {
     [Fact]
-    public void Pack_StoresVariableSpansPerColumn()
+    public void Build_PacksVariableSpansPerColumn()
     {
-        // 3×3 足迹；c1 两个区间，c3 空列
-        var b = new ColumnLayout<int>.Builder(3, 3);
-        b.AddSpan(1, 59, 10); b.NextColumn();
-        b.AddSpan(1, 29, 20); b.AddSpan(31, 59, 21); b.NextColumn();
-        b.AddSpan(1, 59, 30); b.NextColumn();
-        b.NextColumn(); // c3 空
-        b.AddSpan(1, 59, 40); b.NextColumn();
-        b.AddSpan(1, 19, 50); b.AddSpan(21, 59, 51); b.NextColumn();
-        b.AddSpan(1, 59, 60); b.NextColumn();
-        b.AddSpan(1, 59, 70); b.NextColumn();
-        b.AddSpan(1, 59, 80); b.NextColumn();
-        var layout = b.Build();
+        // 墙列 x=1 空；x=2 夹层双 span → 变长列 + 前缀和
+        var scene = Scene(3, 1, 30,
+            (new Int3(1, 0, 0), new Int3(1, 31, 1)),  // x=1 全高墙
+            (new Int3(2, 20, 0), new Int3(1, 1, 1))); // x=2 夹层体 y=20
+        var labels = ColumnLayout<int>.Build(scene,
+            new List<Int3> { new(0, 1, 0), new(2, 1, 0), new(2, 21, 0) },
+            new ColumnLayout<int>.Settings());
 
-        Assert.Equal(3, layout.Width);
-        Assert.Equal(3, layout.Depth);
-        Assert.Equal(10, layout.SpanCount);
+        Assert.Equal(3, labels.Width);
+        Assert.Equal(1, labels.Depth);
+        Assert.Equal(3, labels.SpanCount);
+        Assert.Equal(1, labels.Column(0, 0).Length);
+        Assert.True(labels.Column(1, 0).IsEmpty); // 墙列
+        Assert.Equal(2, labels.Column(2, 0).Length); // 夹层双 span
 
-        Assert.Equal(1, layout.Column(0, 0).Length);
-        Assert.Equal(2, layout.Column(1, 0).Length);
-        Assert.True(layout.Column(0, 1).IsEmpty); // 空列
-        Assert.Equal(1, layout.Column(2, 2).Length);
-
-        Assert.Equal(10, layout.At(0, 5, 0));
-        Assert.Equal(20, layout.At(1, 10, 0));
-        Assert.Equal(21, layout.At(1, 40, 0));
-        Assert.Equal(0, layout.At(1, 30, 0));  // 区间空隙
-        Assert.Equal(0, layout.At(0, 1, 1));   // 空列
+        Assert.Equal(1, labels.At(0, 5, 0));   // 左区
+        Assert.Equal(2, labels.At(2, 5, 0));   // 夹层下 [1,20)
+        Assert.Equal(3, labels.At(2, 25, 0));  // 夹层上 [21,31)
     }
 
     [Fact]
     public void At_OutsideFootprint_ReturnsDefault()
     {
-        var layout = new ColumnLayout<int>.Builder(2, 2).Build();
-        Assert.Equal(0, layout.At(-1, 0, 0));
-        Assert.Equal(0, layout.At(5, 0, 5));
-        Assert.Equal(0, layout.At(0, 0, -3));
-    }
+        var scene = Scene(2, 1, 30);
+        var labels = ColumnLayout<int>.Build(scene,
+            new List<Int3> { new(0, 1, 0) },
+            new ColumnLayout<int>.Settings());
 
-    [Fact]
-    public void Build_PadsMissingTrailingColumns()
-    {
-        var b = new ColumnLayout<string>.Builder(2, 1);
-        b.AddSpan(1, 3, "a"); b.NextColumn();
-        // 第二列不喂，Build 自动补齐
-        var layout = b.Build();
-
-        Assert.Equal(2, layout.ColumnCount);
-        Assert.Equal(1, layout.Column(0, 0).Length);
-        Assert.True(layout.Column(1, 0).IsEmpty);
-        Assert.Equal("a", layout.At(0, 2, 0));
-        Assert.Null(layout.At(1, 2, 0));
-    }
-
-    [Fact]
-    public void Builder_RejectsOverlappingSpansInColumn()
-    {
-        var b = new ColumnLayout<int>.Builder(1, 1);
-        b.AddSpan(1, 5, 1);
-        Assert.Throws<InvalidOperationException>(() => b.AddSpan(3, 7, 2));
-    }
-
-    [Fact]
-    public void Builder_RejectsEmptySpan()
-    {
-        var b = new ColumnLayout<int>.Builder(1, 1);
-        Assert.Throws<ArgumentOutOfRangeException>(() => b.AddSpan(5, 5, 1));
+        Assert.Equal(0, labels.At(-1, 5, 0));
+        Assert.Equal(0, labels.At(5, 5, 5));
+        Assert.Equal(0, labels.At(0, 5, -3));
     }
 
     [Fact]
     public void AllSpans_EnumeratesEverySpanWithColumn()
     {
-        var b = new ColumnLayout<int>.Builder(2, 2);
-        b.AddSpan(1, 3, 1); b.NextColumn();
-        b.NextColumn();
-        b.AddSpan(4, 6, 2); b.NextColumn();
-        b.NextColumn();
-        var layout = b.Build();
+        // 中墙 x=1 隔开两列；两列各有夹层 → 4 个 span，列主序枚举
+        var scene = Scene(3, 1, 30,
+            (new Int3(1, 0, 0), new Int3(1, 31, 1)),  // 中墙 x=1
+            (new Int3(0, 20, 0), new Int3(1, 1, 1)),  // 列(0,0) 夹层 y=20
+            (new Int3(2, 10, 0), new Int3(1, 1, 1))); // 列(2,0) 平台 y=10
+        var labels = ColumnLayout<int>.Build(scene,
+            new List<Int3> { new(0, 1, 0), new(0, 21, 0), new(2, 1, 0), new(2, 11, 0) },
+            new ColumnLayout<int>.Settings());
 
-        var spans = layout.AllSpans().ToList();
-        Assert.Equal(2, spans.Count);
+        var spans = labels.AllSpans().ToList();
+        Assert.Equal(4, spans.Count);
         Assert.Equal((0, 0, 1), (spans[0].X, spans[0].Z, spans[0].Span.Value));
-        Assert.Equal((0, 1, 2), (spans[1].X, spans[1].Z, spans[1].Span.Value));
+        Assert.Equal((0, 0, 2), (spans[1].X, spans[1].Z, spans[1].Span.Value));
+        Assert.Equal((2, 0, 3), (spans[2].X, spans[2].Z, spans[2].Span.Value));
+        Assert.Equal((2, 0, 4), (spans[3].X, spans[3].Z, spans[3].Span.Value));
+    }
+
+    [Fact]
+    public void Span_EqualsByYAndValue()
+    {
+        var a = new ColumnLayout<int>.Span(1, 5, 7);
+        var b = new ColumnLayout<int>.Span(1, 5, 7);
+        var c = new ColumnLayout<int>.Span(1, 6, 7);
+
+        Assert.Equal(a, b);
+        Assert.True(a == b);
+        Assert.False(a == c);
+        Assert.True(a != c);
+        Assert.Equal(a.GetHashCode(), b.GetHashCode());
     }
 
     // ── 生成引擎 Build（站立格 + 占用）─────────────────
@@ -121,8 +104,8 @@ public class ColumnLayoutTests
     private static IEnumerable<Int3> FloorCells(int width, int depth, int y)
     {
         for (var z = 0; z < depth; z++)
-        for (var x = 0; x < width; x++)
-            yield return new Int3(x, y, z);
+            for (var x = 0; x < width; x++)
+                yield return new Int3(x, y, z);
     }
 
     [Fact]
@@ -138,6 +121,8 @@ public class ColumnLayoutTests
         Assert.NotEqual(0, right);
         Assert.NotEqual(left, right);
         Assert.Equal(0, labels.At(2, 5, 2)); // 墙列：站立格被占用 → 无 span
+        Assert.True(labels.Column(2, 0).IsEmpty); // 墙列空
+        Assert.Equal(0, labels.At(-1, 5, 0)); // footprint 外
     }
 
     [Fact]
@@ -209,12 +194,14 @@ public class ColumnLayoutTests
     [Fact]
     public void Map_RemapsSpanValues()
     {
-        var b = new ColumnLayout<int>.Builder(2, 1);
-        b.AddSpan(1, 5, 7); b.NextColumn();
-        b.AddSpan(2, 4, 8); b.NextColumn();
-        var mapped = b.Build().Map(v => $"v{v}");
+        // 引擎建左右两区，Map 把 label 重映射为 payload
+        var scene = Scene(5, 1, 30, (new Int3(2, 0, 0), new Int3(1, 31, 1))); // x=2 全高墙
+        var labels = ColumnLayout<int>.Build(scene,
+            new List<Int3> { new(0, 1, 0), new(3, 1, 0) },
+            new ColumnLayout<int>.Settings());
+        var mapped = labels.Map(v => $"R{v}");
 
-        Assert.Equal("v7", mapped.At(0, 2, 0));
-        Assert.Equal("v8", mapped.At(1, 3, 0));
+        Assert.Equal("R1", mapped.At(0, 5, 0));
+        Assert.Equal("R2", mapped.At(3, 5, 0));
     }
 }
