@@ -4,7 +4,7 @@ namespace Momoka.Home.Layouts;
 
 /// <summary>
 /// A large planar surface — a floor, a ceiling — combining:
-///  • the placement surface itself (the <see cref="VoxelLayout2D"/> base: which
+///  • the placement surface itself (the <see cref="GridLayout{T}"/> base: which
 ///    cells objects may occupy on the plane),
 ///  • a planar <see cref="Subdivision{T}"/> of material/region faces covering
 ///    the plane (wood / tile / carpet zones).
@@ -13,7 +13,7 @@ namespace Momoka.Home.Layouts;
 /// fixtures at different heights) are a 3D occupancy concern — model them with
 /// <see cref="VoxelLayout{T}"/> or as separate layouts, not as plane layers.
 /// </summary>
-public class PlaneLayout<T> : VoxelLayout2D where T : class
+public class PlaneLayout<T> : GridLayout<bool> where T : class
 {
     /// <summary>Material / region faces covering this plane.</summary>
     public Subdivision<T> Subdivision { get; } = new();

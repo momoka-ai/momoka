@@ -33,10 +33,10 @@ public class UnitLayout : IEntitySource, IVoxelGeometry3D
     /// plus each entity's own surfaces (via its <see cref="VoxelLayoutSource"/>
     /// component — a floor slab's top face, a shelf board…).
     /// </summary>
-    public IEnumerable<VoxelLayout2D> Surfaces => Floors
+    public IEnumerable<GridLayout<bool>> Surfaces => Floors
         .SelectMany(f => f.Surfaces)
         .Concat(Layout.Entities.SelectMany(e =>
-            e.GetComponent<VoxelLayoutSource>()?.Layouts ?? Enumerable.Empty<VoxelLayout2D>()));
+            e.GetComponent<VoxelLayoutSource>()?.Layouts ?? Enumerable.Empty<GridLayout<bool>>()));
 
     /// <inheritdoc/>
     public IEnumerable<Int3> Cells3D() =>

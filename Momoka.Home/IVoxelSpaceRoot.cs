@@ -16,5 +16,5 @@ public interface IVoxelSpaceRoot : IEntitySource
     VoxelLayout<Entity<Int3>> Layout { get; }
 
     /// <summary>Every placement surface of the whole space (floors, walls, shelves…).</summary>
-    IEnumerable<VoxelLayout2D> Surfaces { get; }
+    IEnumerable<GridLayout<bool>> Surfaces { get; }
 }

@@ -6,7 +6,7 @@ using Momoka.Home.Primitives;
 namespace Momoka.Home.Tests.Models.Layouts;
 
 /// <summary>
-/// PlaneLayout = a single-layer placement surface (VoxelLayout2D base) + an
+/// PlaneLayout = a single-layer placement surface (GridLayout&lt;bool&gt; base) + an
 /// embedded material subdivision. No multi-layer stacking.
 /// </summary>
 public class PlaneLayoutTests
@@ -15,7 +15,7 @@ public class PlaneLayoutTests
     public void Plane_IsAlsoAPlacementSurface()
     {
         var plane = new PlaneLayout<Entity<Int2>>(new Int2(10, 10));
-        plane.Fill(new Int2(0, 0), new Int2(10, 10));
+        plane.Fill(true, new Int2(0, 0), new Int2(10, 10));
 
         Assert.False(plane.IsCollided(new Int2(3, 3)));
         Assert.True(plane.IsCollided(new Int2(11, 11))); // 越界

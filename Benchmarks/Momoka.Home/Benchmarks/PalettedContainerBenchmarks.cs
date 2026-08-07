@@ -6,7 +6,7 @@ namespace Momoka.Home.Benchmarks;
 
 /// <summary>
 /// Throughput of the chunked paletted container — the hot path behind grid
-/// writes/reads (Level occupancy, VoxelLayout2D placement cells).
+/// writes/reads (Level occupancy, GridLayout&lt;bool&gt; placement cells).
 /// Run with: dotnet run -c Release --project Benchmarks/Momoka.Home
 /// </summary>
 [MemoryDiagnoser]

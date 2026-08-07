@@ -5,7 +5,7 @@ using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
 namespace Momoka.Home.Tests.Models.Layouts;
 
-public class VoxelLayout2DTests
+public class GridLayoutTests
 {
     [Theory]
     [InlineData(0, 1, 0)]   // Up
@@ -16,7 +16,7 @@ public class VoxelLayout2DTests
     [InlineData(0, 0, -1)]  // South
     public void ToWorld_ToLocal_RoundTrips_AllSixDirections(int dx, int dy, int dz)
     {
-        var layout = new VoxelLayout2D(new Int2(10, 10), new Int3(5, 5, 5))
+        var layout = new GridLayout<bool>(new Int2(10, 10), new Int3(5, 5, 5))
         {
             Direction = new Int3(dx, dy, dz),
         };
@@ -30,8 +30,8 @@ public class VoxelLayout2DTests
     [Fact]
     public void IsCollided_Cell_TrueWhenBlocked_FalseWhenPlaceable()
     {
-        var layout = new VoxelLayout2D(new Int2(5, 5));
-        layout.Fill(new Int2(1, 1), new Int2(3, 3));
+        var layout = new GridLayout<bool>(new Int2(5, 5));
+        layout.Fill(true, new Int2(1, 1), new Int2(3, 3));
 
         Assert.True(layout.IsCollided(new Int2(0, 0)));   // 未填充 → 阻塞
         Assert.False(layout.IsCollided(new Int2(2, 2)));  // 已填充 → 可放置
@@ -41,8 +41,8 @@ public class VoxelLayout2DTests
     [Fact]
     public void IsCollided_Shape_OnFreeArea_IsFalse()
     {
-        var layout = new VoxelLayout2D(new Int2(10, 10));
-        layout.Fill(new Int2(0, 0), new Int2(10, 10));
+        var layout = new GridLayout<bool>(new Int2(10, 10));
+        layout.Fill(true, new Int2(0, 0), new Int2(10, 10));
 
         var cabinet = new Box3D { SizeX = 2, SizeY = 3, SizeZ = 3 };
         Assert.False(layout.IsCollided(cabinet, new Int2(5, 5)));
@@ -51,8 +51,8 @@ public class VoxelLayout2DTests
     [Fact]
     public void IsCollided_Shape_OverBlockedCell_IsTrue()
     {
-        var layout = new VoxelLayout2D(new Int2(10, 10));
-        layout.Fill(new Int2(0, 0), new Int2(10, 10));
+        var layout = new GridLayout<bool>(new Int2(10, 10));
+        layout.Fill(true, new Int2(0, 0), new Int2(10, 10));
         for (var x = 2; x <= 6; x++)
         {
             layout[new Int2(x, 0)] = false; // 模拟墙底阻挡
@@ -65,8 +65,8 @@ public class VoxelLayout2DTests
     [Fact]
     public void IsCollided_Shape_OutOfBounds_IsTrue()
     {
-        var layout = new VoxelLayout2D(new Int2(10, 10));
-        layout.Fill(new Int2(0, 0), new Int2(10, 10));
+        var layout = new GridLayout<bool>(new Int2(10, 10));
+        layout.Fill(true, new Int2(0, 0), new Int2(10, 10));
 
         Assert.True(layout.IsCollided(new Box3D { SizeX = 4, SizeZ = 4 }, new Int2(9, 9)));
     }

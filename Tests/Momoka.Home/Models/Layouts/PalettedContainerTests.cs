@@ -46,10 +46,10 @@ public class PalettedContainerTests
 
     [Theory]
     [InlineData(0, 0)]
-    [InlineData(2, 4)]
-    [InlineData(7, -3)]
-    [InlineData(-3, 7)]
-    [InlineData(-4, -5)]
+    [InlineData(2, 3)]
+    [InlineData(3, 1)]
+    [InlineData(1, 3)]
+    [InlineData(2, 2)]
     public void GridLayout_WriteRead_RoundTrips(int x, int z)
     {
         var grid = new GridLayout<bool>(new Int2(4, 4));

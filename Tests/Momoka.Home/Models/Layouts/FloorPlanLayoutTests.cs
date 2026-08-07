@@ -80,7 +80,7 @@ public class FloorPlanLayoutTests
         Assert.Contains(faces, f => f.Direction == Int3.North);
 
         var south = faces.First(f => f.Direction == Int3.South);
-        Assert.Equal(new Int2(5, 3), south.ChunkSize); // 长 × 高（属性表）
+        Assert.Equal(new Int2(5, 3), south.Size); // 长 × 高（属性表）
         Assert.Equal(new Int3(2, 0, 0), south.Offset);
 
         var north = faces.First(f => f.Direction == Int3.North);
@@ -102,7 +102,7 @@ public class FloorPlanLayoutTests
         Assert.Contains(faces, f => f.Direction == Int3.East);
 
         var west = faces.First(f => f.Direction == Int3.West);
-        Assert.Equal(new Int2(4, 4), west.ChunkSize); // 高 × 长
+        Assert.Equal(new Int2(4, 4), west.Size); // 高 × 长
         Assert.Equal(new Int3(0, 0, 2), west.Offset);
 
         var east = faces.First(f => f.Direction == Int3.East);
@@ -118,7 +118,7 @@ public class FloorPlanLayoutTests
         plan.Build(new Int2(2, 0), new Int2(7, 0), wall);
 
         var south = plan.Surfaces.First(f => f.Direction == Int3.South);
-        Assert.Equal(new Int2(5, 6), south.ChunkSize); // 长 × 高（属性表）
+        Assert.Equal(new Int2(5, 6), south.Size); // 长 × 高（属性表）
     }
 
     [Fact]

@@ -69,7 +69,7 @@ public class FloorPlanLayout : Graph2D<Entity<Int3>>
     /// <c>height</c>/<c>thickness</c> properties. Computed on demand — never
     /// stale. Axis-aligned partitions yield two faces; diagonal ones none.
     /// </summary>
-    public IEnumerable<VoxelLayout2D> Surfaces
+    public IEnumerable<GridLayout<bool>> Surfaces
     {
         get
         {
@@ -90,7 +90,7 @@ public class FloorPlanLayout : Graph2D<Entity<Int3>>
         }
     }
 
-    private static IEnumerable<VoxelLayout2D> ComputeFaces(Edge edge, Entity<Int3> partition, int height, int thickness)
+    private static IEnumerable<GridLayout<bool>> ComputeFaces(Edge edge, Entity<Int3> partition, int height, int thickness)
     {
         var y = partition.Coords.Y;
         var a = new Int3(edge.A.Coords.X, y, edge.A.Coords.Z);
@@ -102,14 +102,14 @@ public class FloorPlanLayout : Graph2D<Entity<Int3>>
         if (a.Z == b.Z)
         {
             // East–West partition → South (−Z) and North (+Z) faces
-            yield return new VoxelLayout2D(new Int2(length, height), new Int3(x0, y, z0)) { Direction = Int3.South };
-            yield return new VoxelLayout2D(new Int2(length, height), new Int3(x0, y, z0 + thickness)) { Direction = Int3.North };
+            yield return new GridLayout<bool>(new Int2(length, height), new Int3(x0, y, z0)) { Direction = Int3.South };
+            yield return new GridLayout<bool>(new Int2(length, height), new Int3(x0, y, z0 + thickness)) { Direction = Int3.North };
         }
         else if (a.X == b.X)
         {
             // North–South partition → West (−X) and East (+X) faces
-            yield return new VoxelLayout2D(new Int2(height, length), new Int3(x0, y, z0)) { Direction = Int3.West };
-            yield return new VoxelLayout2D(new Int2(height, length), new Int3(x0 + thickness, y, z0)) { Direction = Int3.East };
+            yield return new GridLayout<bool>(new Int2(height, length), new Int3(x0, y, z0)) { Direction = Int3.West };
+            yield return new GridLayout<bool>(new Int2(height, length), new Int3(x0 + thickness, y, z0)) { Direction = Int3.East };
         }
         // Diagonal partitions: axis-aligned Direction cannot express the face normal — no faces.
     }

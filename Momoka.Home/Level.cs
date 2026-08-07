@@ -35,11 +35,11 @@ public class Level : IEntitySource, IVoxelGeometry3D
     /// demand from the graph), and every contained entity's own surfaces (from its
     /// <see cref="VoxelLayoutSource"/> component — shelves…).
     /// </summary>
-    public IEnumerable<VoxelLayout2D> Layouts
+    public IEnumerable<GridLayout<bool>> Layouts
     {
         get => new[] { Floor, Ceiling }
                 .Concat(Plan.Surfaces)
-                .Concat(Layout.Entities.SelectMany(e => e.GetComponent<VoxelLayoutSource>()?.Layouts ?? Enumerable.Empty<VoxelLayout2D>()));
+                .Concat(Layout.Entities.SelectMany(e => e.GetComponent<VoxelLayoutSource>()?.Layouts ?? Enumerable.Empty<GridLayout<bool>>()));
     }
 
     /// <inheritdoc/>

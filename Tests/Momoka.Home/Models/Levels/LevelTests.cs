@@ -20,7 +20,7 @@ public class LevelTests
         public VoxelLayoutSourceEntity()
         {
             Volume = new Box3D();
-            AddComponent(new VoxelLayoutSource { Layouts = { new VoxelLayout2D(new Int2(2, 2)) } });
+            AddComponent(new VoxelLayoutSource { Layouts = { new GridLayout<bool>(new Int2(2, 2)) } });
         }
     }
     [Fact]
