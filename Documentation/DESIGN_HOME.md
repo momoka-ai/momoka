@@ -132,7 +132,7 @@ classDiagram
 
 ### 5.1 UnitLayout — 完全 3D 多层空间根
 
-`Momoka.Home/Layouts/UnitLayout.cs`。住宅的**单一扁平 3D 空间根**：地板/天花板/墙/家具全为 `Entity`（带 `Volume` 体素几何），坐标一律**根绝对**，无嵌套偏移链——放置与碰撞直接打在根空间。
+`Momoka.Home/UnitLayout.cs`（已迁出 `Layouts/`，与 `Residence`/`UnitType` 同处根命名空间 `Momoka.Home`，`sealed`）。住宅的**单一扁平 3D 空间根**：地板/天花板/墙/家具全为 `Entity`（带 `Volume` 体素几何），坐标一律**根绝对**，无嵌套偏移链——放置与碰撞直接打在根空间。
 
 ```mermaid
 classDiagram
@@ -165,15 +165,17 @@ Minecraft 式：XZ chunk 键**打包 long**（`(cx<<32)|cz`），每列是 `Voxe
 
 ### 5.3 GridLayout — 2D 平面 + 放置面
 
-`GridLayout<T>`：**连续数组**存储（Bound 定尺寸，无需分块）。放置语义：`Offset` / `Direction` / `AsAbsolute` / `AsRelative`（T 无关）+ `IsCollided` / `Fill`（`default(T)` 视为阻塞）。放置面 = `GridLayout<bool>`；`PlaneLayout<T> : GridLayout<bool>` 附加 `Subdivision<T>` 材质面。
+`GridLayout<T>`：**连续数组**存储（Bound 定尺寸，无需分块）。放置语义：`Offset` / `Direction` / `AsAbsolute` / `AsRelative`（T 无关）+ `IsCollided` / `Fill`（`default(T)` 视为阻塞）。放置面 = `GridLayout<bool>`；材质分区由 `Subdivision<T>`（半边遍历）承担。原 `PlaneLayout` 已删除。
 
-### 5.4 FloorPlanLayout — 墙图拓扑
+### 5.4 FloorPlanLayout — 墙图拓扑（已废弃，过渡形态）
 
-`Graph2D<Entity>`：隔断（墙/围栏）为边，房间 = `Subdivision` 半边遍历的**有界面**（`Face`：多边形 + SignedArea + Contains）。`Surfaces` 按实体 `height`/`thickness` 属性派生双面放置面。
+`Momoka.Home/FloorPlanLayout.cs`（已迁出 `Layouts/`）。`Graph2D<Entity>`：隔断（墙/围栏）为边，房间 = `Subdivision` 半边遍历的**有界面**（`Face`：多边形 + SignedArea + Contains）。`Surfaces` 按实体 `height`/`thickness` 属性派生双面放置面。
+
+> **DEPRECATED**：户型图是中间表示，将被 3D `Region` 形式取代（`UnitLayout` 空间作为 3D 体积）。目前仅 `UnitLayout.Floors` 使用，暂留根命名空间；未标 `[Obsolete]` 以免级联 CS0618 警告。
 
 ### 5.5 Region — 已移除
 
-旧 `Region` 类与 `Home`/`Level` 的 `Regions` 网格为死代码，已删除。房间/区域语义由 `FloorPlanLayout` 有界面承担，材质分区由 `PlaneLayout.Subdivision` 承担；3D Region 自动生成见 §7 遗留代办。
+旧 `Region` 类与 `Home`/`Level` 的 `Regions` 网格为死代码，已删除。房间/区域语义由 `FloorPlanLayout` 有界面承担，材质分区由 `Subdivision` 承担；3D Region 自动生成见 §7 遗留代办。
 
 ---
 
@@ -212,7 +214,7 @@ flowchart TB
 |----|------|------|
 | 3D Region 自动生成 | flood-fill + 门开关（闭=阻塞/开=连通）得可行走区域与封闭房间；wall-extension（墙沿向延伸切分开放区）再按物件语义合并 | 📋 待实现 |
 | 旧 Level/Building/Home 迁移 | 由 UnitLayout/Residence 取代；Floor/Ceiling 平面退役（地板/天花板改为 Entity 挂 VoxelLayoutSource） | 📋 待迁移 |
-| Residence 接线 | Home 重构为总容器（Name/Address + Space=Residence），Residence 持 UnitLayout + UnitType | 📋 待实现 |
+| Residence 接线 | Home 重构为总容器（Name/Address + Space=Residence），Residence 持 UnitLayout + UnitType | ✅ 已实现 |
 | 实体模板替换薄壳 | Wall/Door/Window 由配置模板（EntityTemplate）替代；EnumProperty 进配置词表后 Appliance 亦可 | 📋 部分阻塞 |
 | 物业/管理方引用层 | 统一管理多 Unit 的引用式封装（住户 Residence 默认全权，物业另层且不可见住户内容） | 📋 推迟 |
 | Palette 策略减法 | Int2/Int3ChunkStrategy 等暂留，待稳定后清理未用策略 | 📋 待减法 |
@@ -266,6 +268,7 @@ flowchart LR
 
 ```
 Momoka.Home/
+├── UnitLayout.cs / FloorPlanLayout.cs / Residence.cs / UnitType.cs（根命名空间）
 ├── Primitives/
 │   └── Int2.cs / Int3.cs / Float3.cs / Key.cs / Bound.cs
 ├── Entities/
@@ -279,9 +282,8 @@ Momoka.Home/
 │   ├── Volume.cs / IVoxelGeometry2D.cs / IVoxelGeometry3D.cs
 │   ├── Box3D / Line3D / Curve3D / Polygon3D / Prism3D / Conic3D / Spherical3D /
 │   │   Extruded3D / Composite3D / Rect2D / Polygon2D / Circular2D / Composite2D
-├── Layouts/
-│   ├── UnitLayout.cs / FloorPlanLayout.cs / GridLayout.cs / PlaneLayout.cs
-│   ├── VoxelLayout.cs（VoxelLayout/VoxelChunk/VoxelChunkSection）
+├── Layouts/（纯运算 / 数学布局）
+│   ├── GridLayout.cs / VoxelLayout.cs（VoxelLayout/VoxelChunk/VoxelChunkSection）
 │   ├── Palette.cs / PackedBitStorage.cs / PalettedContainer.cs / PalettedContainerRO.cs
 │   └── Graph2D.cs / Subdivision.cs
 ├── Components/

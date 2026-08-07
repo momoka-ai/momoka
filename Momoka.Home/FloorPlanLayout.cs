@@ -1,8 +1,8 @@
-using Momoka.Home;
 using Momoka.Home.Entities;
 using Momoka.Home.Geometry;
+using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
-namespace Momoka.Home.Layouts;
+namespace Momoka.Home;
 
 /// <summary>
 /// Floor-plan boundary layout: a planar graph whose edges are the partitions
@@ -13,6 +13,13 @@ namespace Momoka.Home.Layouts;
 /// rasterization and collision are the <see cref="VoxelLayout{T}"/>'s job and
 /// are coordinated by the caller (e.g. an editor command).
 /// </summary>
+/// <remarks>
+/// DEPRECATED — transitional form. The floor plan is an intermediate
+/// representation that will be superseded by a 3D <c>Region</c>-based form
+/// (the <see cref="UnitLayout"/>'s spaces as 3D volumes). Kept here only while
+/// <see cref="UnitLayout.Floors"/> still uses it; not <c>[Obsolete]</c> on
+/// purpose (would cascade CS0618 warnings through <see cref="UnitLayout"/>).
+/// </remarks>
 public class FloorPlanLayout : Graph2D<Entity>
 {
     /// <summary>Property-table key: whether a partition exposes placement faces.</summary>
