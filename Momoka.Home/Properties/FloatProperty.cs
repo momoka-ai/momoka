@@ -1,7 +1,7 @@
 using Momoka.Home;
 using Momoka.Home.Primitives;
 using Momoka.Home.Storage;
-namespace Momoka.Home.States;
+namespace Momoka.Home.Properties;
 
 [JsonTypeName("float")]
 public class FloatProperty : Property<float>

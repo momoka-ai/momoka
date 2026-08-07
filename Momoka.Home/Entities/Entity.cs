@@ -2,7 +2,7 @@ using Momoka.Home;
 using Momoka.Home.Components;
 using Momoka.Home.Geometry;
 using Momoka.Home.Primitives;
-using Momoka.Home.States;
+using Momoka.Home.Properties;
 namespace Momoka.Home.Entities;
 
 /// <summary>

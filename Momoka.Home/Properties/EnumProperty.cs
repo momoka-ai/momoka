@@ -1,6 +1,6 @@
 using Momoka.Home;
 using Momoka.Home.Primitives;
-namespace Momoka.Home.States;
+namespace Momoka.Home.Properties;
 
 public class EnumProperty<T> : Property<T>
     where T : Enum

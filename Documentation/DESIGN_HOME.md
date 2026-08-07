@@ -57,8 +57,8 @@ classDiagram
     class Component {
         行为载体
     }
-    class VoxelLayoutSource {
-        +Layouts 放置表面
+    class PlacementLayoutSource {
+        +Layout 放置表面
     }
     class DataSource {
         连续读数
@@ -76,7 +76,7 @@ classDiagram
     Entity <|-- Appliance
     Entity <|-- Building
     Appliance <|-- Curtain
-    Component <|-- VoxelLayoutSource
+    Component <|-- PlacementLayoutSource
     Component <|-- DataSource
     Component <|-- EventSource
     Component <|-- CommandTarget
@@ -157,7 +157,7 @@ classDiagram
     VoxelChunk --> VoxelChunkSection
 ```
 
-`Floors`：每层一个 `FloorPlanLayout`（列表索引 = 层序）；`Surfaces`：户型图隔断面 + 各实体 `VoxelLayoutSource` 表面（2D 拼接）。
+`Surfaces`：各实体 `PlacementLayoutSource` 的放置面（地板顶面、书架板等）。旧 `Floors`（户型图）已退役。
 
 ### 5.2 VoxelLayout — 区块式 3D 体素存储
 
@@ -179,10 +179,10 @@ Minecraft 式：XZ chunk 键**打包 long**（`(cx<<32)|cz`），每列是 `Voxe
 
 `Momoka.Home/Regions/Region.cs`：`Region.BuildLayout(VoxelLayout, Agent?)` 一次构建 `ColumnLayout<Region>`。核心是通用引擎 `ColumnLayout<T>.Build<TA>(VoxelLayout<TA>, cells, Settings)`（`Layouts/`，纯数学）：
 
-- **站立格 cells**：实体 `VoxelLayoutSource` 的 Up 面放置格 → 绝对体素坐标，净高 ≥ `Agent.Height` 过滤 + 去重（Region 层做）
+- **站立格 cells**：实体 `PlacementLayoutSource` 的 Up 面放置格 → 绝对体素坐标；仅带 `is_structural`（`BuiltinProperty.IS_STRUCTURAL`）实体的面为行走基底（地板/楼梯/庭院；桌顶、跑步机等排除）
 - **span**：站立格向上延伸，止于下一站立格 / 占用格 / `Bound` 顶
 - **连通**：邻列 span 间距 ≤ `Settings.MaxClimbHeight`（= `Agent.MaxClimbHeight`，人类 20cm）→ XZ 4-连通 flood-fill
-- **阻隔即占用**：墙因占用格紧贴站立格自然断开；家具成“洞”（其格不入任何 Region，绕行仍连通）——无需 structural 标签或透明语义
+- **阻隔即占用**：墙因占用格紧贴站立格自然断开；家具成“洞”（其格不入任何 Region，绕行仍连通）；行走基底由 `is_structural` + `Direction==Up` 双重条件决定
 - **聚合**：每 Region 得 `Bounds` / `Volume`（cell³）/ `Area`（xz 足迹列数）；`ColumnLayout.Map` 把 label → Region
 - **重算**：录入模型时手动 `UnitLayout.RebuildRegions(Agent?)` 一次；放置/拆除不自动重算；结构改动 → 全量重建
 - 门/窗开口的 Portal（连通通道 + 开度）为气流模拟预留，暂未实现
@@ -223,7 +223,7 @@ flowchart TB
 | 项 | 说明 | 状态 |
 |----|------|------|
 | 3D Region 自动生成 | span flood-fill + 步高容差得房间/可行走区域（§5.6）；门开关（闭=阻塞/开=连通）Portal 与 wall-extension 后续 | ✅ 基础已实现 |
-| 旧 Level/Building/Home 迁移 | 由 UnitLayout/Residence 取代；Floor/Ceiling 平面退役（地板/天花板改为 Entity 挂 VoxelLayoutSource） | 📋 待迁移 |
+| 旧 Level/Building/Home 迁移 | 由 UnitLayout/Residence 取代；Floor/Ceiling 平面退役（地板/天花板改为 Entity 挂 PlacementLayoutSource） | 📋 待迁移 |
 | Residence 接线 | Home 重构为总容器（Name/Address + Space=Residence），Residence 持 UnitLayout + UnitType | ✅ 已实现 |
 | 实体模板替换薄壳 | Wall/Door/Window 由配置模板（EntityTemplate）替代；EnumProperty 进配置词表后 Appliance 亦可 | 📋 部分阻塞 |
 | 物业/管理方引用层 | 统一管理多 Unit 的引用式封装（住户 Residence 默认全权，物业另层且不可见住户内容） | 📋 推迟 |
@@ -285,8 +285,9 @@ Momoka.Home/
 │   ├── Entity.cs（身份 + Coords(Int3) + Volume + 属性 + 组件，非泛型）
 │   ├── Wall.cs / Door.cs / Window.cs / Appliance.cs / Curtain.cs / Building.cs
 │   └── EntityTemplate.cs / EntityTemplateFactory.cs（配置管线）
-├── States/
+├── Properties/
 │   ├── Property.cs + Boolean/Int/Float/String/Literal/Enum 子类
+│   ├── BuiltinProperty.cs（is_structural 等内置定义）
 │   └── PropertyValueChangedEventArgs.cs
 ├── Geometry/
 │   ├── Volume.cs / IVoxelGeometry2D.cs / IVoxelGeometry3D.cs
@@ -297,7 +298,7 @@ Momoka.Home/
 │   ├── Palette.cs / PackedBitStorage.cs / PalettedContainer.cs / PalettedContainerRO.cs
 │   └── Graph2D.cs / Subdivision.cs
 ├── Components/
-│   ├── Component.cs / IComponentSource.cs / VoxelLayoutSource.cs
+│   ├── Component.cs / IComponentSource.cs / PlacementLayoutSource.cs
 ├── Storage/
 │   ├── CommandHistory.cs
 │   ├── JsonTypeConverter.cs / JsonGeometryConverter.cs / JsonPropertyConverter.cs

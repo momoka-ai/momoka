@@ -1,5 +1,5 @@
 using Momoka.Home;
-namespace Momoka.Home.States;
+namespace Momoka.Home.Properties;
 
 public class PropertyValueChangedEventArgs : EventArgs
 {

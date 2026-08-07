@@ -2,6 +2,7 @@ using Momoka.Home.Components;
 using Momoka.Home.Entities;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
+using Momoka.Home.Properties;
 namespace Momoka.Home;
 
 /// <summary>
@@ -67,26 +68,31 @@ public sealed class Region
     }
 
     /// <summary>
-    /// Standing cells: every Up-facing placement-surface cell mapped to
-    /// root-absolute voxel coordinates. Occupied cells are left to the engine's
-    /// span scan — walls vanish because they occupy the standing cell itself.
+    /// Standing cells: Up-facing placement surfaces of entities marked
+    /// <see cref="BuiltinProperty.IS_STRUCTURAL"/> (floors, stairs, yard ground),
+    /// mapped to root-absolute voxel coordinates. Occupied cells are left to the
+    /// engine's span scan — walls vanish because they occupy the standing cell
+    /// itself; table tops / treadmill decks are excluded as non-structural.
     /// </summary>
     private static IEnumerable<Int3> GetWalkableCells(VoxelLayout<Entity> layout)
     {
-        var surfaces = layout.Entities
-            .Select(e => e.GetComponent<VoxelLayoutSource>())
-            .Where(x => x != null)
-            .SelectMany(x => x!.Layouts)
-            .Where(x => x.Direction == Int3.Up);
-        foreach (var surface in surfaces)
+        foreach (var entity in layout.Entities)
         {
-            for (var z = 0; z < surface.Size.Z; z++)
-                for (var x = 0; x < surface.Size.X; x++)
-                {
-                    var rel = new Int2(x, z);
-                    if (surface[rel])
-                        yield return surface.AsAbsolute(rel);
-                }
+            if (!(entity.TryGetValue(BuiltinProperty.IS_STRUCTURAL.Name, out var value) && value is true))
+                continue;
+            foreach (var source in entity.GetComponents<PlacementLayoutSource>())
+            {
+                var surface = source.Layout;
+                if (surface is null || surface.Direction != Int3.Up)
+                    continue;
+                for (var z = 0; z < surface.Size.Z; z++)
+                    for (var x = 0; x < surface.Size.X; x++)
+                    {
+                        var rel = new Int2(x, z);
+                        if (surface[rel])
+                            yield return surface.AsAbsolute(rel);
+                    }
+            }
         }
     }
 

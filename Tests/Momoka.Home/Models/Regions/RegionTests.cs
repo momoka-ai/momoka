@@ -5,6 +5,7 @@ using Momoka.Home.Entities;
 using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
+using Momoka.Home.Properties;
 namespace Momoka.Home.Tests.Models.Regions;
 
 /// <summary>
@@ -20,13 +21,14 @@ public class RegionTests
         Volume = new Box3D { SizeX = sx, SizeY = sy, SizeZ = sz },
     };
 
-    /// <summary>盒子实体 + 顶面放置面（Up，Offset 在 surfaceY）。</summary>
+    /// <summary>结构件盒子：顶面放置面（Up，Offset 在 surfaceY）+ is_structural。</summary>
     private static Entity SurfaceBox(string path, int sx, int sy, int sz, Int3 pos, int surfaceY)
     {
         var entity = Box(path, sx, sy, sz);
+        entity.AddProperties(new[] { new BooleanProperty(BuiltinProperty.IS_STRUCTURAL.Name, true) });
         var surface = new GridLayout<bool>(new Int2(sx, sz), new Int3(pos.X, surfaceY, pos.Z));
         surface.Fill(true, Int2.Zero, new Int2(sx, sz));
-        entity.AddComponent(new VoxelLayoutSource { Layouts = { surface } });
+        entity.AddComponent(new PlacementLayoutSource { Layout = surface });
         return entity;
     }
 
@@ -133,6 +135,25 @@ public class RegionTests
         Assert.Null(map.At(2, 10, 2));              // 书架格 = 洞
         Assert.Same(room, map.At(1, 5, 2));         // 绕行同区
         Assert.Same(map.At(1, 5, 2), map.At(3, 5, 2));
+    }
+
+    [Fact]
+    public void BuildLayout_NonStructuralSurface_DoesNotSeedRegions()
+    {
+        // 地板（structural）+ 一张非 structural 的桌子（有 Up 顶面 y=8）
+        var l = new VoxelLayout<Entity>();
+        l.BuildAt(SurfaceBox("floor", 5, 1, 5, new Int3(0, 0, 0), 1), new Int3(0, 0, 0));
+        l.BuildAt(Box("ceiling", 5, 1, 5), new Int3(0, 30, 0));
+        var table = Box("table", 3, 1, 3);
+        var tableSurface = new GridLayout<bool>(new Int2(3, 3), new Int3(1, 8, 1));
+        tableSurface.Fill(true, Int2.Zero, new Int2(3, 3));
+        table.AddComponent(new PlacementLayoutSource { Layout = tableSurface });
+        l.BuildAt(table, new Int3(1, 7, 1)); // 桌面 y=7 占用，顶面 y=8
+
+        var map = Region.BuildLayout(l);
+
+        Assert.Null(map.At(2, 8, 2));    // 桌顶不是行走面（非 structural）→ 不产站立格
+        Assert.NotNull(map.At(2, 5, 2)); // 桌下 [1,7) 仍是区域
     }
 
     [Fact]

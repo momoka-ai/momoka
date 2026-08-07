@@ -1,5 +1,5 @@
 using Newtonsoft.Json;
-namespace Momoka.Home.States;
+namespace Momoka.Home.Properties;
 
 /// <summary>
 /// A property: a named, typed, per-instance value (config-driven). The abstract

@@ -5,6 +5,7 @@ using Momoka.Home.Entities;
 using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
+using Momoka.Home.Properties;
 namespace Momoka.Home.Tests.Models.Layouts;
 
 /// <summary>
@@ -20,7 +21,7 @@ public class UnitLayoutTests
         public VoxelLayoutSourceEntity()
         {
             Volume = new Box3D();
-            AddComponent(new VoxelLayoutSource { Layouts = { new GridLayout<bool>(new Int2(2, 2)) } });
+            AddComponent(new PlacementLayoutSource { Layout = new GridLayout<bool>(new Int2(2, 2)) });
         }
     }
 
@@ -48,8 +49,9 @@ public class UnitLayoutTests
         var source = new VoxelLayoutSourceEntity();
         unit.Layout.BuildAt(source, new Int3(2, 0, 0));
 
-        var surface = source.GetComponent<VoxelLayoutSource>()!.Layouts.Single();
-        Assert.Contains(surface, unit.Surfaces);
+        var surface = source.GetComponent<PlacementLayoutSource>()!.Layout;
+        Assert.NotNull(surface);
+        Assert.Contains(surface!, unit.Surfaces);
     }
 
     [Fact]
@@ -91,9 +93,10 @@ public class UnitLayoutTests
         {
             Key = new Key("floor");
             Volume = new Box3D { SizeX = 5, SizeY = 1, SizeZ = 5 };
+            AddProperties(new[] { new BooleanProperty(BuiltinProperty.IS_STRUCTURAL.Name, true) });
             var surface = new GridLayout<bool>(new Int2(5, 5), new Int3(0, 1, 0));
             surface.Fill(true, Int2.Zero, new Int2(5, 5));
-            AddComponent(new VoxelLayoutSource { Layouts = { surface } });
+            AddComponent(new PlacementLayoutSource { Layout = surface });
         }
     }
 

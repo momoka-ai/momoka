@@ -1,6 +1,6 @@
 using Momoka.Home.Geometry;
 using Momoka.Home.Primitives;
-using Momoka.Home.States;
+using Momoka.Home.Properties;
 using Momoka.Home.Storage;
 using Newtonsoft.Json;
 namespace Momoka.Home.Entities;

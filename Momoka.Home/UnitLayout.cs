@@ -45,12 +45,14 @@ public sealed class UnitLayout : IEntitySource, IVoxelGeometry3D
     public IReadOnlyList<Entity> Entities => Layout.Entities;
 
     /// <summary>
-    /// All placement surfaces of the space: each entity's own surfaces (via its
-    /// <see cref="VoxelLayoutSource"/> component — a floor slab's top face, a
-    /// shelf board…).
+    /// All placement surfaces of the space: each entity's placement layouts (via
+    /// its <see cref="PlacementLayoutSource"/> components — a floor slab's top
+    /// face, a shelf board…).
     /// </summary>
-    public IEnumerable<GridLayout<bool>> Surfaces => Layout.Entities.SelectMany(e =>
-        e.GetComponent<VoxelLayoutSource>()?.Layouts ?? Enumerable.Empty<GridLayout<bool>>());
+    public IEnumerable<GridLayout<bool>> Surfaces => Layout.Entities
+        .SelectMany(e => e.GetComponents<PlacementLayoutSource>())
+        .Where(c => c.Layout is not null)
+        .Select(c => c.Layout!);
 
     /// <inheritdoc/>
     public IEnumerable<Int3> Cells3D() =>
