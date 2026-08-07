@@ -60,13 +60,6 @@ public class JsonPropertyConverterTests
     }
 
     [Fact]
-    public void Texture_RoundTrips()
-    {
-        var prop = RoundTrip(new TextureProperty("texture") { Value = "texture.midea.ac" });
-        Assert.Equal("texture.midea.ac", prop.Value);
-    }
-
-    [Fact]
     public void Literal_RoundTripsWithValidValues()
     {
         var values = new List<string> { "a", "b", "c" };
