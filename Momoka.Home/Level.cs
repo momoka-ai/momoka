@@ -10,7 +10,7 @@ namespace Momoka.Home;
 /// A floor of a building: a spatial container (<see cref="IEntitySource"/>) of a
 /// voxel occupancy (<see cref="Layout"/>), a boundary partition graph (whose
 /// bounded faces are the rooms), floor/ceiling planes (placement surfaces +
-/// material regions) and a region layout. Hand-built, not config-driven;
+/// material regions). Hand-built, not config-driven;
 /// coordinates are local to the owning building.
 /// </summary>
 public class Level : IEntitySource, IVoxelGeometry3D
@@ -24,7 +24,6 @@ public class Level : IEntitySource, IVoxelGeometry3D
     public PlaneLayout<Entity<Int2>> Floor { get; } = new(new Int2(50, 50)) { Direction = Int3.Up };
     public PlaneLayout<Entity<Int2>> Ceiling { get; } = new(new Int2(50, 50)) { Direction = Int3.Down };
     public FloorPlanLayout Plan { get; } = new();
-    public GridLayout<Region> Regions { get; } = new(new Int2(50, 50));
 
     /// <inheritdoc/>
     public IReadOnlyList<Entity> Entities => Layout.Entities;

@@ -13,8 +13,8 @@ namespace Momoka.Home;
 /// tallest building's height and its <see cref="VoxelLayout{T}.Bound"/> to the
 /// whole yard.
 ///
-/// As an open-air space, Home composes a fence/boundary topology graph, a ground
-/// surface and a region layout — deliberately no ceiling canvas. Site-wide data
+/// As an open-air space, Home composes a fence/boundary topology graph and a
+/// ground surface — deliberately no ceiling canvas. Site-wide data
 /// sources and whole-home command components are mounted via
 /// <see cref="IComponentSource"/>. Hand-built, not config-driven.
 /// </summary>
@@ -23,7 +23,6 @@ public class Home : IEntitySource, IComponentSource
     public VoxelLayout<Entity<Int3>> Layout { get; } = new();
     public FloorPlanLayout Plan { get; } = new();
     public PlaneLayout<Entity<Int2>> Ground { get; } = new(new Int2(50, 50)) { Direction = Int3.Up };
-    public GridLayout<Region> Regions { get; } = new(new Int2(50, 50));
     public List<Building> Buildings { get; } = new();
 
     /// <summary>All entities in the yard: layout content plus accessory buildings.</summary>
