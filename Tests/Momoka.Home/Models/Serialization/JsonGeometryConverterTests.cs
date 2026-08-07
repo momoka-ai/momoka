@@ -1,7 +1,7 @@
 using Xunit;
 using Momoka.Home.Geometry;
 using Momoka.Home.Primitives;
-using Momoka.Home.Serialization;
+using Momoka.Home.Storage;
 using Newtonsoft.Json;
 namespace Momoka.Home.Tests.Models.Serialization;
 

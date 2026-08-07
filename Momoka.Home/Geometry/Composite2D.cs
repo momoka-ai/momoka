@@ -1,5 +1,5 @@
 using Momoka.Home.Primitives;
-using Momoka.Home.Serialization;
+using Momoka.Home.Storage;
 namespace Momoka.Home.Geometry;
 
 /// <summary>Union of 2D footprints at local offsets (L/U/T plans, attached parts).</summary>

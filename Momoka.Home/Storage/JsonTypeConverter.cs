@@ -1,7 +1,7 @@
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
-namespace Momoka.Home.Serialization;
+namespace Momoka.Home.Storage;
 
 /// <summary>
 /// Shared engine for registry-driven polymorphic converters: reads the JSON

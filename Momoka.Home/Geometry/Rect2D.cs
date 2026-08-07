@@ -1,5 +1,5 @@
 using Momoka.Home.Primitives;
-using Momoka.Home.Serialization;
+using Momoka.Home.Storage;
 namespace Momoka.Home.Geometry;
 
 /// <summary>Axis-aligned rectangle footprint (SizeX × SizeZ), the Shape of <see cref="Box3D"/>.</summary>

@@ -1,6 +1,6 @@
 using Momoka.Home;
 using Momoka.Home.Primitives;
-using Momoka.Home.Serialization;
+using Momoka.Home.Storage;
 namespace Momoka.Home.States;
 
 [JsonTypeName("int")]

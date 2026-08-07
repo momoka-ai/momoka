@@ -1,5 +1,5 @@
 using Momoka.Home.Primitives;
-using Momoka.Home.Serialization;
+using Momoka.Home.Storage;
 namespace Momoka.Home.Geometry;
 
 /// <summary>Polygonal prism: arbitrary polygon footprint × height (irregular buildings).</summary>

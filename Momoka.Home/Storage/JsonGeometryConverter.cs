@@ -1,5 +1,5 @@
 using Momoka.Home.Geometry;
-namespace Momoka.Home.Serialization;
+namespace Momoka.Home.Storage;
 
 /// <summary>
 /// Serializes <see cref="Volume"/> (and the 2D <see cref="Shape"/> footprints they

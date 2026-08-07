@@ -2,7 +2,6 @@ using Xunit;
 using Momoka.Home.Entities;
 using Momoka.Home.Geometry;
 using Momoka.Home.Primitives;
-using Momoka.Home.Serialization;
 namespace Momoka.Home.Tests.Models.Serialization;
 
 public class MideaVerifyTests

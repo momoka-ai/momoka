@@ -1,9 +1,9 @@
-using Momoka.Home.Entities;
 using Momoka.Home.Geometry;
 using Momoka.Home.Primitives;
 using Momoka.Home.States;
+using Momoka.Home.Storage;
 using Newtonsoft.Json;
-namespace Momoka.Home.Serialization;
+namespace Momoka.Home.Entities;
 
 /// <summary>
 /// Typed descriptor of an entity template: the identity (<see cref="Key"/>) plus
