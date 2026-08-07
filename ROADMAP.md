@@ -23,12 +23,12 @@
 
 | 模块 | 完成度 | 说明 |
 |------|--------|------|
-| Momoka.Home | 🟡 ~50% | 空间数据模型核心完成；设备层 / 安全层未实现 |
+| Momoka.Home | 🟡 ~60% | 空间模型 / 属性 / 序列化核心完成；设备层 / 安全层 / Mesh 未实现 |
 | Momoka.Ui | 🔴 <10% | 仅 GDExtension 入口骨架 |
 | Momoka.Stage | 🔴 <5% | 仅目录与占位 README |
 | Momoka.Voice | 🟡 ~20% | HTTP 骨架完成；TTS 引擎未集成 |
 | Momoka.Ai / Core / Sense | 🔴 <10% | 仅程序入口骨架 |
-| 测试 / CI | 🔴 <5% | 无测试项目，CI 为骨架 |
+| 测试 / CI | 🟢 ~60% | 110 个测试全绿；CI = dotnet 构建+测试 / Godot 检查 / Python ruff |
 
 ---
 
@@ -56,46 +56,53 @@
 
 ## Phase 0 — 基础设施（规划中）
 
-- [ ] 初始化 Git 仓库并完成首次提交
-- [ ] 创建 GitHub 仓库、分支保护规则（`main` 需 PR + CI 通过）
-- [x] 引入测试框架（xUnit）：`Tests/Momoka.Home/` 作为首个测试项目；`Benchmarks/Momoka.Home/` 基准项目（BenchmarkDotNet）
-- [ ] 完善 CI：接入真实 Godot 导出检查、C++ 构建（vcpkg）
-- [ ] 引入 `dotnet format` 与 `ruff` 校验进 CI
+- [x] 初始化 Git 仓库并完成首次提交
+- [x] 创建 GitHub 仓库（momoka-ai/momoka）与 CI 工作流（`.github/workflows/ci.yml`）；`main` 分支保护规则待确认
+- [x] 引入测试框架（xUnit）：`Tests/Momoka.Home/` 110 个测试；`Benchmarks/Momoka.Home/` 基准项目未建
+- [ ] 完善 CI（进行中）：Godot 项目存在性检查已接入；真实 Godot 导出检查、C++ 构建（vcpkg）未接入
+- [ ] 校验进 CI（进行中）：`ruff check Momoka.Voice/` 已接入；`dotnet format` 未接入
 - [ ] 添加 Issue / PR 模板与自动化标签
 - [ ] 配置依赖机器人（如 Dependabot）
 - [ ] 首个正式版本 `0.1.0` 发布流程（tag + CHANGELOG）
 
 ## Phase 1 — 完善 Momoka.Home（进行中）
 
+> **2026-08 大重构完成**：空间模型扁平化为单一 3D 根（`UnitLayout`）；删除旧层级
+> （`Home → Level → Building`）、`Region`、`BlockGridEntity`、薄壳实体与中间件；
+> 序列化管线贯通，`Layouts/` 收敛为纯运算 / 数学布局。详见 `Documentation/DESIGN_HOME.md`。
+
 已实现：
 
-- [x] 坐标原语：`Int2` / `Int3` / `Float3` / `Key` / `Bound`
-- [x] 属性系统：`Property<T>` + 6 种子类型、`PropertyValueObject`
-- [x] 实体系统：`Entity` 继承链 + `Component` 脚本；`Wall` / `Door` / `Window` / `Appliance` / `Curtain` / `Human` / `Pet` 等
-- [x] 空间结构：`Home → Building → Level`（`BlockGridEntity` + `GridLayout` 分块调色板存储）、`Layouts` 布局族（`Canvas` / `Graph` / `GridLayout` / `Subdivision`）、`Region`
-- [x] 服务层：`PlacementService` / `RegionService` / `WallBuildingService` / `SelectionService`
-- [x] 编辑器：`EditorCommand` / `MoveEntityCommand` + `CommandHistory`
+- [x] 坐标原语：`Int2` / `Int3` / `Float3` / `Key` / `Bound`（`Primitives/`）
+- [x] 属性系统：`Property` 基类 + 6 种子类型（`Boolean` / `Int` / `Float` / `String` / `Literal` / `Enum`）+ `PropertyValueChangedEventArgs`；`TextureProperty` 已删除（并入 `String`）
+- [x] 实体系统（非泛型重构）：`Entity`（Id / Key / Coords(Int3) / Volume / 属性 / 组件）+ `EntityTemplate` / `EntityTemplateFactory` 配置管线 + `IEntitySource`；薄壳 `Wall` / `Door` / `Window` / `Appliance` / `Curtain` 已删除，由配置模板实例化
+- [x] 空间根：`UnitLayout`（`sealed`，单一扁平 3D 根，`IEntitySource` + `IVoxelGeometry3D`）+ `Residence`（总容器：Name / Address / Type / Layout / Entities / Surfaces / Components）+ `UnitType` 枚举
+- [x] 体素存储：`VoxelLayout<T>`（Minecraft 式 16³ 区块 + paletted）、`GridLayout<T>`、`Subdivision<T>`（`Face` 面实体支持：`AssignEntity` / `EntityOf`）、`Graph2D`、`Palette` / `PackedBitStorage` / `PalettedContainer(RO)`；`Layouts/` 只剩纯运算 / 数学布局
+- [x] 几何：`Volume` / `Shape` + `IVoxelGeometry2D/3D` + `Box3D` / `Line3D` / `Curve3D` / `Polygon3D` / `Prism3D` / `Conic3D` / `Spherical3D` / `Extruded3D` / `Composite3D` / `Rect2D` / `Polygon2D` / `Circular2D` / `Composite2D`（带 `[JsonTypeName]`）
+- [x] 序列化管线：`JsonTypeNameRegistry` + `JsonTypeConverter` + `JsonGeometryConverter` + `JsonPropertyConverter` + `CommandHistory`；`MideaVerifyTests` 用真实配置验证
+- [x] 组件：`Component` + `IComponentSource` + `CommandTarget` / `DataSource` / `EventSource` / `VoxelLayoutSource`
+- [x] 编辑器：`EditorCommand` / `MoveEntityCommand` + `CommandHistory`（undo / redo）
+- [x] 测试：110 个全绿（Layouts / Serialization / Shapes）
+- [x] 旧容器清理与迁移：`Home` / `Level` / `Building`、`Region`、`IVoxelSpaceRoot`、`PlaneLayout`、`TextureProperty` 已删除；`FloorPlanLayout` 迁根并标记 DEPRECATED（过渡形态）
 
-待实现：
+待实现（按当前优先级）：
 
-- [ ] **设备抽象层 `Providers`**：`IDeviceProvider` 接口、`ProviderRegistry`、HomeAssistant 实现、GIIC 协议桥接
-- [ ] **设备类型定义配置化（高优先级）**：`DeviceTemplateRegistry` + 通用 `DeviceEntity`；JSON 模板声明 shape / properties / components，`Key` 做类型身份，Provider 按标准协议驱动；无需写代码即可适配品牌家电
-- [ ] **多形态设备（低优先级）**：设备壳 `DeviceShell` + 具象形态（静态网格占用 ↔ 移动 `RobotEntity` 连续位置），`Activate` / `Deactivate` spawn / release 生命周期，身份贯穿形态切换（如扫地机器人）
+- [ ] **3D Region 自动生成（高优先级）**：flood-fill + 门开关（闭=阻塞 / 开=连通）得可行走区域与封闭房间；wall-extension 切分开放区，再按物件语义合并（见 `DESIGN_HOME.md` §7.0）
+- [ ] **具体编辑命令**：`PlaceEntityCommand` / `RemoveEntityCommand`（含开口级联）/ `BuildWallCommand` / `PaintTileCommand`（刷材质面），接入 `CommandHistory`
+- [ ] **门洞渲染**：开门时渲染覆盖墙并允许连通性计算
+- [ ] **Mesh 转换函数**：`Shape` / 材质面 → 三角网格；据此决定 `Slab`（共享地板 / 天花板）是否必要
+- [ ] **参数化 `Shape` 体系**：屋顶形状 `Flat / Shed / Gable / Hip / Conical`（`Pitch` / `Overhang` 参数化）；非体素屋顶 `VoxelShapeEntity` 由顶部外环生成网格
+- [ ] **设备抽象层 `Providers`**：`IDeviceProvider` + `ProviderRegistry` + HomeAssistant 实现、GIIC 协议桥接
+- [ ] **设备配置 JSON**：`/devices/` 目录，以 JSON 声明第三方设备（实体配置管线已就绪，Provider 驱动待接入）
 - [ ] **安全约束 `Security`（L3–L4）**：Blackboard + 规则评估，拦截燃气 / 门锁 / 高压等危险操作
-- [ ] **Build 管线**：视频流 → 3D 重建 → 网格（消费结构化户型数据）
-- [ ] **存档 `HomeSerializer`**：Home / Level / 实体序列化与反序列化
-- [ ] **设备配置 JSON**：`/devices/` 目录，以 JSON 声明第三方设备（无需写代码）
 - [ ] **DSL 安全规则**：复杂约束的表达式解析
-- [ ] **`Subdivision` 面实体支持（方案A）**：`Face` 携带 `TEntity`（材质/内容），内部维护面→实体映射，无外部字典；`Level.Ground` 用 `Subdivision<TileEntity>` 划分地板/天花板材质区域
-- [ ] **参数化 `Shape` 体系**：`Shape` 统一几何（`Locations()` 体素占用 + `BuildMesh()` 网格生成）；屋顶形状 `Flat / Shed / Gable / Hip / Conical` 继承 `Shape`（`Pitch` / `Overhang` 参数化）
-- [ ] **非体素屋顶**：`VoxelShapeEntity` 持有屋顶 `Shape`，由建筑顶部外环（`Boundary.Bounds`）生成参数化网格
-- [ ] **`BlockEntity` → `VoxelEntity` 重命名（待定）**：体素更精确描述网格系统；需一并评估 `BlockGridEntity` 的一致性
-- [ ] **Mesh 转换函数**：`Shape` / 材质面 → 三角网格；据此决定 `Slab`（共享地板/天花板）是否必要
-- [ ] **Slab（暂缓）**：本质是上下贴图不同的面，可能被「材质面直接转 Mesh」替代
-- [ ] **墙体开口宿主关系 + 级联删除**：门窗/吊灯等挂载到墙/天花板实体（`Entity` 父子层级）；删除墙 → 级联删除，移动 / 拆分时重新校验
-- [ ] **具体编辑命令**：`PlaceEntityCommand` / `RemoveEntityCommand`（含开口级联）/ `BuildWallCommand` / `PaintTileCommand`（刷材质面），接入 `SelectionService` + `CommandHistory`
+- [ ] **Build 管线**：视频流 → 3D 重建 → 网格（消费结构化户型数据）
+- [ ] **墙体开口宿主 + 级联删除**：门窗 / 吊灯挂载到墙 / 天花板实体（`Entity` 父子层级）；删除墙 → 级联删除
+- [ ] **多形态设备（低优先级）**：`DeviceShell` + 具象形态（静态网格占用 ↔ 移动连续位置），`Activate` / `Deactivate` 生命周期，身份贯穿形态切换（如扫地机器人）
+- [ ] **Palette 策略减法**：`Int2/Int3ChunkStrategy` 等暂留，待稳定后清理未用策略
+- [ ] **物业 / 管理方引用层（推迟）**：统一管理多 Unit 的引用式封装（住户 Residence 默认全权，物业另层且不可见住户内容）
 - [ ] **空气流体模拟（未来）**：房间粒度分段混合模型 → 自然通风建议
-- [ ] 补充单元测试覆盖上述服务
+- [ ] 补充单元测试覆盖上述功能
 
 ## Phase 2 — Momoka.Ui 家庭管理终端（未开始）
 
