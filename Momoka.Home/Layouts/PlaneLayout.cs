@@ -11,7 +11,7 @@ namespace Momoka.Home.Layouts;
 ///
 /// A plane is a SINGLE layer. Stacked attachment surfaces (bookshelves, hanging
 /// fixtures at different heights) are a 3D occupancy concern — model them with
-/// <see cref="VoxelLayout3D"/> or as separate layouts, not as plane layers.
+/// <see cref="VoxelLayout{T}"/> or as separate layouts, not as plane layers.
 /// </summary>
 public class PlaneLayout<T> : VoxelLayout2D where T : class
 {

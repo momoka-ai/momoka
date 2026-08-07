@@ -1,4 +1,6 @@
+using Momoka.Home.Entities;
 using Momoka.Home.Layouts;
+using Momoka.Home.Primitives;
 namespace Momoka.Home;
 
 /// <summary>
@@ -11,7 +13,7 @@ namespace Momoka.Home;
 public interface IVoxelSpaceRoot : IEntitySource
 {
     /// <summary>Aggregate 3D occupancy container covering the whole space.</summary>
-    VoxelLayout3D Layout { get; }
+    VoxelLayout<Entity<Int3>> Layout { get; }
 
     /// <summary>Every placement surface of the whole space (floors, walls, shelves…).</summary>
     IEnumerable<VoxelLayout2D> Surfaces { get; }

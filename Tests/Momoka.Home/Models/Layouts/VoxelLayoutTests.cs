@@ -7,10 +7,11 @@ using Momoka.Home.Primitives;
 namespace Momoka.Home.Tests.Models.Layouts;
 
 /// <summary>
-/// VoxelLayout3D owns the 3D occupancy container: construction writes ALL of an
-/// entity's voxels, destruction clears them, and the entity list stays in sync.
+/// VoxelLayout&lt;Entity&lt;Int3&gt;&gt; owns the 3D occupancy container: construction
+/// writes ALL of an entity's voxels, destruction clears them, and the entity
+/// list stays in sync.
 /// </summary>
-public class VoxelLayout3DTests
+public class VoxelLayoutTests
 {
     private sealed class TestEntity : Entity<Int3>
     {
@@ -23,7 +24,7 @@ public class VoxelLayout3DTests
     [Fact]
     public void BuildAt_WritesAllVoxels_AndRegisters()
     {
-        var layout = new VoxelLayout3D();
+        var layout = new VoxelLayout<Entity<Int3>>();
         var entity = MakeBox(2, 2);
 
         Assert.True(layout.BuildAt(entity, new Int3(5, 0, 5)));
@@ -40,7 +41,7 @@ public class VoxelLayout3DTests
     [Fact]
     public void IsEntityCollided_TrueWhenAnchorOccupied()
     {
-        var layout = new VoxelLayout3D();
+        var layout = new VoxelLayout<Entity<Int3>>();
         layout.BuildAt(MakeBox(1, 1), new Int3(5, 0, 5));
 
         Assert.True(layout.IsEntityCollided(MakeBox(1, 1), new Int3(5, 0, 5)));
@@ -50,7 +51,7 @@ public class VoxelLayout3DTests
     [Fact]
     public void IsEntityCollided_TrueWhenVoxelsOverlap_EvenIfAnchorsDiffer()
     {
-        var layout = new VoxelLayout3D();
+        var layout = new VoxelLayout<Entity<Int3>>();
         layout.BuildAt(MakeBox(2, 2), new Int3(5, 0, 5)); // 占用 (5..6, 5..6)
 
         // B 锚点 (6,0,5) 不同，但体素 (6,0,5)/(6,0,6) 与 A 重叠
@@ -61,7 +62,7 @@ public class VoxelLayout3DTests
     [Fact]
     public void IsEntityCollided_WithSpecificDest()
     {
-        var layout = new VoxelLayout3D();
+        var layout = new VoxelLayout<Entity<Int3>>();
         var dest = MakeBox(2, 2);
         layout.BuildAt(dest, new Int3(5, 0, 5));
 
@@ -73,7 +74,7 @@ public class VoxelLayout3DTests
     [Fact]
     public void BuildAt_NextToEntity_Succeeds()
     {
-        var layout = new VoxelLayout3D();
+        var layout = new VoxelLayout<Entity<Int3>>();
         layout.BuildAt(MakeBox(1, 1), new Int3(5, 0, 5));
 
         Assert.True(layout.BuildAt(MakeBox(1, 1), new Int3(7, 0, 5)));
@@ -83,7 +84,7 @@ public class VoxelLayout3DTests
     [Fact]
     public void DestroyAt_RemovesEntityByRegisteredPosition()
     {
-        var layout = new VoxelLayout3D();
+        var layout = new VoxelLayout<Entity<Int3>>();
         layout.BuildAt(MakeBox(2, 2), new Int3(5, 0, 5));
 
         Assert.True(layout.DestroyAt(new Int3(5, 0, 5)));
@@ -95,7 +96,7 @@ public class VoxelLayout3DTests
     [Fact]
     public void DestroyTarget_RemovesEntityCoveringAnyCell()
     {
-        var layout = new VoxelLayout3D();
+        var layout = new VoxelLayout<Entity<Int3>>();
         layout.BuildAt(MakeBox(2, 2), new Int3(5, 0, 5));
 
         Assert.True(layout.DestroyTarget(new Int3(6, 0, 6))); // 非锚点格
@@ -106,7 +107,7 @@ public class VoxelLayout3DTests
     [Fact]
     public void FlushVoxelEntities_RebuildsGridFromEntityList()
     {
-        var layout = new VoxelLayout3D();
+        var layout = new VoxelLayout<Entity<Int3>>();
         var entity = MakeBox(2, 2);
         layout.BuildAt(entity, new Int3(5, 0, 5));
 
@@ -126,7 +127,7 @@ public class VoxelLayout3DTests
     [Fact]
     public void GetEntitiesInBound_FindsEntityInBox()
     {
-        var layout = new VoxelLayout3D();
+        var layout = new VoxelLayout<Entity<Int3>>();
         layout.BuildAt(MakeBox(2, 2), new Int3(5, 0, 5));
 
         Assert.Single(layout.GetEntitiesInBound(new Int2(5, 5), new Int2(6, 6)));

@@ -1,5 +1,6 @@
 using Xunit;
 using Momoka.Home;
+using Momoka.Home.Entities;
 using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
@@ -134,7 +135,7 @@ public class ShapeFamilyTests
     public void Volume_PlaceAt_WithoutHost_Throws()
     {
         var box = new Box3D { SizeX = 1, SizeY = 1, SizeZ = 1 };
-        var layout = new VoxelLayout3D();
+        var layout = new VoxelLayout<Entity<Int3>>();
 
         Assert.Throws<NotSupportedException>(() => box.PlaceAt(layout, Int3.Zero));
     }

@@ -44,11 +44,11 @@ public class Building : Entity<Int3>, IVoxelGeometry3D
     /// The building's full voxel view: all floors' occupancy merged into
     /// building-local space (level coords + level-local cells). Derived on demand.
     /// </summary>
-    public VoxelLayout3D Layout
+    public VoxelLayout<Entity<Int3>> Layout
     {
         get
         {
-            var layout = new VoxelLayout3D();
+            var layout = new VoxelLayout<Entity<Int3>>();
             foreach (var level in Levels.Values)
                 layout.MergeFrom(level.Layout, level.Coords);
             return layout;
@@ -60,14 +60,14 @@ public class Building : Entity<Int3>, IVoxelGeometry3D
         Levels.Values.SelectMany(level => level.Cells3D().Select(c => level.Coords + c));
 
     /// <inheritdoc/>
-    public void PlaceAt(VoxelLayout3D target, Int3 at)
+    public void PlaceAt(VoxelLayout<Entity<Int3>> target, Int3 at)
     {
         foreach (var level in Levels.Values)
             target.MergeFrom(level.Layout, at + level.Coords);
     }
 
     /// <inheritdoc/>
-    public void DestroyAt(VoxelLayout3D target, Int3 at)
+    public void DestroyAt(VoxelLayout<Entity<Int3>> target, Int3 at)
     {
         foreach (var level in Levels.Values)
             target.RemoveFrom(level.Layout, at + level.Coords);

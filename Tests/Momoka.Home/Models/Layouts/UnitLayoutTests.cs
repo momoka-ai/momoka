@@ -86,7 +86,7 @@ public class UnitLayoutTests
         unit.Floors.Add(plan);
         unit.Layout.BuildAt(wall, new Int3(2, 0, 0));
 
-        var parent = new VoxelLayout3D();
+        var parent = new VoxelLayout<Entity<Int3>>();
         unit.PlaceAt(parent, new Int3(0, 30, 0));
         Assert.True(parent.HasEntity(new Int3(2, 30, 0)));
         Assert.True(parent.HasEntity(new Int3(7, 30, 0)));

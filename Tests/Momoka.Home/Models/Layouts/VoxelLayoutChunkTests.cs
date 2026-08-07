@@ -9,7 +9,7 @@ namespace Momoka.Home.Tests.Models.Layouts;
 /// Checks the generic chunked voxel storage (VoxelLayout&lt;T&gt; /
 /// VoxelChunk&lt;T&gt; / VoxelChunkSection&lt;T&gt;): Minecraft-style XZ chunks
 /// with lazy 16×16×16 sections over the height axis, packed-long chunk keys,
-/// and the full occupancy API it inherits from the old VoxelLayout3D role.
+/// and the full occupancy API replacing the old VoxelLayout3D role.
 /// </summary>
 public class VoxelLayoutChunkTests
 {

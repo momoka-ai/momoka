@@ -11,7 +11,7 @@ namespace Momoka.Home.Geometry;
 /// <see cref="IVoxelGeometry3D"/> (its own 3D cells) and
 /// <see cref="IVoxelGeometry2D"/> (its projection onto the local XZ plane).
 /// Placement into an entity grid goes through the host
-/// (<c>VoxelLayout3D.BuildAt(Entity&lt;Int3&gt;, pos)</c>), while containers
+/// (<c>VoxelLayout&lt;Entity&lt;Int3&gt;&gt;.BuildAt(Entity&lt;Int3&gt;, pos)</c>), while containers
 /// (<see cref="Level"/>, <see cref="Building"/>) implement the interfaces for
 /// upward composition.
 /// </summary>
@@ -28,14 +28,14 @@ public abstract class Volume : IVoxelGeometry3D, IVoxelGeometry2D
 
     /// <summary>
     /// A bare volume has no host identity, so it cannot place itself into an entity
-    /// grid. Place the host instead: <c>VoxelLayout3D.BuildAt(Entity&lt;Int3&gt;, pos)</c>.
+    /// grid. Place the host instead: <c>VoxelLayout&lt;Entity&lt;Int3&gt;&gt;.BuildAt(Entity&lt;Int3&gt;, pos)</c>.
     /// Containers (<see cref="Level"/>, <see cref="Building"/>) implement real
     /// PlaceAt/DestroyAt for upward composition.
     /// </summary>
-    public void PlaceAt(VoxelLayout3D target, Int3 at) =>
-        throw new NotSupportedException("A bare volume has no host identity — place it via VoxelLayout3D.BuildAt(Entity<Int3>, pos) or via a container (Level/Building).");
+    public void PlaceAt(VoxelLayout<Entity<Int3>> target, Int3 at) =>
+        throw new NotSupportedException("A bare volume has no host identity — place it via VoxelLayout&lt;Entity&lt;Int3&gt;&gt;.BuildAt(Entity&lt;Int3&gt;, pos) or via a container (Level/Building).");
 
     /// <inheritdoc cref="PlaceAt"/>
-    public void DestroyAt(VoxelLayout3D target, Int3 at) =>
-        throw new NotSupportedException("A bare volume has no host identity — remove it via VoxelLayout3D.DestroyAt(pos) or via a container (Level/Building).");
+    public void DestroyAt(VoxelLayout<Entity<Int3>> target, Int3 at) =>
+        throw new NotSupportedException("A bare volume has no host identity — remove it via VoxelLayout&lt;Entity&lt;Int3&gt;&gt;.DestroyAt(pos) or via a container (Level/Building).");
 }

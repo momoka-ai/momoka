@@ -10,7 +10,7 @@ namespace Momoka.Home;
 /// Home is a spatial container (<see cref="IEntitySource"/>) — the yard. Its
 /// voxel occupancy container (<see cref="Layout"/>) holds buildings, fences and
 /// terrain features as ordinary entities; its grid height should be set to the
-/// tallest building's height and its <see cref="VoxelLayout3D.Bound"/> to the
+/// tallest building's height and its <see cref="VoxelLayout{T}.Bound"/> to the
 /// whole yard.
 ///
 /// As an open-air space, Home composes a fence/boundary topology graph, a ground
@@ -20,7 +20,7 @@ namespace Momoka.Home;
 /// </summary>
 public class Home : IEntitySource, IComponentSource
 {
-    public VoxelLayout3D Layout { get; } = new();
+    public VoxelLayout<Entity<Int3>> Layout { get; } = new();
     public FloorPlanLayout Plan { get; } = new();
     public PlaneLayout<Entity<Int2>> Ground { get; } = new(new Int2(50, 50)) { Direction = Int3.Up };
     public GridLayout2D<Region> Regions { get; } = new(new Int2(50, 50));

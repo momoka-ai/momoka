@@ -1,22 +1,24 @@
 using Momoka.Home;
 using Momoka.Home.Editor;
+using Momoka.Home.Entities;
 using Momoka.Home.Layouts;
+using Momoka.Home.Primitives;
 namespace Momoka.Home.Storage;
 
-/// <summary>Undo/redo stack of <see cref="Editor.EditorCommand"/> over a <see cref="VoxelLayout3D"/>.</summary>
+/// <summary>Undo/redo stack of <see cref="Editor.EditorCommand"/> over a <see cref="VoxelLayout{T}"/>.</summary>
 public class CommandHistory
 {
     private readonly Stack<Editor.EditorCommand> _undo = new();
     private readonly Stack<Editor.EditorCommand> _redo = new();
 
-    public void Execute(Editor.EditorCommand command, VoxelLayout3D layout)
+    public void Execute(Editor.EditorCommand command, VoxelLayout<Entity<Int3>> layout)
     {
         command.Apply(layout);
         _undo.Push(command);
         _redo.Clear();
     }
 
-    public bool Undo(VoxelLayout3D layout)
+    public bool Undo(VoxelLayout<Entity<Int3>> layout)
     {
         if (!_undo.TryPop(out var cmd)) return false;
         cmd.Revert(layout);
@@ -24,7 +26,7 @@ public class CommandHistory
         return true;
     }
 
-    public bool Redo(VoxelLayout3D layout)
+    public bool Redo(VoxelLayout<Entity<Int3>> layout)
     {
         if (!_redo.TryPop(out var cmd)) return false;
         cmd.Apply(layout);

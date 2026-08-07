@@ -10,7 +10,7 @@ namespace Momoka.Home.Layouts;
 /// the topology of a floor plan. Positions an edge entity, registers its
 /// nodes/edge, and derives each partition's placement surfaces on demand
 /// (<see cref="Surfaces"/>) from the graph itself — never stale. Occupancy
-/// rasterization and collision are the <see cref="VoxelLayout3D"/>'s job and
+/// rasterization and collision are the <see cref="VoxelLayout{T}"/>'s job and
 /// are coordinated by the caller (e.g. an editor command).
 /// </summary>
 public class FloorPlanLayout : Graph2D<Entity<Int3>>
@@ -25,7 +25,7 @@ public class FloorPlanLayout : Graph2D<Entity<Int3>>
     /// <summary>
     /// 创建隔断：在 <paramref name="from"/>–<paramref name="to"/> 之间建造一条分区边
     /// （墙 / 围栏 / …）：锚定分区的 Line3D（局部坐标）并注册图节点与边。
-    /// 占用栅格化由调用方通过 <see cref="VoxelLayout3D.BuildAt"/> 完成。
+    /// 占用栅格化由调用方通过 <see cref="VoxelLayout{T}.BuildAt"/> 完成。
     /// </summary>
     public bool Build(Int2 from, Int2 to, Entity<Int3> partition)
     {
@@ -45,7 +45,7 @@ public class FloorPlanLayout : Graph2D<Entity<Int3>>
     /// <summary>
     /// 拆除隔断：移除 <paramref name="from"/>–<paramref name="to"/> 之间的分区边。
     /// 图节点保留（可能被其他边共享）；占用清理由调用方通过
-    /// <see cref="VoxelLayout3D.DestroyAt"/> 完成。
+    /// <see cref="VoxelLayout{T}.DestroyAt"/> 完成。
     /// </summary>
     public bool Destroy(Int2 from, Int2 to)
     {

@@ -8,7 +8,7 @@ namespace Momoka.Home.Layouts;
 /// A unit of living space: the fully-3D, multi-layer spatial root of a
 /// residence. Everything — floor slabs, ceilings, walls, furniture, yard
 /// objects — is an <see cref="Entity{Int3}"/> inside the single
-/// <see cref="VoxelLayout3D"/>, so placement and collision run directly against
+/// <see cref="VoxelLayout{T}"/>, so placement and collision run directly against
 /// one root space with root-absolute coordinates (no nested offset chains).
 ///
 /// Floor plans are single-layer, so one <see cref="FloorPlanLayout"/> per layer
@@ -20,7 +20,7 @@ namespace Momoka.Home.Layouts;
 public class UnitLayout : IEntitySource, IVoxelGeometry3D
 {
     /// <summary>The 3D voxel occupancy container: the single root space.</summary>
-    public VoxelLayout3D Layout { get; } = new();
+    public VoxelLayout<Entity<Int3>> Layout { get; } = new();
 
     /// <summary>One floor plan per layer, low to high (list index = layer order).</summary>
     public List<FloorPlanLayout> Floors { get; } = new();
@@ -43,8 +43,8 @@ public class UnitLayout : IEntitySource, IVoxelGeometry3D
         Layout.Entities.SelectMany(e => e.Volume.Cells3D().Select(c => e.Coords + c));
 
     /// <inheritdoc/>
-    public void PlaceAt(VoxelLayout3D target, Int3 at) => target.MergeFrom(Layout, at);
+    public void PlaceAt(VoxelLayout<Entity<Int3>> target, Int3 at) => target.MergeFrom(Layout, at);
 
     /// <inheritdoc/>
-    public void DestroyAt(VoxelLayout3D target, Int3 at) => target.RemoveFrom(Layout, at);
+    public void DestroyAt(VoxelLayout<Entity<Int3>> target, Int3 at) => target.RemoveFrom(Layout, at);
 }
