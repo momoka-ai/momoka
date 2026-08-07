@@ -74,10 +74,10 @@ public class GridLayout3D<T> : GridLayout<T, Int3>
     public override Palette<T>.Strategy<Int3> GetStrategy() => new Palette<T>.Int3ChunkStrategy(ChunkSize, 4);
 }
 
-public class GridLayout2D<T> : GridLayout<T, Int2>
+public class GridLayout<T> : GridLayout<T, Int2>
     where T : notnull
 {
-    public GridLayout2D(Int2 chunkSize) : base(chunkSize)
+    public GridLayout(Int2 chunkSize) : base(chunkSize)
     {
     }
 

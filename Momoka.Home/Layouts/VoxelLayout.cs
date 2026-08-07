@@ -12,7 +12,7 @@ namespace Momoka.Home.Layouts;
 /// and orient it relative to the host entity. A shelf, a desktop, or a wall
 /// face is one such layout.
 /// </summary>
-public class VoxelLayout2D : GridLayout2D<bool>
+public class VoxelLayout2D : GridLayout<bool>
 {
     public VoxelLayout2D(Int2 size, Int3? offset = null) : base(size)
     {

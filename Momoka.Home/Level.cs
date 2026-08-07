@@ -24,7 +24,7 @@ public class Level : IEntitySource, IVoxelGeometry3D
     public PlaneLayout<Entity<Int2>> Floor { get; } = new(new Int2(50, 50)) { Direction = Int3.Up };
     public PlaneLayout<Entity<Int2>> Ceiling { get; } = new(new Int2(50, 50)) { Direction = Int3.Down };
     public FloorPlanLayout Plan { get; } = new();
-    public GridLayout2D<Region> Regions { get; } = new(new Int2(50, 50));
+    public GridLayout<Region> Regions { get; } = new(new Int2(50, 50));
 
     /// <inheritdoc/>
     public IReadOnlyList<Entity> Entities => Layout.Entities;
