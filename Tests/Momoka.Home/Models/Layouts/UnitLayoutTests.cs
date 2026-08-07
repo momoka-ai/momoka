@@ -5,15 +5,13 @@ using Momoka.Home.Entities;
 using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
-using Momoka.Home.States;
-using Momoka.Home.Regions;
 namespace Momoka.Home.Tests.Models.Layouts;
 
 /// <summary>
-/// Checks the unit layout as the fully-3D multi-layer spatial root: entities
-/// live in the single root space; placement surfaces come from the per-layer
-/// floor plans' partition faces plus every entity's VoxelLayoutSource
-/// component; the whole space composes upward via IVoxelGeometry3D.
+/// Checks the unit layout as the fully-3D spatial root: entities live in the
+/// single root space; placement surfaces come from each entity's
+/// VoxelLayoutSource component; the whole space composes upward via
+/// IVoxelGeometry3D; the region layer builds on demand.
 /// </summary>
 public class UnitLayoutTests
 {
@@ -26,51 +24,21 @@ public class UnitLayoutTests
         }
     }
 
-    /// <summary>A config-template-like partition: Line3D + the surface-driving property table.</summary>
-    private sealed class TestPartition : Entity
+    private static Entity Box(string path, int sx, int sy, int sz) => new()
     {
-        public TestPartition()
-        {
-            Volume = new Line3D();
-            AddProperty(new BooleanProperty(FloorPlanLayout.UseVoxelLayoutProperty, true));
-            AddProperty(new IntProperty(FloorPlanLayout.HeightProperty, 3));
-            AddProperty(new IntProperty(FloorPlanLayout.ThicknessProperty, 1));
-        }
-    }
+        Key = new Key(path),
+        Volume = new Box3D { SizeX = sx, SizeY = sy, SizeZ = sz },
+    };
 
     [Fact]
     public void Entities_ReflectsTheRootSpace()
     {
         var unit = new UnitLayout();
-        var wall = new TestPartition();
+        var wall = Box("wall", 1, 3, 1);
         unit.Layout.BuildAt(wall, new Int3(2, 0, 0));
 
         var registered = Assert.Single(unit.Entities);
         Assert.Equal(wall, registered);
-    }
-
-    [Fact]
-    public void Floors_HoldsOnePlanPerLayer()
-    {
-        var unit = new UnitLayout();
-        unit.Floors.Add(new FloorPlanLayout());
-        unit.Floors.Add(new FloorPlanLayout());
-
-        Assert.Equal(2, unit.Floors.Count);
-    }
-
-    [Fact]
-    public void Surfaces_IncludesPlanPartitionFaces()
-    {
-        var unit = new UnitLayout();
-        var wall = new TestPartition();
-        var plan = new FloorPlanLayout();
-        plan.Build(new Int2(2, 0), new Int2(7, 0), wall);
-        unit.Floors.Add(plan);
-        unit.Layout.BuildAt(wall, new Int3(2, 0, 0));
-
-        // E–W wall → south + north faces (no floor/ceiling planes in a unit layout)
-        Assert.Equal(2, unit.Surfaces.Count());
     }
 
     [Fact]
@@ -95,11 +63,7 @@ public class UnitLayoutTests
     public void PlaceAt_And_DestroyAt_ComposeIntoAParent()
     {
         var unit = new UnitLayout();
-        var wall = new TestPartition();
-        var plan = new FloorPlanLayout();
-        plan.Build(new Int2(2, 0), new Int2(7, 0), wall);
-        unit.Floors.Add(plan);
-        unit.Layout.BuildAt(wall, new Int3(2, 0, 0));
+        unit.Layout.BuildAt(Box("wall", 6, 1, 1), new Int3(2, 0, 0));
 
         var parent = new VoxelLayout<Entity>();
         unit.PlaceAt(parent, new Int3(0, 30, 0));
@@ -114,11 +78,7 @@ public class UnitLayoutTests
     public void Cells3D_AreRootAbsolute()
     {
         var unit = new UnitLayout();
-        var wall = new TestPartition();
-        var plan = new FloorPlanLayout();
-        plan.Build(new Int2(2, 0), new Int2(7, 0), wall);
-        unit.Floors.Add(plan);
-        unit.Layout.BuildAt(wall, new Int3(2, 0, 0));
+        unit.Layout.BuildAt(Box("wall", 6, 1, 1), new Int3(2, 0, 0));
 
         var cells = unit.Cells3D().ToList();
         Assert.Contains(new Int3(2, 0, 0), cells);
@@ -137,21 +97,12 @@ public class UnitLayoutTests
         }
     }
 
-    private sealed class BoxEntity : Entity
-    {
-        public BoxEntity(string path, int sx, int sy, int sz)
-        {
-            Key = new Key(path);
-            Volume = new Box3D { SizeX = sx, SizeY = sy, SizeZ = sz };
-        }
-    }
-
     [Fact]
     public void RebuildRegions_BuildsAndQueries()
     {
         var unit = new UnitLayout();
         unit.Layout.BuildAt(new FloorEntity(), new Int3(0, 0, 0));
-        unit.Layout.BuildAt(new BoxEntity("wall", 1, 29, 5), new Int3(2, 1, 0)); // 中墙 x=2 全高
+        unit.Layout.BuildAt(Box("wall", 1, 29, 5), new Int3(2, 1, 0)); // 中墙 x=2 全高
 
         var map = unit.RebuildRegions();
         Assert.Same(map, unit.Regions);

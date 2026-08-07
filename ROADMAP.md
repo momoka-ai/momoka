@@ -83,7 +83,7 @@
 - [x] 组件：`Component` + `IComponentSource` + `CommandTarget` / `DataSource` / `EventSource` / `VoxelLayoutSource`
 - [x] 编辑器：`EditorCommand` / `MoveEntityCommand` + `CommandHistory`（undo / redo）
 - [x] 测试：110 个全绿（Layouts / Serialization / Shapes）
-- [x] 旧容器清理与迁移：`Home` / `Level` / `Building`、`Region`、`IVoxelSpaceRoot`、`PlaneLayout`、`TextureProperty` 已删除；`FloorPlanLayout` 迁根并标记 DEPRECATED（过渡形态）
+- [x] 旧容器清理与迁移：`Home` / `Level` / `Building`、旧 2D `Region`、`IVoxelSpaceRoot`、`PlaneLayout`、`TextureProperty`、`FloorPlanLayout` 已删除；`Region` 迁主命名空间（`Momoka.Home`），`UnitLayout.Regions`（`ColumnLayout<Region>`）取代 `Floors`
 
 待实现（按当前优先级）：
 

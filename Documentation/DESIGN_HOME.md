@@ -167,11 +167,9 @@ Minecraft 式：XZ chunk 键**打包 long**（`(cx<<32)|cz`），每列是 `Voxe
 
 `GridLayout<T>`：**连续数组**存储（Bound 定尺寸，无需分块）。放置语义：`Offset` / `Direction` / `AsAbsolute` / `AsRelative`（T 无关）+ `IsCollided` / `Fill`（`default(T)` 视为阻塞）。放置面 = `GridLayout<bool>`；材质分区由 `Subdivision<T>`（半边遍历）承担。原 `PlaneLayout` 已删除。
 
-### 5.4 FloorPlanLayout — 墙图拓扑（已废弃，过渡形态）
+### 5.4 FloorPlanLayout — 墙图拓扑（已删除）
 
-`Momoka.Home/FloorPlanLayout.cs`（已迁出 `Layouts/`）。`Graph2D<Entity>`：隔断（墙/围栏）为边，房间 = `Subdivision` 半边遍历的**有界面**（`Face`：多边形 + SignedArea + Contains）。`Surfaces` 按实体 `height`/`thickness` 属性派生双面放置面。
-
-> **DEPRECATED**：户型图是中间表示，将被 3D `Region` 形式取代（`UnitLayout` 空间作为 3D 体积）。目前仅 `UnitLayout.Floors` 使用，暂留根命名空间；未标 `[Obsolete]` 以免级联 CS0618 警告。
+`FloorPlanLayout`（`Graph2D<Entity>`：隔断为边，`Subdivision` 半边遍历求房间面）已退役删除——3D `Region`（§5.6）直接由体素占用 + 放置面标注，不再需要户型图中间表示。
 
 ### 5.5 旧 Region — 已移除
 
@@ -230,7 +228,7 @@ flowchart TB
 | 实体模板替换薄壳 | Wall/Door/Window 由配置模板（EntityTemplate）替代；EnumProperty 进配置词表后 Appliance 亦可 | 📋 部分阻塞 |
 | 物业/管理方引用层 | 统一管理多 Unit 的引用式封装（住户 Residence 默认全权，物业另层且不可见住户内容） | 📋 推迟 |
 | Palette 策略减法 | Int2/Int3ChunkStrategy 等暂留，待稳定后清理未用策略 | 📋 待减法 |
-| 门洞渲染 | 开门时渲染覆盖墙并允许连通性计算 | 📋 待实现 |
+| 门洞渲染 | 渲染属 Momoka.Ui（Home 不做渲染）；模型/材质由实体 Key 调取或 Property 表述；Home 只提供连通性（门开关 → 重算 Region） | 📋 待实现（Ui） |
 
 ### 7.1 其它（原待办）
 
@@ -280,7 +278,7 @@ flowchart LR
 
 ```
 Momoka.Home/
-├── UnitLayout.cs / FloorPlanLayout.cs / Residence.cs / UnitType.cs（根命名空间）
+├── UnitLayout.cs / Residence.cs / Region.cs / UnitType.cs / Agent.cs（根命名空间）
 ├── Primitives/
 │   └── Int2.cs / Int3.cs / Float3.cs / Key.cs / Bound.cs
 ├── Entities/
@@ -298,8 +296,6 @@ Momoka.Home/
 │   ├── GridLayout.cs / VoxelLayout.cs（VoxelLayout/VoxelChunk/VoxelChunkSection）/ ColumnLayout.cs
 │   ├── Palette.cs / PackedBitStorage.cs / PalettedContainer.cs / PalettedContainerRO.cs
 │   └── Graph2D.cs / Subdivision.cs
-├── Regions/
-│   └── Region.cs（Region.BuildLayout：3D 空间标注）
 ├── Components/
 │   ├── Component.cs / IComponentSource.cs / VoxelLayoutSource.cs
 ├── Storage/

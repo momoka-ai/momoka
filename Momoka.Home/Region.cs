@@ -2,7 +2,7 @@ using Momoka.Home.Components;
 using Momoka.Home.Entities;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
-namespace Momoka.Home.Regions;
+namespace Momoka.Home;
 
 /// <summary>
 /// A 3D region — a connected component of standable space (a room, a walkable
@@ -71,16 +71,16 @@ public sealed class Region
                 if (surface.Direction != Int3.Up)
                     continue;
                 for (var z = 0; z < surface.Size.Z; z++)
-                for (var x = 0; x < surface.Size.X; x++)
-                {
-                    var rel = new Int2(x, z);
-                    if (!surface[rel])
-                        continue;
-                    var abs = surface.AsAbsolute(rel);
-                    if (!HasHeadroom(layout, abs, agent.Height))
-                        continue;
-                    cells.Add(abs);
-                }
+                    for (var x = 0; x < surface.Size.X; x++)
+                    {
+                        var rel = new Int2(x, z);
+                        if (!surface[rel])
+                            continue;
+                        var abs = surface.AsAbsolute(rel);
+                        if (!HasHeadroom(layout, abs, agent.Height))
+                            continue;
+                        cells.Add(abs);
+                    }
             }
         }
         return cells;

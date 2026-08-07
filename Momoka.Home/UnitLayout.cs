@@ -3,7 +3,6 @@ using Momoka.Home.Entities;
 using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
-using Momoka.Home.Regions;
 namespace Momoka.Home;
 
 /// <summary>
@@ -12,26 +11,18 @@ namespace Momoka.Home;
 /// walls, furniture, yard objects — is an <see cref="Entity"/> inside the single
 /// <see cref="VoxelLayout{T}"/>, so placement and collision run directly against
 /// one root space with root-absolute coordinates (no nested offset chains).
-///
-/// Floor plans are single-layer, so one <see cref="FloorPlanLayout"/> per layer
-/// lives in <see cref="Floors"/> (list index = layer order, low to high). The
-/// per-layer height is not stored here: the floor slab entities in
-/// <see cref="Layout"/> carry it, and the plan graphs use their own partition
-/// coordinates.
+/// Space semantics — rooms / walkable areas — are the <see cref="Regions"/>
+/// layer (replacing the retired floor-plan graphs).
 /// </summary>
 public sealed class UnitLayout : IEntitySource, IVoxelGeometry3D
 {
     /// <summary>The 3D voxel occupancy container: the single root space.</summary>
     public VoxelLayout<Entity> Layout { get; } = new();
 
-    /// <summary>One floor plan per layer, low to high (list index = layer order).</summary>
-    public List<FloorPlanLayout> Floors { get; } = new();
-
     /// <summary>
     /// The 3D region layer (rooms / walkable areas) of the space — a
     /// <see cref="ColumnLayout{T}"/> of <see cref="Region"/> spans, built on
-    /// demand. The successor of <see cref="Floors"/> as the space-semantics
-    /// layer. Null until <see cref="RebuildRegions"/> has run.
+    /// demand. Null until <see cref="RebuildRegions"/> has run.
     /// </summary>
     public ColumnLayout<Region>? Regions { get; private set; }
 
@@ -54,14 +45,12 @@ public sealed class UnitLayout : IEntitySource, IVoxelGeometry3D
     public IReadOnlyList<Entity> Entities => Layout.Entities;
 
     /// <summary>
-    /// All placement surfaces of the space: every floor plan's partition faces
-    /// plus each entity's own surfaces (via its <see cref="VoxelLayoutSource"/>
-    /// component — a floor slab's top face, a shelf board…).
+    /// All placement surfaces of the space: each entity's own surfaces (via its
+    /// <see cref="VoxelLayoutSource"/> component — a floor slab's top face, a
+    /// shelf board…).
     /// </summary>
-    public IEnumerable<GridLayout<bool>> Surfaces => Floors
-        .SelectMany(f => f.Surfaces)
-        .Concat(Layout.Entities.SelectMany(e =>
-            e.GetComponent<VoxelLayoutSource>()?.Layouts ?? Enumerable.Empty<GridLayout<bool>>()));
+    public IEnumerable<GridLayout<bool>> Surfaces => Layout.Entities.SelectMany(e =>
+        e.GetComponent<VoxelLayoutSource>()?.Layouts ?? Enumerable.Empty<GridLayout<bool>>());
 
     /// <inheritdoc/>
     public IEnumerable<Int3> Cells3D() =>
