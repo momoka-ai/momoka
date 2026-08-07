@@ -6,7 +6,7 @@ Momoka.Home 是家庭数字孪生模块：
 
 | 子模块 | 职责 | 状态 |
 |--------|------|------|
-| **Models** | 实体、属性系统、空间数据结构、区域 | ✅ 核心完成 |
+| **Models** | 实体、属性系统、空间数据结构（UnitLayout/VoxelLayout/GridLayout/FloorPlanLayout） | ✅ 核心完成 |
 | **Services** | 放置/区域/墙体绘制等行为层 | ✅ 基础完成 |
 | **Editor** | 编辑器命令（undo/redo） | ✅ 基础完成 |
 | **Storage** | 存档、命令历史 | ✅ 基础完成 |
@@ -40,26 +40,22 @@ classDiagram
     direction TB
 
     class Entity {
-        +Id
-        +Key
+        +Id +Key
+        +Coords(Int3)
+        +Volume 体素几何
         +Properties 属性系统(get/set/event/serialize)
+        +Components 行为组件
     }
-    class EntityInt3["Entity&lt;Int3&gt;"] {
-        +Coords
-        +Shape 体素内容（模板化）
-    }
-    class EntityInt2["Entity&lt;Int2&gt;"] {
-        +Coords
-        +Shape 2D 瓦片（材质入属性表）
-    }
-    class EntityFloat3["Entity&lt;Float3&gt;"] {
-        +Coords 连续坐标（活物/机器人）
-    }
-    class Wall {
-        +Height + VoxelLayoutSource
+    class Wall
+    class Door
+    class Window
+    class Appliance
+    class Curtain
+    class Building {
+        +Bound + Levels(遗留)
     }
     class Component {
-        +SourceId 行为载体
+        行为载体
     }
     class VoxelLayoutSource {
         +Layouts 放置表面
@@ -74,15 +70,20 @@ classDiagram
         命令列表
     }
 
-    Entity <|-- EntityInt2
-    Entity <|-- EntityInt3
-    Entity <|-- EntityFloat3
-    EntityInt3 <|-- Wall
+    Entity <|-- Wall
+    Entity <|-- Door
+    Entity <|-- Window
+    Entity <|-- Appliance
+    Entity <|-- Building
+    Appliance <|-- Curtain
     Component <|-- VoxelLayoutSource
     Component <|-- DataSource
     Component <|-- EventSource
     Component <|-- CommandTarget
+    Entity *-- Component
 ```
+
+> 注：`Entity` 已非泛型化（`Entity<Int2>`/`Entity<Float3>` 删除）。所有物件扁平化为单一个 3D 实体，坐标 `Int3` 根绝对，`Volume` 描述体素几何。
 
 ### 3.2 Property 类型
 
@@ -90,7 +91,7 @@ classDiagram
 
 ### 3.3 Property API
 
-`Name` / `TemplateKey` / `PropertyType` / `Description` / `DefaultValue` / `Value`（每实例，null=用默认）/ `IsReadOnly` / `ValidateValueCallback` / `ValidValues` / `IsValidType` / `IsValidValue` / `ToSchema()` / `GetValidValues()` / `Clone()` / `Create(...)`。
+`Name` / `Key` / `Description` / `ValueType` / `UnsetValue` / `Value`（每实例，typed `Value<T>`，未设 = `UnsetValue`）/ `IsReadOnly` / `ValidValues` / `IsValidType` / `IsValidValue` / `ToSchema()` / `Clone()`。
 
 ### 3.4 Entity 属性系统 API
 
@@ -119,99 +120,69 @@ classDiagram
 
 ### 4.2 已实现实体
 
-| 实体 | 继承 | Shape | 表面/属性 |
-|------|------|-------|------|
-| `Wall` | `Entity<Int3>` | `LineShape` | `VoxelLayoutSource` 双面 + `TEXTURE` |
-| `Door` | `Entity<Int3>` | `BoxShape` | `open`, `locked`, `TEXTURE` |
-| `Window` | `Entity<Int3>` | `BoxShape` | `open`, `TEXTURE` |
-| `Appliance` | `Entity<Int3>` | `BoxShape` | `power`, `connection`, `TEXTURE` |
-| `Curtain` | `Appliance` | `BoxShape` | + `position` (0-100) |
-| 瓦片 | `Entity<Int2>` | — | 材质进属性表 |
-| 活物/机器人 | `Entity<Float3>` | 留空 | 安全参与用属性标记 |
+| 实体 | 继承 | Volume | 表面/属性 |
+|------|------|--------|------|
+| `Wall` | `Entity` | `Line3D` | `VoxelLayoutSource` 双面 + `TEXTURE` |
+| `Door` | `Entity` | `Box3D` | `open`, `locked`, `TEXTURE` |
+| `Window` | `Entity` | `Box3D` | `open`, `TEXTURE` |
+| `Appliance` | `Entity` | `Box3D` | `power`, `connection`, `TEXTURE` |
+| `Curtain` | `Appliance` | `Box3D` | + `position` (0-100) |
+| `Building` | `Entity` | `Box3D` 外框 | `Bound` + `Levels`（遗留，待迁移至 UnitLayout） |
 
-### 4.3 Shape 系统
+> 注：上述除 `Building` 外均为薄壳，最终由配置模板（`EntityTemplate`）替代。
 
-`Shape` 抽象基类 + `LineShape`（Bresenham 直线 + 厚度展开）+ `BoxShape`（矩形枚举）。
+### 4.3 Volume/Shape 系统
+
+`Volume` 抽象基类（3D 体素几何，实现 `IVoxelGeometry3D` + `IVoxelGeometry2D`）+ 异形族：`Box3D`/`Line3D`/`Curve3D`/`Polygon3D`/`Prism3D`/`Conic3D`/`Spherical3D`/`Extruded3D`/`Composite3D` + 2D 族 `Rect2D`/`Polygon2D`/`Circular2D`/`Composite2D`。全部以 `[JsonTypeName]` 注册进 `JsonTypeNameRegistry`（`Momoka.Home.Storage`），配置以 `"kind"` 判别、参数 snake_case 直绑。
 
 ---
 
 ## 5. 空间数据结构
 
-### 5.1 Home → Level → LevelChunk
+### 5.1 UnitLayout — 完全 3D 多层空间根
+
+`Momoka.Home/Layouts/UnitLayout.cs`。住宅的**单一扁平 3D 空间根**：地板/天花板/墙/家具全为 `Entity`（带 `Volume` 体素几何），坐标一律**根绝对**，无嵌套偏移链——放置与碰撞直接打在根空间。
 
 ```mermaid
-flowchart TB
-    Home["Home"]
-    LevelDict["Dictionary&lt;int, Level&gt;<br/>楼层号 → 楼层"]
-    Blocks["Blocks: Dictionary&lt;Int3, BlockEntity&gt;<br/>3D 实体（分块容器）"]
-    Floor["Floor: Canvas&lt;TileEntity, Int2&gt;<br/>2D 地板"]
-    Ceiling["Ceiling: Canvas&lt;TileEntity, Int2&gt;<br/>2D 天花板"]
-    StructureGraph["StructureGraph: BlockGraph<br/>墙体拓扑"]
-    Regions["Regions: List&lt;Region&gt;<br/>多边形区域"]
-    Entities["Entities: List&lt;Entity&gt;"]
-
-    Home --> LevelDict
-    LevelDict --> Blocks
-    LevelDict --> Floor
-    LevelDict --> Ceiling
-    LevelDict --> StructureGraph
-    LevelDict --> Regions
-    LevelDict --> Entities
+classDiagram
+    class UnitLayout {
+        +VoxelLayout~Entity~ Layout
+        +List~FloorPlanLayout~ Floors
+        +IEnumerable~GridLayout~bool~~ Surfaces
+    }
+    class VoxelLayout~T~ {
+        +Dictionary~long, VoxelChunk~T~~ chunks
+        +List~T~ Entities
+        +BuildAt/DestroyAt/MergeFrom/查询…
+    }
+    class VoxelChunk~T~ {
+        +VoxelChunkSection~T~[] Sections
+    }
+    class VoxelChunkSection~T~ {
+        +PalettedContainer~Int3,T~ Data (16³)
+    }
+    UnitLayout --> VoxelLayout
+    VoxelLayout --> VoxelChunk
+    VoxelChunk --> VoxelChunkSection
 ```
 
-### 5.2 调色板容器（PalettedContainer）
+`Floors`：每层一个 `FloorPlanLayout`（列表索引 = 层序）；`Surfaces`：户型图隔断面 + 各实体 `VoxelLayoutSource` 表面（2D 拼接）。
 
-Minecraft 风格：稀疏实体以短 id 打包进线性位数组，id 与实体经 Palette 映射。
+### 5.2 VoxelLayout — 区块式 3D 体素存储
 
-```mermaid
-flowchart TB
-    subgraph Strategy["策略层"]
-        PaletteStrategy["PaletteStrategy&lt;TKey&gt;<br/>TKey ↔ index 双向转换、条目数、初始位宽"]
-        Int3Dense["Int3DenseStrategy<br/>连续 3D 线性映射"]
-        Int3Chunked["Int3ChunkedStrategy<br/>20×20×Y 分块，坐标对齐 chunk 边界"]
-    end
+Minecraft 式：XZ chunk 键**打包 long**（`(cx<<32)|cz`），每列是 `VoxelChunkSection`（16×16×16 paletted）沿高度轴的**可增长数组**；切片惰性创建，增高 = append 无需重算。约束 `T : Entity`，`VoxelLayout<Entity>` 即占用空间。API：`this[Int3]` / `BuildAt` / `DestroyAt` / `DestroyTarget` / `MergeFrom` / `RemoveFrom` / `HasEntity` / `IsEntityCollided` / `GetEntitiesInBound` / `GetEntitiesOfType` / `GetEntityAtPoint` / `GetEntityAtNearest` / `FindEntity` / `Rebuild`。
 
-    Palette["Palette&lt;T&gt;<br/>id ↔ 实体双向映射，[0] 保留为空，扩容触发 Resized"]
-    PackedBitStorage["PackedBitStorage<br/>固定位宽打包进 ulong[]，跨 64-bit 边界移位合并"]
-    PalettedContainerRO["PalettedContainerRO&lt;T&gt;<br/>只读：Get / 索引器 / Capacity"]
-    PalettedContainer["PalettedContainer&lt;T&gt;<br/>Set/Clear/索引器，palette 扩容自动重打包"]
-    LevelChunk["LevelChunk<br/>20×20×HeightY，注入 Int3ChunkedStrategy"]
+### 5.3 GridLayout — 2D 平面 + 放置面
 
-    PaletteStrategy --> Int3Dense
-    PaletteStrategy --> Int3Chunked
-    PalettedContainerRO --> PalettedContainer
-    PalettedContainer --> Palette
-    Palette --> PackedBitStorage
-    LevelChunk --> PalettedContainer
-    LevelChunk --> Int3Chunked
-```
+`GridLayout<T>`：**连续数组**存储（Bound 定尺寸，无需分块）。放置语义：`Offset` / `Direction` / `AsAbsolute` / `AsRelative`（T 无关）+ `IsCollided` / `Fill`（`default(T)` 视为阻塞）。放置面 = `GridLayout<bool>`；`PlaneLayout<T> : GridLayout<bool>` 附加 `Subdivision<T>` 材质面。
 
-### 5.3 分层渲染
+### 5.4 FloorPlanLayout — 墙图拓扑
 
-自下而上的渲染顺序：
+`Graph2D<Entity>`：隔断（墙/围栏）为边，房间 = `Subdivision` 半边遍历的**有界面**（`Face`：多边形 + SignedArea + Contains）。`Surfaces` 按实体 `height`/`thickness` 属性派生双面放置面。
 
-```mermaid
-flowchart TB
-    Y0["① Level.Blocks Y=0<br/>管线层（正常不可见，内视图半透明）"]
-    Floor["② Level.Floor<br/>2D 地板纹理，覆盖 Blocks Y=0"]
-    Ceiling["③ Level.Ceiling<br/>2D 天花板纹理"]
-    Y1["④ Level.Blocks Y≥1<br/>家具、家电、装饰物"]
-    SG["⑤ Level.StructureGraph<br/>墙体、围栏、栏杆（渲染最前）"]
+### 5.5 Region — 已移除
 
-    Y0 --> Floor --> Ceiling --> Y1 --> SG
-```
-
-### 5.4 BlockGraph — 无向图
-
-节点 `Node(Int2 Position)`，边 `Edge(Node A, Node B, BlockEntity? Entity)`。扁平 `Edges` 列表，单一真相源。非泛型——墙/栅栏/栏杆共享图。运算符：`+ pos`（加节点）、`+ (a,b)`（加边）、`- pos`（删节点）。
-
-### 5.5 Region — 多边形区域
-
-`Boundary: List<Int2>`（逆时针闭合多边形）+ `Children`（嵌套子区域）。包含判断用射线法。`Contains(Int2)` / `Contains(Float3)` / `Contains(BlockEntity)` / `ContainmentRatio(BlockEntity)`。
-
-### 5.6 Level 查询 API
-
-`ListEntities` / `GetEntitiesInRegion(Region|Int2,Int2)` / `GetEntityAtPoint` / `GetEntityAtNearest` / `FindEntity(Guid)` / `GetEntitiesOfType<T>` / `ListRegions` / `GetRegion(Int2|string)` / `AddRegion` / `RemoveRegion` / `TryCombineRegion`(TODO)。
+旧 `Region` 类与 `Home`/`Level` 的 `Regions` 网格为死代码，已删除。房间/区域语义由 `FloorPlanLayout` 有界面承担，材质分区由 `PlaneLayout.Subdivision` 承担；3D Region 自动生成见 §7 遗留代办。
 
 ---
 
@@ -232,7 +203,7 @@ flowchart TB
 
     subgraph Storage["Storage"]
         History["CommandHistory<br/>undo/redo 栈"]
-        Serializer["HomeSerializer<br/>等待实现"]
+        Json["JsonTypeConverter / JsonGeometryConverter /<br/>JsonPropertyConverter / JsonTypeNameRegistry"]
     end
 
     Editor --> Storage
@@ -242,7 +213,21 @@ flowchart TB
 
 ---
 
-## 7. 待实现 / 未来计划
+## 7. 遗留代办 / 未来计划
+
+### 7.0 空间与序列化收尾（当前）
+
+| 项 | 说明 | 状态 |
+|----|------|------|
+| 3D Region 自动生成 | flood-fill + 门开关（闭=阻塞/开=连通）得可行走区域与封闭房间；wall-extension（墙沿向延伸切分开放区）再按物件语义合并 | 📋 待实现 |
+| 旧 Level/Building/Home 迁移 | 由 UnitLayout/Residence 取代；Floor/Ceiling 平面退役（地板/天花板改为 Entity 挂 VoxelLayoutSource） | 📋 待迁移 |
+| Residence 接线 | Home 重构为总容器（Name/Address + Space=Residence），Residence 持 UnitLayout + UnitType | 📋 待实现 |
+| 实体模板替换薄壳 | Wall/Door/Window 由配置模板（EntityTemplate）替代；EnumProperty 进配置词表后 Appliance 亦可 | 📋 部分阻塞 |
+| 物业/管理方引用层 | 统一管理多 Unit 的引用式封装（住户 Residence 默认全权，物业另层且不可见住户内容） | 📋 推迟 |
+| Palette 策略减法 | Int2/Int3ChunkStrategy 等暂留，待稳定后清理未用策略 | 📋 待减法 |
+| 门洞渲染 | 开门时渲染覆盖墙并允许连通性计算 | 📋 待实现 |
+
+### 7.1 其它（原待办）
 
 | 项 | 说明 |
 |----|------|
@@ -250,11 +235,10 @@ flowchart TB
 | Build 管线 | 视频流 → 3D 重建 → 网格 |
 | Security | Blackboard + 规则评估 |
 | 墙壁开口联动 | 删除墙 → 级联删除门窗 |
-| ~~TileEntity~~ | ✅ 已并入 `Entity<Int2>`（材质入属性表） |
 | 设备配置 JSON | `/devices/` JSON 定义第三方设备，无需写代码 |
 | DSL 安全规则 | 复杂约束的表达式解析 |
 
-### 7.1 空气流体模拟（未来）
+### 7.2 空气流体模拟（未来）
 
 不做 10cm 全屋 CFD（600K 格不可行）。采用**分段混合模型（房间粒度）**：
 
@@ -292,27 +276,31 @@ flowchart LR
 ```
 Momoka.Home/
 ├── Primitives/
-│   ├── Int2.cs / Int3.cs / Float3.cs / Key.cs
-├── Models/
-│   ├── States/
-│   │   ├── Property.cs + 6 个 Property 子类
-│   │   └── PropertyValueChangedEventArgs.cs
-│   ├── Entities/
-│   │   ├── Entity.cs（属性系统+组件）/ EntityT.cs（Entity&lt;Int2/Int3/Float3&gt;）
-│   │   ├── Wall.cs / Door.cs / Window.cs / Appliance.cs / Curtain.cs / Building.cs
-│   ├── Levels/
-│   │   ├── Level.cs / LevelChunk.cs
-│   │   ├── Palette.cs / PackedBitStorage.cs
-│   │   ├── PalettedContainer.cs / PalettedContainerRO.cs
-│   │   └── PaletteStrategy.cs
-│   ├── Shapes/
-│   │   ├── Shape.cs / LineShape.cs / BoxShape.cs
-│   ├── Canvas.cs / BlockGraph.cs / Region.cs / Home.cs / Location.cs
-├── Services/
-│   ├── PlacementService.cs / RegionService.cs / WallBuildingService.cs / SelectionService.cs
+│   └── Int2.cs / Int3.cs / Float3.cs / Key.cs / Bound.cs
+├── Entities/
+│   ├── Entity.cs（身份 + Coords(Int3) + Volume + 属性 + 组件，非泛型）
+│   ├── Wall.cs / Door.cs / Window.cs / Appliance.cs / Curtain.cs / Building.cs
+│   └── EntityTemplate.cs / EntityTemplateFactory.cs（配置管线）
+├── States/
+│   ├── Property.cs + Boolean/Int/Float/String/Texture/Literal/Enum 子类
+│   └── PropertyValueChangedEventArgs.cs
+├── Geometry/
+│   ├── Volume.cs / IVoxelGeometry2D.cs / IVoxelGeometry3D.cs
+│   ├── Box3D / Line3D / Curve3D / Polygon3D / Prism3D / Conic3D / Spherical3D /
+│   │   Extruded3D / Composite3D / Rect2D / Polygon2D / Circular2D / Composite2D
+├── Layouts/
+│   ├── UnitLayout.cs / FloorPlanLayout.cs / GridLayout.cs / PlaneLayout.cs
+│   ├── VoxelLayout.cs（VoxelLayout/VoxelChunk/VoxelChunkSection）
+│   ├── Palette.cs / PackedBitStorage.cs / PalettedContainer.cs / PalettedContainerRO.cs
+│   └── Graph2D.cs / Subdivision.cs
+├── Components/
+│   ├── Component.cs / IComponentSource.cs / VoxelLayoutSource.cs
+├── Storage/
+│   ├── CommandHistory.cs
+│   ├── JsonTypeConverter.cs / JsonGeometryConverter.cs / JsonPropertyConverter.cs
+│   └── JsonTypeNameAttribute.cs / JsonTypeNameRegistry.cs
 ├── Editor/
 │   └── EditorCommand.cs
-├── Storage/
-│   └── CommandHistory.cs
+├── Home.cs / Level.cs / Residence.cs / UnitType.cs / IEntitySource.cs
 └── Momoka.Home.csproj               # 依赖：Newtonsoft.Json
 ```
