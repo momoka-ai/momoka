@@ -24,12 +24,16 @@ public sealed class Region
     /// <summary>Distinct (x, z) columns in the region's footprint.</summary>
     public int Area { get; }
 
+    /// <summary>Human-readable label to tell spaces apart (e.g. "Bedroom"); set by the caller.</summary>
+    public string Name { get; set; }
+
     internal Region(int id, Bound bounds, long volume, int area)
     {
         Id = id;
         Bounds = bounds;
         Volume = volume;
         Area = area;
+        Name = $"Region {id}";
     }
 
     /// <summary>
@@ -44,55 +48,46 @@ public sealed class Region
     public static ColumnLayout<Region> BuildLayout(VoxelLayout<Entity> layout, Agent? agent = null)
     {
         agent ??= Agent.Human;
-        if (layout.Bound.IsEmpty)
-            layout.Bound = ComputeExtent(layout);
-        if (layout.Bound.IsEmpty)
-            return new ColumnLayout<Region>.Builder(1, 1).Build();
+        var bound = layout.Bound;
+        if (bound.IsEmpty)
+        {
+            bound = ComputeExtent(layout);
+            layout.Bound = bound;
+        }
+        if (bound.IsEmpty)
+            return ColumnLayout<Region>.Empty();
 
-        var cells = StandableCells(layout, agent);
-        var labels = ColumnLayout<int>.Build(layout, cells,
+        var labels = ColumnLayout<int>.Build(
+            layout,
+            GetWalkableCells(layout),
             new ColumnLayout<int>.Settings { MaxClimbHeight = agent.MaxClimbHeight });
 
         var regions = Aggregate(labels);
         return labels.Map(id => regions[id]);
     }
 
-    /// <summary>Standing cells: Up-facing placement surfaces with headroom ≥ <paramref name="agent"/>.Height.</summary>
-    private static HashSet<Int3> StandableCells(VoxelLayout<Entity> layout, Agent agent)
+    /// <summary>
+    /// Standing cells: every Up-facing placement-surface cell mapped to
+    /// root-absolute voxel coordinates. Occupied cells are left to the engine's
+    /// span scan — walls vanish because they occupy the standing cell itself.
+    /// </summary>
+    private static IEnumerable<Int3> GetWalkableCells(VoxelLayout<Entity> layout)
     {
-        var cells = new HashSet<Int3>();
-        foreach (var entity in layout.Entities)
+        var surfaces = layout.Entities
+            .Select(e => e.GetComponent<VoxelLayoutSource>())
+            .Where(x => x != null)
+            .SelectMany(x => x!.Layouts)
+            .Where(x => x.Direction == Int3.Up);
+        foreach (var surface in surfaces)
         {
-            var source = entity.GetComponent<VoxelLayoutSource>();
-            if (source is null)
-                continue;
-            foreach (var surface in source.Layouts)
-            {
-                if (surface.Direction != Int3.Up)
-                    continue;
-                for (var z = 0; z < surface.Size.Z; z++)
-                    for (var x = 0; x < surface.Size.X; x++)
-                    {
-                        var rel = new Int2(x, z);
-                        if (!surface[rel])
-                            continue;
-                        var abs = surface.AsAbsolute(rel);
-                        if (!HasHeadroom(layout, abs, agent.Height))
-                            continue;
-                        cells.Add(abs);
-                    }
-            }
+            for (var z = 0; z < surface.Size.Z; z++)
+                for (var x = 0; x < surface.Size.X; x++)
+                {
+                    var rel = new Int2(x, z);
+                    if (surface[rel])
+                        yield return surface.AsAbsolute(rel);
+                }
         }
-        return cells;
-    }
-
-    /// <summary>The <paramref name="height"/> cells above the standing cell are all unoccupied.</summary>
-    private static bool HasHeadroom(VoxelLayout<Entity> layout, Int3 stand, int height)
-    {
-        for (var dy = 1; dy <= height; dy++)
-            if (layout[stand + new Int3(0, dy, 0)] is not null)
-                return false;
-        return true;
     }
 
     private static Region[] Aggregate(ColumnLayout<int> labels)

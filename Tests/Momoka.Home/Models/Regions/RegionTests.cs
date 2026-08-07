@@ -142,4 +142,16 @@ public class RegionTests
         Assert.Null(map.At(0, 0, 0));
         Assert.Empty(map.AllSpans());
     }
+
+    [Fact]
+    public void Region_Name_DefaultsAndIsSettable()
+    {
+        var map = Region.BuildLayout(TwoRoomScene());
+        var left = map.At(2, 5, 2)!;
+        Assert.False(string.IsNullOrEmpty(left.Name)); // 默认 "Region {Id}"
+
+        left.Name = "Bedroom";
+        Assert.Equal("Bedroom", left.Name);
+        Assert.Same(left, map.At(2, 5, 2)); // 共享引用，改一处全列生效
+    }
 }
