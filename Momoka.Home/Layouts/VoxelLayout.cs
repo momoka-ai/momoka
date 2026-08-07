@@ -12,7 +12,7 @@ namespace Momoka.Home.Layouts;
 /// cost nothing and adding height is just appending a section — the chunk
 /// structure never needs recomputing.
 /// </summary>
-public class VoxelLayout<T> where T : Entity<Int3>
+public class VoxelLayout<T> where T : Entity
 {
     /// <summary>Section edge length — a power of two, so chunk math is shift/mask.</summary>
     public const int SectionSize = 16;
@@ -151,7 +151,7 @@ public class VoxelLayout<T> where T : Entity<Int3>
     }
 
     /// <summary>
-    /// Clears the current storage and re-rasterizes every held Entity&lt;Int3&gt; into
+    /// Clears the current storage and re-rasterizes every held entity into
     /// the grid — a forced flush/refresh after direct low-level cell writes.
     /// </summary>
     public void Rebuild()
@@ -250,7 +250,7 @@ public class VoxelLayout<T> where T : Entity<Int3>
 /// created on first write, so a column's height grows by appending — never by
 /// recomputing existing sections.
 /// </summary>
-public class VoxelChunk<T> where T : Entity<Int3>
+public class VoxelChunk<T> where T : Entity
 {
     private VoxelChunkSection<T>[] _sections = Array.Empty<VoxelChunkSection<T>>();
 
@@ -297,7 +297,7 @@ public class VoxelChunk<T> where T : Entity<Int3>
 /// atomic storage unit, backed by a <see cref="PalettedContainer{Int3, T}"/>
 /// with a chunk strategy. Coordinates are section-local.
 /// </summary>
-public class VoxelChunkSection<T> where T : Entity<Int3>
+public class VoxelChunkSection<T> where T : Entity
 {
     /// <summary>Paletted cell storage of this 16×16×16 section.</summary>
     public PalettedContainer<Int3, T> Data { get; } = new(

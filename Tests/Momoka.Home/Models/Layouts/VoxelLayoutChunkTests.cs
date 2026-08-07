@@ -13,7 +13,7 @@ namespace Momoka.Home.Tests.Models.Layouts;
 /// </summary>
 public class VoxelLayoutChunkTests
 {
-    private sealed class TestEntity : Entity<Int3>
+    private sealed class TestEntity : Entity
     {
         public TestEntity() => Volume = new Box3D();
     }
@@ -21,7 +21,7 @@ public class VoxelLayoutChunkTests
     [Fact]
     public void Indexer_WritesAndReadsBackCells()
     {
-        var layout = new VoxelLayout<Entity<Int3>>();
+        var layout = new VoxelLayout<Entity>();
         var e = new TestEntity();
 
         layout[new Int3(3, 5, 7)] = e;
@@ -33,7 +33,7 @@ public class VoxelLayoutChunkTests
     [Fact]
     public void Indexer_NegativeCoordinates_AreIndexedCorrectly()
     {
-        var layout = new VoxelLayout<Entity<Int3>>();
+        var layout = new VoxelLayout<Entity>();
         var e = new TestEntity();
 
         layout[new Int3(-1, 0, -17)] = e;
@@ -46,7 +46,7 @@ public class VoxelLayoutChunkTests
     [Fact]
     public void TallWrite_CreatesSectionsAcrossChunks()
     {
-        var layout = new VoxelLayout<Entity<Int3>>();
+        var layout = new VoxelLayout<Entity>();
         var low = new TestEntity();
         var high = new TestEntity();
 
@@ -61,7 +61,7 @@ public class VoxelLayoutChunkTests
     [Fact]
     public void BuildAt_And_DestroyAt_RegisterAndClear()
     {
-        var layout = new VoxelLayout<Entity<Int3>>();
+        var layout = new VoxelLayout<Entity>();
         var e = new TestEntity();
 
         Assert.True(layout.BuildAt(e, new Int3(2, 0, 2)));
@@ -76,7 +76,7 @@ public class VoxelLayoutChunkTests
     [Fact]
     public void BuildAt_Collision_IsRejected()
     {
-        var layout = new VoxelLayout<Entity<Int3>>();
+        var layout = new VoxelLayout<Entity>();
         var a = new TestEntity();
         var b = new TestEntity();
 
@@ -88,11 +88,11 @@ public class VoxelLayoutChunkTests
     [Fact]
     public void MergeFrom_And_RemoveFrom_ComposeWithOffset()
     {
-        var child = new VoxelLayout<Entity<Int3>>();
+        var child = new VoxelLayout<Entity>();
         var e = new TestEntity();
         child.BuildAt(e, new Int3(2, 0, 0));
 
-        var parent = new VoxelLayout<Entity<Int3>>();
+        var parent = new VoxelLayout<Entity>();
         parent.MergeFrom(child, new Int3(0, 30, 0));
 
         Assert.Contains(e, parent.Entities);
@@ -106,7 +106,7 @@ public class VoxelLayoutChunkTests
     [Fact]
     public void Rebuild_RasterizesEntitiesBackIntoChunks()
     {
-        var layout = new VoxelLayout<Entity<Int3>>();
+        var layout = new VoxelLayout<Entity>();
         var e = new TestEntity();
         layout.BuildAt(e, new Int3(5, 5, 5));
 
@@ -120,7 +120,7 @@ public class VoxelLayoutChunkTests
     [Fact]
     public void GetEntitiesInBound_And_OfType_Filter()
     {
-        var layout = new VoxelLayout<Entity<Int3>>();
+        var layout = new VoxelLayout<Entity>();
         var a = new TestEntity();
         var b = new TestEntity();
         layout.BuildAt(a, new Int3(1, 0, 1));

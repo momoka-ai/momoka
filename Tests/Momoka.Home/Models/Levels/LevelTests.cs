@@ -15,7 +15,7 @@ namespace Momoka.Home.Tests.Models.Levels;
 /// </summary>
 public class LevelTests
 {
-    private sealed class VoxelLayoutSourceEntity : Entity<Int3>
+    private sealed class VoxelLayoutSourceEntity : Entity
     {
         public VoxelLayoutSourceEntity()
         {
@@ -59,7 +59,7 @@ public class LevelTests
     public void Floor_IsAPlaneLayoutWithMaterialSubdivision()
     {
         var level = new Level();
-        Assert.IsType<PlaneLayout<Entity<Int2>>>(level.Floor);
+        Assert.IsType<PlaneLayout<Entity>>(level.Floor);
         Assert.NotNull(level.Floor.Subdivision);
     }
 

@@ -4,7 +4,7 @@ using Momoka.Home.Primitives;
 using Momoka.Home.States;
 namespace Momoka.Home.Entities;
 
-public class Door : Entity<Int3>
+public class Door : Entity
 {
     public static readonly BooleanProperty OPEN = new("open");
     public static readonly BooleanProperty LOCKED = new("locked");

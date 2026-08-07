@@ -13,7 +13,7 @@ namespace Momoka.Home.Layouts;
 /// rasterization and collision are the <see cref="VoxelLayout{T}"/>'s job and
 /// are coordinated by the caller (e.g. an editor command).
 /// </summary>
-public class FloorPlanLayout : Graph2D<Entity<Int3>>
+public class FloorPlanLayout : Graph2D<Entity>
 {
     /// <summary>Property-table key: whether a partition exposes placement faces.</summary>
     public const string UseVoxelLayoutProperty = "use_voxel_layout";
@@ -27,7 +27,7 @@ public class FloorPlanLayout : Graph2D<Entity<Int3>>
     /// （墙 / 围栏 / …）：锚定分区的 Line3D（局部坐标）并注册图节点与边。
     /// 占用栅格化由调用方通过 <see cref="VoxelLayout{T}.BuildAt"/> 完成。
     /// </summary>
-    public bool Build(Int2 from, Int2 to, Entity<Int3> partition)
+    public bool Build(Int2 from, Int2 to, Entity partition)
     {
         if (partition.Volume is not Line3D line)
             return false;
@@ -75,7 +75,7 @@ public class FloorPlanLayout : Graph2D<Entity<Int3>>
         {
             foreach (var edge in Edges)
             {
-                if (edge.Entity is not Entity<Int3> partition)
+                if (edge.Entity is not Entity partition)
                     continue;
                 if (partition.Volume is not Line3D line)
                     continue;
@@ -90,7 +90,7 @@ public class FloorPlanLayout : Graph2D<Entity<Int3>>
         }
     }
 
-    private static IEnumerable<GridLayout<bool>> ComputeFaces(Edge edge, Entity<Int3> partition, int height, int thickness)
+    private static IEnumerable<GridLayout<bool>> ComputeFaces(Edge edge, Entity partition, int height, int thickness)
     {
         var y = partition.Coords.Y;
         var a = new Int3(edge.A.Coords.X, y, edge.A.Coords.Z);
@@ -114,6 +114,6 @@ public class FloorPlanLayout : Graph2D<Entity<Int3>>
         // Diagonal partitions: axis-aligned Direction cannot express the face normal — no faces.
     }
 
-    private static int ReadInt(Entity<Int3> entity, string name, int fallback) =>
+    private static int ReadInt(Entity entity, string name, int fallback) =>
         entity.TryGetValue(name, out var value) && value is int i ? i : fallback;
 }

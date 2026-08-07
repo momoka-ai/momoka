@@ -10,7 +10,7 @@ namespace Momoka.Home.Serialization;
 /// the composed content (shape, properties, components). Loaded by
 /// <see cref="EntityTemplateFactory"/> from a config file — key derived from the
 /// path, "extends" resolved against the registry as mixin composition — and
-/// materialized into an <see cref="Entity{T}"/> (Entity&lt;Int3&gt;).
+/// materialized into an <see cref="Entity"/>.
 /// </summary>
 public class EntityTemplate
 {

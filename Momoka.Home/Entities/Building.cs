@@ -16,7 +16,7 @@ namespace Momoka.Home.Entities;
 /// coordinates; moving the building only updates its position in the parent grid,
 /// never its interior blocks.
 /// </summary>
-public class Building : Entity<Int3>, IVoxelGeometry3D
+public class Building : Entity, IVoxelGeometry3D
 {
     /// <summary>Inclusive 3D footprint of this building in its parent space.</summary>
     public Bound Bound { get; set; } = Bound.Empty;
@@ -44,11 +44,11 @@ public class Building : Entity<Int3>, IVoxelGeometry3D
     /// The building's full voxel view: all floors' occupancy merged into
     /// building-local space (level coords + level-local cells). Derived on demand.
     /// </summary>
-    public VoxelLayout<Entity<Int3>> Layout
+    public VoxelLayout<Entity> Layout
     {
         get
         {
-            var layout = new VoxelLayout<Entity<Int3>>();
+            var layout = new VoxelLayout<Entity>();
             foreach (var level in Levels.Values)
                 layout.MergeFrom(level.Layout, level.Coords);
             return layout;
@@ -60,14 +60,14 @@ public class Building : Entity<Int3>, IVoxelGeometry3D
         Levels.Values.SelectMany(level => level.Cells3D().Select(c => level.Coords + c));
 
     /// <inheritdoc/>
-    public void PlaceAt(VoxelLayout<Entity<Int3>> target, Int3 at)
+    public void PlaceAt(VoxelLayout<Entity> target, Int3 at)
     {
         foreach (var level in Levels.Values)
             target.MergeFrom(level.Layout, at + level.Coords);
     }
 
     /// <inheritdoc/>
-    public void DestroyAt(VoxelLayout<Entity<Int3>> target, Int3 at)
+    public void DestroyAt(VoxelLayout<Entity> target, Int3 at)
     {
         foreach (var level in Levels.Values)
             target.RemoveFrom(level.Layout, at + level.Coords);

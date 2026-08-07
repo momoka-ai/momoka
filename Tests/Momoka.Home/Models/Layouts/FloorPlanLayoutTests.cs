@@ -10,11 +10,11 @@ namespace Momoka.Home.Tests.Models.Layouts;
 /// FloorPlanLayout = boundary partition graph: positioning an edge entity and
 /// registering its nodes/edge (TOPOLOGY), plus on-demand placement surfaces
 /// (<see cref="FloorPlanLayout.Surfaces"/>) derived from the edge span and the
-/// partition's property table. Occupancy rasterization is VoxelLayout&lt;Entity&lt;Int3&gt;&gt;'s job.
+/// partition's property table. Occupancy rasterization is VoxelLayout&lt;Entity&gt;'s job.
 /// </summary>
 public class FloorPlanLayoutTests
 {
-    private sealed class FenceEntity : Entity<Int3>
+    private sealed class FenceEntity : Entity
     {
         public FenceEntity() => Volume = new Line3D();
     }

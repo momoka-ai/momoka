@@ -6,15 +6,23 @@ using Momoka.Home.States;
 namespace Momoka.Home.Entities;
 
 /// <summary>
-/// Base for everything that carries behavior components and per-instance
-/// properties. Properties are declared per instance (config-driven: entities get
-/// cloned properties from their template at materialization); each
-/// <see cref="Property"/> holds its own <see cref="Property.Value"/>.
+/// A 3D spatial entity — the single entity type of the flattened model.
+/// Carries behavior components, per-instance properties (config-driven: entities
+/// get cloned properties from their template at materialization; each
+/// <see cref="Property"/> holds its own <see cref="Property.Value"/>), a
+/// position (<see cref="Coords"/>) in its parent 3D space and a body geometry
+/// (<see cref="Volume"/>).
 /// </summary>
-public abstract class Entity : IComponentSource
+public class Entity : IComponentSource
 {
     public Guid Id { get; init; } = Guid.NewGuid();
     public Key Key { get; init; }
+
+    /// <summary>Position of the entity in its parent 3D space.</summary>
+    public Int3 Coords { get; set; }
+
+    /// <summary>Body geometry: which voxel cells this entity occupies (null for pure markers).</summary>
+    public Volume Volume { get; set; } = null!;
 
     // ── Properties (per-instance, config-driven) ─────────
 
@@ -158,18 +166,4 @@ public abstract class Entity : IComponentSource
 
     private void NotifyChanged(Property property) =>
         PropertyValueChanged?.Invoke(this, new PropertyValueChangedEventArgs(property, property.BoxedValue ?? property.GetUnsetValue()));
-}
-
-/// <summary>
-/// A spatial entity with coordinates of type <typeparamref name="T"/>. The three
-/// built-ins are <see cref="Int2"/> (tiles/materials), <see cref="Int3"/> (voxel
-/// content — the config-template type), and <see cref="Float3"/> (continuous
-/// living/moving objects, never rasterized). <see cref="Volume"/> carries the
-/// body's geometry: meaningful for Int2/Int3, left null for Float3.
-/// </summary>
-public class Entity<T> : Entity where T : struct
-{
-    public T Coords { get; set; }
-
-    public Volume Volume { get; set; } = null!;
 }

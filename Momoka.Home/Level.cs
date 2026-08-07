@@ -19,10 +19,10 @@ public class Level : IEntitySource, IVoxelGeometry3D
     public Int3 Coords { get; set; }
 
     /// <summary>The voxel occupancy container backing this floor.</summary>
-    public VoxelLayout<Entity<Int3>> Layout { get; } = new();
+    public VoxelLayout<Entity> Layout { get; } = new();
 
-    public PlaneLayout<Entity<Int2>> Floor { get; } = new(new Int2(50, 50)) { Direction = Int3.Up };
-    public PlaneLayout<Entity<Int2>> Ceiling { get; } = new(new Int2(50, 50)) { Direction = Int3.Down };
+    public PlaneLayout<Entity> Floor { get; } = new(new Int2(50, 50)) { Direction = Int3.Up };
+    public PlaneLayout<Entity> Ceiling { get; } = new(new Int2(50, 50)) { Direction = Int3.Down };
     public FloorPlanLayout Plan { get; } = new();
 
     /// <inheritdoc/>
@@ -46,8 +46,8 @@ public class Level : IEntitySource, IVoxelGeometry3D
         Layout.Entities.SelectMany(e => e.Volume.Cells3D().Select(c => e.Coords + c));
 
     /// <inheritdoc/>
-    public void PlaceAt(VoxelLayout<Entity<Int3>> target, Int3 at) => target.MergeFrom(Layout, at);
+    public void PlaceAt(VoxelLayout<Entity> target, Int3 at) => target.MergeFrom(Layout, at);
 
     /// <inheritdoc/>
-    public void DestroyAt(VoxelLayout<Entity<Int3>> target, Int3 at) => target.RemoveFrom(Layout, at);
+    public void DestroyAt(VoxelLayout<Entity> target, Int3 at) => target.RemoveFrom(Layout, at);
 }

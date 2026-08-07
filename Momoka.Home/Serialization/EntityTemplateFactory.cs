@@ -10,7 +10,7 @@ namespace Momoka.Home.Serialization;
 /// config files into <see cref="EntityTemplate"/>s (key derived from the path,
 /// "extends" resolved against the registry as mixin composition), holds the
 /// template registry, and materializes templates into entities
-/// (<see cref="Entity{T}"/>, Entity&lt;Int3&gt;).
+/// (<see cref="Entity"/>).
 /// </summary>
 public class EntityTemplateFactory
 {
@@ -46,7 +46,7 @@ public class EntityTemplateFactory
     }
 
     /// <summary>Loads the config file and materializes the entity.</summary>
-    public Entity<Int3> Load(string path) => Create(LoadTemplate(path));
+    public Entity Load(string path) => Create(LoadTemplate(path));
 
     /// <summary>Writes a template back to a config file (round-trip).</summary>
     public void Save(string path, EntityTemplate template)
@@ -108,13 +108,13 @@ public class EntityTemplateFactory
     // ── Materialize ──────────────────────────────────────
 
     /// <summary>
-    /// Builds an <see cref="Entity{T}"/> (Entity&lt;Int3&gt;) from the template: stamps
+    /// Builds an <see cref="Entity"/> from the template: stamps
     /// the key, fills the shape and clones the properties per instance (so
     /// entities never share property values).
     /// </summary>
-    public Entity<Int3> Create(EntityTemplate template)
+    public Entity Create(EntityTemplate template)
     {
-        var entity = new Entity<Int3>
+        var entity = new Entity
         {
             Key = template.Key,
             Volume = template.Volume ?? new Box3D()

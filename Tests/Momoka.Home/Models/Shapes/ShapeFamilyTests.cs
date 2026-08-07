@@ -135,7 +135,7 @@ public class ShapeFamilyTests
     public void Volume_PlaceAt_WithoutHost_Throws()
     {
         var box = new Box3D { SizeX = 1, SizeY = 1, SizeZ = 1 };
-        var layout = new VoxelLayout<Entity<Int3>>();
+        var layout = new VoxelLayout<Entity>();
 
         Assert.Throws<NotSupportedException>(() => box.PlaceAt(layout, Int3.Zero));
     }

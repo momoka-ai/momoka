@@ -11,14 +11,14 @@ public class CommandHistory
     private readonly Stack<Editor.EditorCommand> _undo = new();
     private readonly Stack<Editor.EditorCommand> _redo = new();
 
-    public void Execute(Editor.EditorCommand command, VoxelLayout<Entity<Int3>> layout)
+    public void Execute(Editor.EditorCommand command, VoxelLayout<Entity> layout)
     {
         command.Apply(layout);
         _undo.Push(command);
         _redo.Clear();
     }
 
-    public bool Undo(VoxelLayout<Entity<Int3>> layout)
+    public bool Undo(VoxelLayout<Entity> layout)
     {
         if (!_undo.TryPop(out var cmd)) return false;
         cmd.Revert(layout);
@@ -26,7 +26,7 @@ public class CommandHistory
         return true;
     }
 
-    public bool Redo(VoxelLayout<Entity<Int3>> layout)
+    public bool Redo(VoxelLayout<Entity> layout)
     {
         if (!_redo.TryPop(out var cmd)) return false;
         cmd.Apply(layout);

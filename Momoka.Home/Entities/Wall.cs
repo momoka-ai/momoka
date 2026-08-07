@@ -13,7 +13,7 @@ namespace Momoka.Home.Entities;
 /// shell — config-driven partitions will replace it once template materialization
 /// lands.
 /// </summary>
-public class Wall : Entity<Int3>
+public class Wall : Entity
 {
     public static readonly TextureProperty TEXTURE = new("texture");
     public static readonly BooleanProperty USE_VOXEL_LAYOUT = new(FloorPlanLayout.UseVoxelLayoutProperty, true);

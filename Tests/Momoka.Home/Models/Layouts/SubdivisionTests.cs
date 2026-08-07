@@ -12,9 +12,9 @@ namespace Momoka.Home.Tests.Models.Layouts;
 /// </summary>
 public class SubdivisionTests
 {
-    private static Subdivision<Entity<Int2>> BuildTwoRooms()
+    private static Subdivision<Entity> BuildTwoRooms()
     {
-        var sub = new Subdivision<Entity<Int2>>();
+        var sub = new Subdivision<Entity>();
         sub.AddNode(new Int2(0, 0));
         sub.AddNode(new Int2(2, 0));
         sub.AddNode(new Int2(4, 0));
@@ -58,7 +58,7 @@ public class SubdivisionTests
     {
         var sub = BuildTwoRooms();
         var face = sub.FaceAt(new Int2(1, 1))!;
-        var tile = new Entity<Int2>();
+        var tile = new Entity();
 
         sub.AssignEntity(face, tile);
 

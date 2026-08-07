@@ -15,7 +15,7 @@ public class HomeTests
     {
         var home = new Home();
 
-        var ground = Assert.IsType<PlaneLayout<Entity<Int2>>>(home.Ground);
+        var ground = Assert.IsType<PlaneLayout<Entity>>(home.Ground);
         Assert.NotNull(ground.Subdivision);
         Assert.Equal(Int3.Up, ground.Direction);
     }

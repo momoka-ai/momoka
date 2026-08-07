@@ -18,7 +18,7 @@ public enum ConnectionState
     Paired
 }
 
-public class Appliance : Entity<Int3>
+public class Appliance : Entity
 {
     public static readonly EnumProperty<PowerState> POWER = new("power", PowerState.Off);
     public static readonly EnumProperty<ConnectionState> CONNECTION = new("connection", ConnectionState.Offline);

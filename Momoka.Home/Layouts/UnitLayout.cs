@@ -20,7 +20,7 @@ namespace Momoka.Home.Layouts;
 public class UnitLayout : IEntitySource, IVoxelGeometry3D
 {
     /// <summary>The 3D voxel occupancy container: the single root space.</summary>
-    public VoxelLayout<Entity<Int3>> Layout { get; } = new();
+    public VoxelLayout<Entity> Layout { get; } = new();
 
     /// <summary>One floor plan per layer, low to high (list index = layer order).</summary>
     public List<FloorPlanLayout> Floors { get; } = new();
@@ -43,8 +43,8 @@ public class UnitLayout : IEntitySource, IVoxelGeometry3D
         Layout.Entities.SelectMany(e => e.Volume.Cells3D().Select(c => e.Coords + c));
 
     /// <inheritdoc/>
-    public void PlaceAt(VoxelLayout<Entity<Int3>> target, Int3 at) => target.MergeFrom(Layout, at);
+    public void PlaceAt(VoxelLayout<Entity> target, Int3 at) => target.MergeFrom(Layout, at);
 
     /// <inheritdoc/>
-    public void DestroyAt(VoxelLayout<Entity<Int3>> target, Int3 at) => target.RemoveFrom(Layout, at);
+    public void DestroyAt(VoxelLayout<Entity> target, Int3 at) => target.RemoveFrom(Layout, at);
 }

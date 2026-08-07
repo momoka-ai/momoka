@@ -15,8 +15,8 @@ public interface IVoxelGeometry3D
     IEnumerable<Int3> Cells3D();
 
     /// <summary>Writes this object's occupied cells into <paramref name="target"/> at <paramref name="at"/>.</summary>
-    void PlaceAt(VoxelLayout<Entity<Int3>> target, Int3 at);
+    void PlaceAt(VoxelLayout<Entity> target, Int3 at);
 
     /// <summary>Removes this object's occupied cells from <paramref name="target"/> at <paramref name="at"/>.</summary>
-    void DestroyAt(VoxelLayout<Entity<Int3>> target, Int3 at);
+    void DestroyAt(VoxelLayout<Entity> target, Int3 at);
 }

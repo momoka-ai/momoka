@@ -27,7 +27,7 @@ public class CompositionTests
     {
         var level = LevelWithWall(new Int3(0, 3, 0));
 
-        var buildingLayout = new VoxelLayout<Entity<Int3>>();
+        var buildingLayout = new VoxelLayout<Entity>();
         level.PlaceAt(buildingLayout, level.Coords);
 
         Assert.True(buildingLayout.HasEntity(new Int3(2, 3, 0)));
@@ -40,7 +40,7 @@ public class CompositionTests
     {
         var level = LevelWithWall(Int3.Zero);
 
-        var buildingLayout = new VoxelLayout<Entity<Int3>>();
+        var buildingLayout = new VoxelLayout<Entity>();
         level.PlaceAt(buildingLayout, level.Coords);
         Assert.True(buildingLayout.HasEntity(new Int3(2, 0, 0)));
 
@@ -58,7 +58,7 @@ public class CompositionTests
         building.Levels[0] = LevelWithWall(new Int3(0, 0, 0));
         building.Levels[1] = LevelWithWall(new Int3(0, 3, 0));
 
-        var homeLayout = new VoxelLayout<Entity<Int3>>();
+        var homeLayout = new VoxelLayout<Entity>();
         building.PlaceAt(homeLayout, new Int3(10, 0, 5));
 
         Assert.True(homeLayout.HasEntity(new Int3(12, 0, 5))); // 10 + 2, 一层

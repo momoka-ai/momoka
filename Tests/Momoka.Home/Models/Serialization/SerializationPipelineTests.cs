@@ -10,7 +10,7 @@ namespace Momoka.Home.Tests.Models.Serialization;
 
 /// <summary>
 /// Config pipeline: JSON config file → typed EntityTemplate (key from path,
-/// "extends" resolved as mixin composition) → Entity&lt;Int3&gt;.
+/// "extends" resolved as mixin composition) → Entity.
 /// </summary>
 public class SerializationPipelineTests
 {
@@ -45,7 +45,7 @@ public class SerializationPipelineTests
 
         var entity = factory.Load(path);
 
-        var spatial = Assert.IsType<Entity<Int3>>(entity);
+        var spatial = Assert.IsType<Entity>(entity);
         Assert.Equal(new Key("midea", "air_conditioner.ac_1523"), spatial.Key);
 
         var box = Assert.IsType<Box3D>(spatial.Volume);
