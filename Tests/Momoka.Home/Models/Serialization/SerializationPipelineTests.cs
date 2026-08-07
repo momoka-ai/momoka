@@ -21,7 +21,7 @@ public class SerializationPipelineTests
         "properties": [
             { "key": "ai_mode", "type": "literals", "values": ["disabled", "skyscreen_mode", "no_direct_wind_mode", "fast_cooling_mode"], "value": "disabled" },
             { "key": "clean_mode", "type": "boolean" },
-            { "key": "texture", "type": "texture", "value": "texture.midea.air_conditioner.ac_1523" }
+            { "key": "texture", "type": "string", "value": "texture.midea.air_conditioner.ac_1523" }
         ]
     }
     """;

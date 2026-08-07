@@ -87,7 +87,7 @@ classDiagram
 
 ### 3.2 Property 类型
 
-`Property<T>` 基类 + `BooleanProperty` / `EnumProperty<T>` / `FloatProperty` / `IntProperty` / `StringProperty` / `TextureProperty`。
+`Property<T>` 基类 + `BooleanProperty` / `EnumProperty<T>` / `FloatProperty` / `IntProperty` / `StringProperty` / `LiteralProperty`。
 
 ### 3.3 Property API
 
@@ -118,18 +118,9 @@ classDiagram
 - 空间层级：门挂在墙上、笔记本放在桌上——删除宿主级联删除子物件
 - 行为脚本：数据源、命令接口平铺，不参与空间
 
-### 4.2 已实现实体
+### 4.2 实体
 
-| 实体 | 继承 | Volume | 表面/属性 |
-|------|------|--------|------|
-| `Wall` | `Entity` | `Line3D` | `VoxelLayoutSource` 双面 + `TEXTURE` |
-| `Door` | `Entity` | `Box3D` | `open`, `locked`, `TEXTURE` |
-| `Window` | `Entity` | `Box3D` | `open`, `TEXTURE` |
-| `Appliance` | `Entity` | `Box3D` | `power`, `connection`, `TEXTURE` |
-| `Curtain` | `Appliance` | `Box3D` | + `position` (0-100) |
-| `Building` | `Entity` | `Box3D` 外框 | `Bound` + `Levels`（遗留，待迁移至 UnitLayout） |
-
-> 注：上述除 `Building` 外均为薄壳，最终由配置模板（`EntityTemplate`）替代。
+实体类（`Momoka.Home.Entities`）：`Entity`（核心）+ `EntityTemplate` / `EntityTemplateFactory`（配置管线）。原薄壳（`Wall`/`Door`/`Window`/`Appliance`/`Curtain`）与中间件（`Home`/`Level`/`Building`）已删除——实体由配置模板（`EntityTemplate`）实例化，物件扁平放入 `UnitLayout`。
 
 ### 4.3 Volume/Shape 系统
 
@@ -282,7 +273,7 @@ Momoka.Home/
 │   ├── Wall.cs / Door.cs / Window.cs / Appliance.cs / Curtain.cs / Building.cs
 │   └── EntityTemplate.cs / EntityTemplateFactory.cs（配置管线）
 ├── States/
-│   ├── Property.cs + Boolean/Int/Float/String/Texture/Literal/Enum 子类
+│   ├── Property.cs + Boolean/Int/Float/String/Literal/Enum 子类
 │   └── PropertyValueChangedEventArgs.cs
 ├── Geometry/
 │   ├── Volume.cs / IVoxelGeometry2D.cs / IVoxelGeometry3D.cs
