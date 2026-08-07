@@ -87,7 +87,7 @@
 
 待实现（按当前优先级）：
 
-- [ ] **3D Region 自动生成（高优先级）**：flood-fill + 门开关（闭=阻塞 / 开=连通）得可行走区域与封闭房间；wall-extension 切分开放区，再按物件语义合并（见 `DESIGN_HOME.md` §7.0）
+- [x] **3D Region 自动生成**：span flood-fill（XZ 4-连通 + 步高容差）标注房间/可行走区域；`RegionMap`/`Region`/`RegionRules`（结构件 ∪ ≥1.8m 阻隔，家具透明）；`UnitLayout.RebuildRegions()` 手动重算（§5.6）；门开关 Portal 与 wall-extension 后续
 - [ ] **具体编辑命令**：`PlaceEntityCommand` / `RemoveEntityCommand`（含开口级联）/ `BuildWallCommand` / `PaintTileCommand`（刷材质面），接入 `CommandHistory`
 - [ ] **门洞渲染**：开门时渲染覆盖墙并允许连通性计算
 - [ ] **Mesh 转换函数**：`Shape` / 材质面 → 三角网格；据此决定 `Slab`（共享地板 / 天花板）是否必要

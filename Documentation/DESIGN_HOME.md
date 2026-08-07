@@ -173,9 +173,20 @@ Minecraft 式：XZ chunk 键**打包 long**（`(cx<<32)|cz`），每列是 `Voxe
 
 > **DEPRECATED**：户型图是中间表示，将被 3D `Region` 形式取代（`UnitLayout` 空间作为 3D 体积）。目前仅 `UnitLayout.Floors` 使用，暂留根命名空间；未标 `[Obsolete]` 以免级联 CS0618 警告。
 
-### 5.5 Region — 已移除
+### 5.5 旧 Region — 已移除
 
-旧 `Region` 类与 `Home`/`Level` 的 `Regions` 网格为死代码，已删除。房间/区域语义由 `FloorPlanLayout` 有界面承担，材质分区由 `Subdivision` 承担；3D Region 自动生成见 §7 遗留代办。
+旧 `Region` 类与 `Home`/`Level` 的 `Regions` 网格为死代码，已删除，由 §5.6 的 3D Region 取代。材质分区由 `Subdivision` 承担。
+
+### 5.6 Region — 3D 空间自动标注（取代 FloorPlanLayout）
+
+`Momoka.Home/Regions/`：`RegionMap` / `Region` / `RegionRules`。从 `UnitLayout.Layout`（体素占用）一次构建：
+
+- **存储**：`ColumnLayout<int>`（每 (x,z) 列变长 span + 前缀和 offset），span = 自由高度区间，值为 region id（0 = 无）
+- **标注**：span flood-fill，XZ 4-连通 + 相邻列区间重叠/步高容差（`MaxStep`=2 cell ≈ 20cm 人类步高）
+- **阻隔**：`RegionRules` = 结构件（`Key` 白名单：wall/floor/ceiling/door/window…）∪ 高度 ≥1.8m（18 cell）的物件；其余对 flood-fill 透明（家具可“涌过”，自身格不入任何 Region，后期用墙壁射线修补）
+- **聚合**：每 Region 得 `Bounds` / `Volume`（cell³）/ `Area`（xz 足迹列数）；外轮廓多边形（marching squares）后续
+- **重算**：录入模型时手动 `UnitLayout.RebuildRegions()` 一次；放置/拆除不自动重算；结构件改动 → 全量重建场景
+- 门/窗开口的 Portal（连通通道 + 开度）为气流模拟预留，暂未实现
 
 ---
 
@@ -212,7 +223,7 @@ flowchart TB
 
 | 项 | 说明 | 状态 |
 |----|------|------|
-| 3D Region 自动生成 | flood-fill + 门开关（闭=阻塞/开=连通）得可行走区域与封闭房间；wall-extension（墙沿向延伸切分开放区）再按物件语义合并 | 📋 待实现 |
+| 3D Region 自动生成 | span flood-fill + 步高容差得房间/可行走区域（§5.6）；门开关（闭=阻塞/开=连通）Portal 与 wall-extension 后续 | ✅ 基础已实现 |
 | 旧 Level/Building/Home 迁移 | 由 UnitLayout/Residence 取代；Floor/Ceiling 平面退役（地板/天花板改为 Entity 挂 VoxelLayoutSource） | 📋 待迁移 |
 | Residence 接线 | Home 重构为总容器（Name/Address + Space=Residence），Residence 持 UnitLayout + UnitType | ✅ 已实现 |
 | 实体模板替换薄壳 | Wall/Door/Window 由配置模板（EntityTemplate）替代；EnumProperty 进配置词表后 Appliance 亦可 | 📋 部分阻塞 |
@@ -283,9 +294,11 @@ Momoka.Home/
 │   ├── Box3D / Line3D / Curve3D / Polygon3D / Prism3D / Conic3D / Spherical3D /
 │   │   Extruded3D / Composite3D / Rect2D / Polygon2D / Circular2D / Composite2D
 ├── Layouts/（纯运算 / 数学布局）
-│   ├── GridLayout.cs / VoxelLayout.cs（VoxelLayout/VoxelChunk/VoxelChunkSection）
+│   ├── GridLayout.cs / VoxelLayout.cs（VoxelLayout/VoxelChunk/VoxelChunkSection）/ ColumnLayout.cs
 │   ├── Palette.cs / PackedBitStorage.cs / PalettedContainer.cs / PalettedContainerRO.cs
 │   └── Graph2D.cs / Subdivision.cs
+├── Regions/
+│   └── Region.cs / RegionMap.cs / RegionRules.cs（3D 空间标注）
 ├── Components/
 │   ├── Component.cs / IComponentSource.cs / VoxelLayoutSource.cs
 ├── Storage/

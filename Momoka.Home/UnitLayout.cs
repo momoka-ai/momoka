@@ -3,6 +3,7 @@ using Momoka.Home.Entities;
 using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
+using Momoka.Home.Regions;
 namespace Momoka.Home;
 
 /// <summary>
@@ -25,6 +26,24 @@ public sealed class UnitLayout : IEntitySource, IVoxelGeometry3D
 
     /// <summary>One floor plan per layer, low to high (list index = layer order).</summary>
     public List<FloorPlanLayout> Floors { get; } = new();
+
+    /// <summary>
+    /// The 3D region layer (rooms / walkable areas) of the space, built on
+    /// demand — the successor of <see cref="Floors"/> as the space-semantics
+    /// layer. Null until <see cref="RebuildRegions"/> has run.
+    /// </summary>
+    public RegionMap? Regions { get; private set; }
+
+    /// <summary>
+    /// (Re)builds the region layer from the current occupancy. Manual — call
+    /// once at model ingestion; furniture placement/removal does not
+    /// invalidate it. Structural edits should trigger a full scene rebuild.
+    /// </summary>
+    public RegionMap RebuildRegions(RegionRules? rules = null)
+    {
+        Regions = RegionMap.Build(Layout, rules);
+        return Regions;
+    }
 
     /// <inheritdoc/>
     public IReadOnlyList<Entity> Entities => Layout.Entities;
