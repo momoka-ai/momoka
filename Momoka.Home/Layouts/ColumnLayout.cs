@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 namespace Momoka.Home.Layouts;
 
 /// <summary>
@@ -99,12 +100,130 @@ public sealed class ColumnLayout<T>
     public IEnumerable<(int X, int Z, Span Span)> AllSpans()
     {
         for (var z = 0; z < Depth; z++)
+            for (var x = 0; x < Width; x++)
+            {
+                var c = ColumnIndex(x, z);
+                for (var i = _offsets[c]; i < _offsets[c + 1]; i++)
+                    yield return (x, z, _spans[i]);
+            }
+    }
+
+    /// <summary>
+    /// Rules-driven generation engine: rasterizes a per-column Y scan into spans
+    /// (<paramref name="isFree"/> decides each cell), labels connected components
+    /// of spans via <paramref name="linked"/> (adjacent columns only, 4-connectivity),
+    /// then packs each span with <c>valueOf(label)</c> (label ids are 1-based).
+    /// Coordinates are absolute and shared with the source space — no origin
+    /// translation. The engine is generic: blocking, connectivity and payload are
+    /// all injected, so it serves region labeling, nav heightfields, etc.
+    /// </summary>
+    [SuppressMessage("Design", "CA1000:Do not declare static members on generic types",
+        Justification = "Deliberate generic factory: T is inferred from valueOf and the Build name belongs on ColumnLayout.")]
+    public static ColumnLayout<T> Build(
+        int width, int depth, int minY, int maxY,
+        Func<int, int, int, bool> isFree,
+        Func<Span, Span, bool> linked,
+        Func<int, T> valueOf)
+    {
+        if (width <= 0 || depth <= 0)
+            throw new ArgumentOutOfRangeException(nameof(width), "Column layout requires positive width and depth.");
+        if (maxY < minY)
+            throw new ArgumentOutOfRangeException(nameof(maxY), "Y range must be non-empty.");
+
+        // 1. 栅格化：逐列扫 y，抽自由 span（值暂为占位 default）
+        var spans = new List<Span>();
+        var colOf = new List<int>();
+        var colStart = new List<int> { 0 };
+        for (var z = 0; z < depth; z++)
+        for (var x = 0; x < width; x++)
+        {
+            var column = z * width + x;
+            var y = minY;
+            while (y <= maxY)
+            {
+                if (isFree(x, y, z))
+                {
+                    var y0 = y;
+                    while (y <= maxY && isFree(x, y, z))
+                        y++;
+                    spans.Add(new Span(y0, y, default!));
+                    colOf.Add(column);
+                }
+                else
+                {
+                    y++;
+                }
+            }
+            colStart.Add(spans.Count);
+        }
+
+        // 2. 连通标注：span flood-fill，仅邻列 + link 规则
+        var labelOf = new int[spans.Count];
+        var nextLabel = 0;
+        for (var i = 0; i < labelOf.Length; i++)
+        {
+            if (labelOf[i] != 0)
+                continue;
+
+            nextLabel++;
+            labelOf[i] = nextLabel;
+            var queue = new Queue<int>();
+            queue.Enqueue(i);
+            while (queue.Count > 0)
+            {
+                var cur = queue.Dequeue();
+                var c = colOf[cur];
+                var x = c % width;
+                var z = c / width;
+                foreach (var (nx, nz) in Neighbors(x, z, width, depth))
+                {
+                    var nc = nz * width + nx;
+                    for (var k = colStart[nc]; k < colStart[nc + 1]; k++)
+                    {
+                        if (labelOf[k] != 0 || !linked(spans[cur], spans[k]))
+                            continue;
+                        labelOf[k] = nextLabel;
+                        queue.Enqueue(k);
+                    }
+                }
+            }
+        }
+
+        // 3. 打包：valueOf(label) 作 span 值
+        var builder = new Builder(width, depth);
+        for (var c = 0; c < width * depth; c++)
+        {
+            for (var k = colStart[c]; k < colStart[c + 1]; k++)
+            {
+                var s = spans[k];
+                builder.AddSpan(s.Y0, s.Y1, valueOf(labelOf[k]));
+            }
+            builder.NextColumn();
+        }
+        return builder.Build();
+    }
+
+    /// <summary>Remaps every span's value (e.g. labels → region references).</summary>
+    public ColumnLayout<TOut> Map<TOut>(Func<T, TOut> map)
+    {
+        var builder = new ColumnLayout<TOut>.Builder(Width, Depth);
+        for (var z = 0; z < Depth; z++)
         for (var x = 0; x < Width; x++)
         {
-            var c = ColumnIndex(x, z);
-            for (var i = _offsets[c]; i < _offsets[c + 1]; i++)
-                yield return (x, z, _spans[i]);
+            var col = Column(x, z);
+            for (var i = 0; i < col.Length; i++)
+                builder.AddSpan(col[i].Y0, col[i].Y1, map(col[i].Value));
+            builder.NextColumn();
         }
+        return builder.Build();
+    }
+
+    private static IEnumerable<(int X, int Z)> Neighbors(int x, int z, int width, int depth)
+    {
+        if (x > 0) yield return (x - 1, z);
+        if (x + 1 < width) yield return (x + 1, z);
+        if (z > 0) yield return (x, z - 1);
+        if (z + 1 < depth) yield return (x, z + 1);
     }
 
     /// <summary>

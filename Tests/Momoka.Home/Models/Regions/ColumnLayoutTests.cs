@@ -95,4 +95,114 @@ public class ColumnLayoutTests
         Assert.Equal((0, 0, 1), (spans[0].X, spans[0].Z, spans[0].Span.Value));
         Assert.Equal((0, 1, 2), (spans[1].X, spans[1].Z, spans[1].Span.Value));
     }
+
+    // ── 生成引擎 Build ──────────────────────────────────
+
+    private static HashSet<(int X, int Y, int Z)> WallBlock(
+        int width, int depth, int minY, int maxY, Func<int, int, bool> blockedXz)
+    {
+        var cells = new HashSet<(int, int, int)>();
+        for (var z = 0; z < depth; z++)
+        for (var y = minY; y <= maxY; y++)
+        for (var x = 0; x < width; x++)
+            if (blockedXz(x, z))
+                cells.Add((x, y, z));
+        return cells;
+    }
+
+    [Fact]
+    public void Build_LabelsConnectedSpans()
+    {
+        // 5×5，x=2 全高墙 → 左右两个连通分量
+        var blocked = WallBlock(5, 5, 0, 10, (x, z) => x == 2);
+        var layout = ColumnLayout<int>.Build(5, 5, 0, 10,
+            isFree: (x, y, z) => !blocked.Contains((x, y, z)),
+            linked: (a, b) => true,
+            valueOf: id => id);
+
+        Assert.Equal(20, layout.SpanCount); // 4 自由列 × 5 深，每列 1 个 span
+        var left = layout.At(0, 5, 0);
+        var right = layout.At(3, 5, 0);
+        Assert.NotEqual(0, left);
+        Assert.NotEqual(0, right);
+        Assert.NotEqual(left, right);
+        Assert.Equal(0, layout.At(2, 5, 0)); // 墙
+    }
+
+    [Fact]
+    public void Build_MergesThroughGap()
+    {
+        // x=2 墙留 z=2 缺口 → 单连通
+        var blocked = WallBlock(5, 5, 0, 10, (x, z) => x == 2 && z != 2);
+        var layout = ColumnLayout<int>.Build(5, 5, 0, 10,
+            isFree: (x, y, z) => !blocked.Contains((x, y, z)),
+            linked: (a, b) => true,
+            valueOf: id => id);
+
+        var left = layout.At(0, 5, 0);
+        Assert.NotEqual(0, left);
+        Assert.Equal(left, layout.At(3, 5, 0)); // 门洞连通
+    }
+
+    [Fact]
+    public void Build_LinkedRuleControlsConnectivity()
+    {
+        // 两列：A 仅自由 [1,2)，B 仅自由 [4,5)，间距 2
+        var blocked = new HashSet<(int, int, int)>
+        {
+            (0, 0, 0), (0, 2, 0), (0, 3, 0), (0, 4, 0), (0, 5, 0), // 列 0
+            (1, 0, 0), (1, 1, 0), (1, 2, 0), (1, 3, 0), (1, 5, 0), // 列 1
+        };
+
+        // 容差 2 内 → 连通
+        var merged = ColumnLayout<int>.Build(2, 1, 0, 5,
+            isFree: (x, y, z) => !blocked.Contains((x, y, z)),
+            linked: (a, b) => Math.Max(a.Y0, b.Y0) - Math.Min(a.Y1, b.Y1) <= 2,
+            valueOf: id => id);
+        Assert.Equal(merged.At(0, 1, 0), merged.At(1, 4, 0));
+
+        // 容差 1 → 断开
+        var split = ColumnLayout<int>.Build(2, 1, 0, 5,
+            isFree: (x, y, z) => !blocked.Contains((x, y, z)),
+            linked: (a, b) => Math.Max(a.Y0, b.Y0) - Math.Min(a.Y1, b.Y1) <= 1,
+            valueOf: id => id);
+        Assert.NotEqual(split.At(0, 1, 0), split.At(1, 4, 0));
+    }
+
+    [Fact]
+    public void Build_AllBlocked_HasNoSpans()
+    {
+        var layout = ColumnLayout<int>.Build(3, 3, 0, 5,
+            isFree: (_, _, _) => false,
+            linked: (_, _) => true,
+            valueOf: id => id);
+
+        Assert.Equal(0, layout.SpanCount);
+        Assert.Equal(0, layout.At(1, 2, 1));
+    }
+
+    [Fact]
+    public void Build_ValueOfMaterializesPayload()
+    {
+        var blocked = WallBlock(5, 5, 0, 10, (x, z) => x == 2);
+        var layout = ColumnLayout<string>.Build(5, 5, 0, 10,
+            isFree: (x, y, z) => !blocked.Contains((x, y, z)),
+            linked: (a, b) => true,
+            valueOf: id => $"R{id}");
+
+        Assert.Equal("R1", layout.At(0, 5, 0));
+        Assert.Equal("R2", layout.At(3, 5, 0));
+    }
+
+    [Fact]
+    public void Map_RemapsSpanValues()
+    {
+        var b = new ColumnLayout<int>.Builder(2, 1);
+        b.AddSpan(1, 5, 7); b.NextColumn();
+        b.AddSpan(2, 4, 8); b.NextColumn();
+        var mapped = b.Build().Map(v => $"v{v}");
+
+        Assert.Equal("v7", mapped.At(0, 2, 0));
+        Assert.Equal("v8", mapped.At(1, 3, 0));
+    }
 }
