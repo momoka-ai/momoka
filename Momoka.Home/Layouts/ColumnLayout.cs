@@ -1,4 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
+using Momoka.Home.Entities;
+using Momoka.Home.Primitives;
 namespace Momoka.Home.Layouts;
 
 /// <summary>
@@ -109,57 +111,110 @@ public sealed class ColumnLayout<T>
     }
 
     /// <summary>
-    /// Rules-driven generation engine: rasterizes a per-column Y scan into spans
-    /// (<paramref name="isFree"/> decides each cell), labels connected components
-    /// of spans via <paramref name="linked"/> (adjacent columns only, 4-connectivity),
-    /// then packs each span with <c>valueOf(label)</c> (label ids are 1-based).
-    /// Coordinates are absolute and shared with the source space — no origin
-    /// translation. The engine is generic: blocking, connectivity and payload are
-    /// all injected, so it serves region labeling, nav heightfields, etc.
+    /// Rules for building a label layout: connectivity tolerances between column
+    /// spans, in cells (10 cm each). Defaults are human; map 1:1 from an
+    /// <see cref="Agent"/>'s movement attributes.
+    /// </summary>
+    public sealed class Settings
+    {
+        /// <summary>Max vertical gap between adjacent columns' spans that still connects — the max step a unit climbs.</summary>
+        public int MaxClimbHeight { get; init; } = 2;
+
+        /// <summary>Max jump height — reserved for pathfinding.</summary>
+        public int MaxJumpHeight { get; init; } = 6;
+    }
+
+    /// <summary>
+    /// Builds a label layout from the space's occupancy: <paramref name="cells"/>
+    /// are the standing cells in root-absolute coordinates (pre-filtered by the
+    /// caller — placement-surface tops with headroom). Each standing cell seeds a
+    /// span that extends upward until the next standing cell, the first occupied
+    /// cell, or the layout's <see cref="VoxelLayout{T}.Bound"/> top. Adjacent
+    /// columns' spans merge when their vertical gap ≤
+    /// <see cref="Settings.MaxClimbHeight"/> (4-connectivity in XZ). The output
+    /// values are 1-based connected-component labels; use
+    /// <see cref="Map{TOut}"/> to turn them into payloads. The layout's
+    /// <see cref="VoxelLayout{T}.Bound"/> must be set (empty → empty layout).
     /// </summary>
     [SuppressMessage("Design", "CA1000:Do not declare static members on generic types",
-        Justification = "Deliberate generic factory: T is inferred from valueOf and the Build name belongs on ColumnLayout.")]
-    public static ColumnLayout<T> Build(
-        int width, int depth, int minY, int maxY,
-        Func<int, int, int, bool> isFree,
-        Func<Span, Span, bool> linked,
-        Func<int, T> valueOf)
+        Justification = "Deliberate generic factory: the Build name and Settings belong on ColumnLayout.")]
+    public static ColumnLayout<int> Build<TA>(
+        VoxelLayout<TA> layout,
+        IEnumerable<Int3> cells,
+        ColumnLayout<T>.Settings settings)
+        where TA : Entity
     {
-        if (width <= 0 || depth <= 0)
-            throw new ArgumentOutOfRangeException(nameof(width), "Column layout requires positive width and depth.");
-        if (maxY < minY)
-            throw new ArgumentOutOfRangeException(nameof(maxY), "Y range must be non-empty.");
+        if (layout.Bound.IsEmpty)
+            return new ColumnLayout<int>.Builder(1, 1).Build();
 
-        // 1. 栅格化：逐列扫 y，抽自由 span（值暂为占位 default）
-        var spans = new List<Span>();
+        var all = cells.ToList();
+        if (all.Count == 0)
+            return new ColumnLayout<int>.Builder(1, 1).Build();
+
+        // ── 1. 站立格：按列分组，列内按 y 升序去重 ──
+        var width = 0;
+        var depth = 0;
+        foreach (var cell in all)
+        {
+            if (cell.X > width) width = cell.X;
+            if (cell.Z > depth) depth = cell.Z;
+        }
+        width++;
+        depth++;
+
+        var byColumn = new Dictionary<int, List<int>>();
+        foreach (var cell in all)
+        {
+            var column = cell.Z * width + cell.X;
+            if (!byColumn.TryGetValue(column, out var ys))
+                byColumn[column] = ys = new List<int>();
+            ys.Add(cell.Y);
+        }
+        foreach (var ys in byColumn.Values)
+        {
+            ys.Sort();
+            for (var i = ys.Count - 1; i > 0; i--)
+                if (ys[i] == ys[i - 1])
+                    ys.RemoveAt(i);
+        }
+
+        // ── 2. span：站立格向上，止于下一站立格 / 占用格 / Bound 顶 ──
+        var spans = new List<ColumnLayout<int>.Span>();
         var colOf = new List<int>();
         var colStart = new List<int> { 0 };
+        var maxY = layout.Bound.Max.Y;
         for (var z = 0; z < depth; z++)
         for (var x = 0; x < width; x++)
         {
             var column = z * width + x;
-            var y = minY;
-            while (y <= maxY)
+            if (byColumn.TryGetValue(column, out var ys))
             {
-                if (isFree(x, y, z))
+                for (var i = 0; i < ys.Count; i++)
                 {
-                    var y0 = y;
-                    while (y <= maxY && isFree(x, y, z))
+                    var y0 = ys[i];
+                    var y = y0;
+                    while (y <= maxY)
+                    {
+                        if (i + 1 < ys.Count && y >= ys[i + 1])
+                            break;
+                        if (layout[new Int3(x, y, z)] is not null)
+                            break;
                         y++;
-                    spans.Add(new Span(y0, y, default!));
-                    colOf.Add(column);
-                }
-                else
-                {
-                    y++;
+                    }
+                    if (y > y0)
+                    {
+                        spans.Add(new ColumnLayout<int>.Span(y0, y, 0));
+                        colOf.Add(column);
+                    }
                 }
             }
             colStart.Add(spans.Count);
         }
 
-        // 2. 连通标注：span flood-fill，仅邻列 + link 规则
+        // ── 3. 连通标注：邻列 span 间距 ≤ MaxClimbHeight ──
         var labelOf = new int[spans.Count];
         var nextLabel = 0;
+        var maxClimb = settings.MaxClimbHeight;
         for (var i = 0; i < labelOf.Length; i++)
         {
             if (labelOf[i] != 0)
@@ -180,7 +235,10 @@ public sealed class ColumnLayout<T>
                     var nc = nz * width + nx;
                     for (var k = colStart[nc]; k < colStart[nc + 1]; k++)
                     {
-                        if (labelOf[k] != 0 || !linked(spans[cur], spans[k]))
+                        if (labelOf[k] != 0)
+                            continue;
+                        var gap = Math.Max(spans[cur].Y0, spans[k].Y0) - Math.Min(spans[cur].Y1, spans[k].Y1);
+                        if (gap > maxClimb)
                             continue;
                         labelOf[k] = nextLabel;
                         queue.Enqueue(k);
@@ -189,14 +247,14 @@ public sealed class ColumnLayout<T>
             }
         }
 
-        // 3. 打包：valueOf(label) 作 span 值
-        var builder = new Builder(width, depth);
+        // ── 4. 打包 ──
+        var builder = new ColumnLayout<int>.Builder(width, depth);
         for (var c = 0; c < width * depth; c++)
         {
             for (var k = colStart[c]; k < colStart[c + 1]; k++)
             {
                 var s = spans[k];
-                builder.AddSpan(s.Y0, s.Y1, valueOf(labelOf[k]));
+                builder.AddSpan(s.Y0, s.Y1, labelOf[k]);
             }
             builder.NextColumn();
         }
@@ -208,13 +266,13 @@ public sealed class ColumnLayout<T>
     {
         var builder = new ColumnLayout<TOut>.Builder(Width, Depth);
         for (var z = 0; z < Depth; z++)
-        for (var x = 0; x < Width; x++)
-        {
-            var col = Column(x, z);
-            for (var i = 0; i < col.Length; i++)
-                builder.AddSpan(col[i].Y0, col[i].Y1, map(col[i].Value));
-            builder.NextColumn();
-        }
+            for (var x = 0; x < Width; x++)
+            {
+                var col = Column(x, z);
+                for (var i = 0; i < col.Length; i++)
+                    builder.AddSpan(col[i].Y0, col[i].Y1, map(col[i].Value));
+                builder.NextColumn();
+            }
         return builder.Build();
     }
 

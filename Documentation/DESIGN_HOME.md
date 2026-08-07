@@ -177,15 +177,16 @@ Minecraft 式：XZ chunk 键**打包 long**（`(cx<<32)|cz`），每列是 `Voxe
 
 旧 `Region` 类与 `Home`/`Level` 的 `Regions` 网格为死代码，已删除，由 §5.6 的 3D Region 取代。材质分区由 `Subdivision` 承担。
 
-### 5.6 Region — 3D 空间自动标注（取代 FloorPlanLayout）
+### 5.6 Region — 3D 空间标注（取代 FloorPlanLayout）
 
-`Momoka.Home/Regions/`：`RegionMap` / `Region` / `RegionRules`。从 `UnitLayout.Layout`（体素占用）一次构建：
+`Momoka.Home/Regions/Region.cs`：`Region.BuildLayout(VoxelLayout, Agent?)` 一次构建 `ColumnLayout<Region>`。核心是通用引擎 `ColumnLayout<T>.Build<TA>(VoxelLayout<TA>, cells, Settings)`（`Layouts/`，纯数学）：
 
-- **存储**：`ColumnLayout<int>`（每 (x,z) 列变长 span + 前缀和 offset），span = 自由高度区间，值为 region id（0 = 无）
-- **标注**：span flood-fill，XZ 4-连通 + 相邻列区间重叠/步高容差（`MaxStep`=2 cell ≈ 20cm 人类步高）
-- **阻隔**：`RegionRules` = 结构件（`Key` 白名单：wall/floor/ceiling/door/window…）∪ 高度 ≥1.8m（18 cell）的物件；其余对 flood-fill 透明（家具可“涌过”，自身格不入任何 Region，后期用墙壁射线修补）
-- **聚合**：每 Region 得 `Bounds` / `Volume`（cell³）/ `Area`（xz 足迹列数）；外轮廓多边形（marching squares）后续
-- **重算**：录入模型时手动 `UnitLayout.RebuildRegions()` 一次；放置/拆除不自动重算；结构件改动 → 全量重建场景
+- **站立格 cells**：实体 `VoxelLayoutSource` 的 Up 面放置格 → 绝对体素坐标，净高 ≥ `Agent.Height` 过滤 + 去重（Region 层做）
+- **span**：站立格向上延伸，止于下一站立格 / 占用格 / `Bound` 顶
+- **连通**：邻列 span 间距 ≤ `Settings.MaxClimbHeight`（= `Agent.MaxClimbHeight`，人类 20cm）→ XZ 4-连通 flood-fill
+- **阻隔即占用**：墙因占用格紧贴站立格自然断开；家具成“洞”（其格不入任何 Region，绕行仍连通）——无需 structural 标签或透明语义
+- **聚合**：每 Region 得 `Bounds` / `Volume`（cell³）/ `Area`（xz 足迹列数）；`ColumnLayout.Map` 把 label → Region
+- **重算**：录入模型时手动 `UnitLayout.RebuildRegions(Agent?)` 一次；放置/拆除不自动重算；结构改动 → 全量重建
 - 门/窗开口的 Portal（连通通道 + 开度）为气流模拟预留，暂未实现
 
 ---
@@ -298,7 +299,7 @@ Momoka.Home/
 │   ├── Palette.cs / PackedBitStorage.cs / PalettedContainer.cs / PalettedContainerRO.cs
 │   └── Graph2D.cs / Subdivision.cs
 ├── Regions/
-│   └── Region.cs / RegionMap.cs / RegionRules.cs（3D 空间标注）
+│   └── Region.cs（Region.BuildLayout：3D 空间标注）
 ├── Components/
 │   ├── Component.cs / IComponentSource.cs / VoxelLayoutSource.cs
 ├── Storage/

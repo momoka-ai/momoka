@@ -28,22 +28,27 @@ public sealed class UnitLayout : IEntitySource, IVoxelGeometry3D
     public List<FloorPlanLayout> Floors { get; } = new();
 
     /// <summary>
-    /// The 3D region layer (rooms / walkable areas) of the space, built on
-    /// demand — the successor of <see cref="Floors"/> as the space-semantics
+    /// The 3D region layer (rooms / walkable areas) of the space — a
+    /// <see cref="ColumnLayout{T}"/> of <see cref="Region"/> spans, built on
+    /// demand. The successor of <see cref="Floors"/> as the space-semantics
     /// layer. Null until <see cref="RebuildRegions"/> has run.
     /// </summary>
-    public RegionMap? Regions { get; private set; }
+    public ColumnLayout<Region>? Regions { get; private set; }
 
     /// <summary>
-    /// (Re)builds the region layer from the current occupancy. Manual — call
-    /// once at model ingestion; furniture placement/removal does not
-    /// invalidate it. Structural edits should trigger a full scene rebuild.
+    /// (Re)builds the region layer from the current occupancy and placement
+    /// surfaces. Manual — call once at model ingestion; furniture
+    /// placement/removal does not invalidate it. Structural edits should trigger
+    /// a full scene rebuild.
     /// </summary>
-    public RegionMap RebuildRegions(RegionRules? rules = null)
+    public ColumnLayout<Region> RebuildRegions(Agent? agent = null)
     {
-        Regions = RegionMap.Build(Layout, rules);
+        Regions = Region.BuildLayout(Layout, agent);
         return Regions;
     }
+
+    /// <summary>The region containing the cell, or null (blocked / outside / unbuilt).</summary>
+    public Region? RegionAt(Int3 p) => Regions?.At(p.X, p.Y, p.Z);
 
     /// <inheritdoc/>
     public IReadOnlyList<Entity> Entities => Layout.Entities;

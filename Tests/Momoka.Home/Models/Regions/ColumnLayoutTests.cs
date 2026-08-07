@@ -1,5 +1,8 @@
 using Xunit;
+using Momoka.Home.Entities;
+using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
+using Momoka.Home.Primitives;
 namespace Momoka.Home.Tests.Models.Regions;
 
 /// <summary>
@@ -96,102 +99,111 @@ public class ColumnLayoutTests
         Assert.Equal((0, 1, 2), (spans[1].X, spans[1].Z, spans[1].Span.Value));
     }
 
-    // ── 生成引擎 Build ──────────────────────────────────
+    // ── 生成引擎 Build（站立格 + 占用）─────────────────
 
-    private static HashSet<(int X, int Y, int Z)> WallBlock(
-        int width, int depth, int minY, int maxY, Func<int, int, bool> blockedXz)
+    private sealed class TestEntity : Entity
     {
-        var cells = new HashSet<(int, int, int)>();
+        public TestEntity(Volume volume) => Volume = volume;
+    }
+
+    /// <summary>一个带 Bound 的布局；占用块按 (位置, 尺寸) 放入。</summary>
+    private static VoxelLayout<Entity> Scene(int width, int depth, int height, params (Int3 Pos, Int3 Size)[] blocks)
+    {
+        var layout = new VoxelLayout<Entity>
+        {
+            Bound = Bound.FromCorners(Int3.Zero, new Int3(width - 1, height - 1, depth - 1)),
+        };
+        foreach (var (pos, size) in blocks)
+            layout.BuildAt(new TestEntity(new Box3D { SizeX = size.X, SizeY = size.Y, SizeZ = size.Z }), pos);
+        return layout;
+    }
+
+    private static IEnumerable<Int3> FloorCells(int width, int depth, int y)
+    {
         for (var z = 0; z < depth; z++)
-        for (var y = minY; y <= maxY; y++)
         for (var x = 0; x < width; x++)
-            if (blockedXz(x, z))
-                cells.Add((x, y, z));
-        return cells;
+            yield return new Int3(x, y, z);
     }
 
     [Fact]
-    public void Build_LabelsConnectedSpans()
+    public void Build_SplitsByWall()
     {
-        // 5×5，x=2 全高墙 → 左右两个连通分量
-        var blocked = WallBlock(5, 5, 0, 10, (x, z) => x == 2);
-        var layout = ColumnLayout<int>.Build(5, 5, 0, 10,
-            isFree: (x, y, z) => !blocked.Contains((x, y, z)),
-            linked: (a, b) => true,
-            valueOf: id => id);
+        // 5×5×11，x=2 全高墙 → 左右两个连通分量
+        var layout = Scene(5, 5, 11, (new Int3(2, 0, 0), new Int3(1, 11, 5)));
+        var labels = ColumnLayout<int>.Build(layout, FloorCells(5, 5, 1), new ColumnLayout<int>.Settings());
 
-        Assert.Equal(20, layout.SpanCount); // 4 自由列 × 5 深，每列 1 个 span
-        var left = layout.At(0, 5, 0);
-        var right = layout.At(3, 5, 0);
+        var left = labels.At(0, 5, 0);
+        var right = labels.At(3, 5, 0);
         Assert.NotEqual(0, left);
         Assert.NotEqual(0, right);
         Assert.NotEqual(left, right);
-        Assert.Equal(0, layout.At(2, 5, 0)); // 墙
+        Assert.Equal(0, labels.At(2, 5, 2)); // 墙列：站立格被占用 → 无 span
     }
 
     [Fact]
-    public void Build_MergesThroughGap()
+    public void Build_MergesThroughDoorway()
     {
-        // x=2 墙留 z=2 缺口 → 单连通
-        var blocked = WallBlock(5, 5, 0, 10, (x, z) => x == 2 && z != 2);
-        var layout = ColumnLayout<int>.Build(5, 5, 0, 10,
-            isFree: (x, y, z) => !blocked.Contains((x, y, z)),
-            linked: (a, b) => true,
-            valueOf: id => id);
+        // x=2 墙留 z=2 门洞 → 单连通
+        var layout = Scene(5, 5, 11,
+            (new Int3(2, 0, 0), new Int3(1, 11, 2)),
+            (new Int3(2, 0, 3), new Int3(1, 11, 2)));
+        var labels = ColumnLayout<int>.Build(layout, FloorCells(5, 5, 1), new ColumnLayout<int>.Settings());
 
-        var left = layout.At(0, 5, 0);
+        var left = labels.At(0, 5, 0);
         Assert.NotEqual(0, left);
-        Assert.Equal(left, layout.At(3, 5, 0)); // 门洞连通
+        Assert.Equal(left, labels.At(3, 5, 0)); // 门洞连通
     }
 
     [Fact]
-    public void Build_LinkedRuleControlsConnectivity()
+    public void Build_SettingsClimbHeightControlsConnectivity()
     {
-        // 两列：A 仅自由 [1,2)，B 仅自由 [4,5)，间距 2
-        var blocked = new HashSet<(int, int, int)>
-        {
-            (0, 0, 0), (0, 2, 0), (0, 3, 0), (0, 4, 0), (0, 5, 0), // 列 0
-            (1, 0, 0), (1, 1, 0), (1, 2, 0), (1, 3, 0), (1, 5, 0), // 列 1
-        };
+        // 两列：A 站立 y=1（span [1,20)），B 站立 y=21（span [21,40)），间距 1
+        var layout = Scene(2, 1, 40,
+            (new Int3(0, 0, 0), new Int3(1, 1, 1)),   // A 地板 y=0
+            (new Int3(0, 20, 0), new Int3(1, 1, 1)),  // A 天花板 y=20
+            (new Int3(1, 0, 0), new Int3(1, 20, 1)),  // B 基座 y=0..19
+            (new Int3(1, 20, 0), new Int3(1, 1, 1)),  // B 地板 y=20
+            (new Int3(1, 40, 0), new Int3(1, 1, 1))); // B 天花板 y=40
+        var cells = new List<Int3> { new(0, 1, 0), new(1, 21, 0) };
 
-        // 容差 2 内 → 连通
-        var merged = ColumnLayout<int>.Build(2, 1, 0, 5,
-            isFree: (x, y, z) => !blocked.Contains((x, y, z)),
-            linked: (a, b) => Math.Max(a.Y0, b.Y0) - Math.Min(a.Y1, b.Y1) <= 2,
-            valueOf: id => id);
-        Assert.Equal(merged.At(0, 1, 0), merged.At(1, 4, 0));
+        var merged = ColumnLayout<int>.Build(layout, cells, new ColumnLayout<int>.Settings { MaxClimbHeight = 1 });
+        Assert.Equal(merged.At(0, 5, 0), merged.At(1, 25, 0)); // 间距 1 ≤ 容差 1 → 连通
 
-        // 容差 1 → 断开
-        var split = ColumnLayout<int>.Build(2, 1, 0, 5,
-            isFree: (x, y, z) => !blocked.Contains((x, y, z)),
-            linked: (a, b) => Math.Max(a.Y0, b.Y0) - Math.Min(a.Y1, b.Y1) <= 1,
-            valueOf: id => id);
-        Assert.NotEqual(split.At(0, 1, 0), split.At(1, 4, 0));
+        var split = ColumnLayout<int>.Build(layout, cells, new ColumnLayout<int>.Settings { MaxClimbHeight = 0 });
+        Assert.NotEqual(split.At(0, 5, 0), split.At(1, 25, 0)); // 超出 → 断开
     }
 
     [Fact]
-    public void Build_AllBlocked_HasNoSpans()
+    public void Build_SpanStopsAtNextLevel()
     {
-        var layout = ColumnLayout<int>.Build(3, 3, 0, 5,
-            isFree: (_, _, _) => false,
-            linked: (_, _) => true,
-            valueOf: id => id);
+        // 夹层：同一列 floor y=1 与 deck 面 y=21（deck 体 y=20 占用）→ 两个 span
+        var layout = Scene(1, 1, 30, (new Int3(0, 20, 0), new Int3(1, 1, 1)));
+        var cells = new List<Int3> { new(0, 1, 0), new(0, 21, 0) };
 
-        Assert.Equal(0, layout.SpanCount);
-        Assert.Equal(0, layout.At(1, 2, 1));
+        var labels = ColumnLayout<int>.Build(layout, cells, new ColumnLayout<int>.Settings());
+
+        Assert.Equal(2, labels.Column(0, 0).Length);
+        Assert.Equal(1, labels.At(0, 5, 0));   // [1,20)
+        Assert.Equal(2, labels.At(0, 25, 0));  // [21,31)
+        Assert.NotEqual(labels.At(0, 5, 0), labels.At(0, 25, 0));
     }
 
     [Fact]
-    public void Build_ValueOfMaterializesPayload()
+    public void Build_NoBound_ReturnsEmpty()
     {
-        var blocked = WallBlock(5, 5, 0, 10, (x, z) => x == 2);
-        var layout = ColumnLayout<string>.Build(5, 5, 0, 10,
-            isFree: (x, y, z) => !blocked.Contains((x, y, z)),
-            linked: (a, b) => true,
-            valueOf: id => $"R{id}");
+        var labels = ColumnLayout<int>.Build(
+            new VoxelLayout<Entity>(),
+            new[] { new Int3(0, 1, 0) },
+            new ColumnLayout<int>.Settings());
+        Assert.Equal(0, labels.SpanCount);
+    }
 
-        Assert.Equal("R1", layout.At(0, 5, 0));
-        Assert.Equal("R2", layout.At(3, 5, 0));
+    [Fact]
+    public void Build_NoCells_ReturnsEmpty()
+    {
+        var layout = Scene(3, 3, 5);
+        var labels = ColumnLayout<int>.Build(layout, Array.Empty<Int3>(), new ColumnLayout<int>.Settings());
+        Assert.Equal(0, labels.SpanCount);
     }
 
     [Fact]

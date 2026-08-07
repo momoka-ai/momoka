@@ -6,6 +6,7 @@ using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
 using Momoka.Home.States;
+using Momoka.Home.Regions;
 namespace Momoka.Home.Tests.Models.Layouts;
 
 /// <summary>
@@ -122,5 +123,41 @@ public class UnitLayoutTests
         var cells = unit.Cells3D().ToList();
         Assert.Contains(new Int3(2, 0, 0), cells);
         Assert.Contains(new Int3(7, 0, 0), cells);
+    }
+
+    private sealed class FloorEntity : Entity
+    {
+        public FloorEntity()
+        {
+            Key = new Key("floor");
+            Volume = new Box3D { SizeX = 5, SizeY = 1, SizeZ = 5 };
+            var surface = new GridLayout<bool>(new Int2(5, 5), new Int3(0, 1, 0));
+            surface.Fill(true, Int2.Zero, new Int2(5, 5));
+            AddComponent(new VoxelLayoutSource { Layouts = { surface } });
+        }
+    }
+
+    private sealed class BoxEntity : Entity
+    {
+        public BoxEntity(string path, int sx, int sy, int sz)
+        {
+            Key = new Key(path);
+            Volume = new Box3D { SizeX = sx, SizeY = sy, SizeZ = sz };
+        }
+    }
+
+    [Fact]
+    public void RebuildRegions_BuildsAndQueries()
+    {
+        var unit = new UnitLayout();
+        unit.Layout.BuildAt(new FloorEntity(), new Int3(0, 0, 0));
+        unit.Layout.BuildAt(new BoxEntity("wall", 1, 29, 5), new Int3(2, 1, 0)); // 中墙 x=2 全高
+
+        var map = unit.RebuildRegions();
+        Assert.Same(map, unit.Regions);
+        Assert.NotNull(unit.RegionAt(new Int3(1, 5, 2)));
+        Assert.NotNull(unit.RegionAt(new Int3(3, 5, 2)));
+        Assert.NotEqual(unit.RegionAt(new Int3(1, 5, 2))!.Id, unit.RegionAt(new Int3(3, 5, 2))!.Id);
+        Assert.Null(unit.RegionAt(new Int3(2, 5, 2))); // 中墙
     }
 }
