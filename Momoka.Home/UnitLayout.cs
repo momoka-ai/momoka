@@ -1,13 +1,14 @@
 using Momoka.Home.Components;
 using Momoka.Home.Entities;
 using Momoka.Home.Geometry;
+using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
-namespace Momoka.Home.Layouts;
+namespace Momoka.Home;
 
 /// <summary>
 /// A unit of living space: the fully-3D, multi-layer spatial root of a
-/// residence. Everything — floor slabs, ceilings, walls, furniture, yard
-/// objects — is an <see cref="Entity{Int3}"/> inside the single
+/// residence — the final form of space. Everything — floor slabs, ceilings,
+/// walls, furniture, yard objects — is an <see cref="Entity"/> inside the single
 /// <see cref="VoxelLayout{T}"/>, so placement and collision run directly against
 /// one root space with root-absolute coordinates (no nested offset chains).
 ///
@@ -17,7 +18,7 @@ namespace Momoka.Home.Layouts;
 /// <see cref="Layout"/> carry it, and the plan graphs use their own partition
 /// coordinates.
 /// </summary>
-public class UnitLayout : IEntitySource, IVoxelGeometry3D
+public sealed class UnitLayout : IEntitySource, IVoxelGeometry3D
 {
     /// <summary>The 3D voxel occupancy container: the single root space.</summary>
     public VoxelLayout<Entity> Layout { get; } = new();
