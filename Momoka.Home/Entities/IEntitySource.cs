@@ -1,5 +1,4 @@
-using Momoka.Home.Entities;
-namespace Momoka.Home;
+namespace Momoka.Home.Entities;
 
 /// <summary>
 /// A spatial container that exposes the entities it holds (a Home, a Level).

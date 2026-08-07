@@ -4,6 +4,7 @@ using Momoka.Home.Entities;
 using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
+using Momoka.Home.States;
 namespace Momoka.Home.Tests.Models.Layouts;
 
 /// <summary>
@@ -23,11 +24,23 @@ public class UnitLayoutTests
         }
     }
 
+    /// <summary>A config-template-like partition: Line3D + the surface-driving property table.</summary>
+    private sealed class TestPartition : Entity
+    {
+        public TestPartition()
+        {
+            Volume = new Line3D();
+            AddProperty(new BooleanProperty(FloorPlanLayout.UseVoxelLayoutProperty, true));
+            AddProperty(new IntProperty(FloorPlanLayout.HeightProperty, 3));
+            AddProperty(new IntProperty(FloorPlanLayout.ThicknessProperty, 1));
+        }
+    }
+
     [Fact]
     public void Entities_ReflectsTheRootSpace()
     {
         var unit = new UnitLayout();
-        var wall = new Wall();
+        var wall = new TestPartition();
         unit.Layout.BuildAt(wall, new Int3(2, 0, 0));
 
         var registered = Assert.Single(unit.Entities);
@@ -48,7 +61,7 @@ public class UnitLayoutTests
     public void Surfaces_IncludesPlanPartitionFaces()
     {
         var unit = new UnitLayout();
-        var wall = new Wall();
+        var wall = new TestPartition();
         var plan = new FloorPlanLayout();
         plan.Build(new Int2(2, 0), new Int2(7, 0), wall);
         unit.Floors.Add(plan);
@@ -80,7 +93,7 @@ public class UnitLayoutTests
     public void PlaceAt_And_DestroyAt_ComposeIntoAParent()
     {
         var unit = new UnitLayout();
-        var wall = new Wall();
+        var wall = new TestPartition();
         var plan = new FloorPlanLayout();
         plan.Build(new Int2(2, 0), new Int2(7, 0), wall);
         unit.Floors.Add(plan);
@@ -99,7 +112,7 @@ public class UnitLayoutTests
     public void Cells3D_AreRootAbsolute()
     {
         var unit = new UnitLayout();
-        var wall = new Wall();
+        var wall = new TestPartition();
         var plan = new FloorPlanLayout();
         plan.Build(new Int2(2, 0), new Int2(7, 0), wall);
         unit.Floors.Add(plan);

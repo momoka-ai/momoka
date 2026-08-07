@@ -4,6 +4,7 @@ using Momoka.Home.Entities;
 using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
+using Momoka.Home.States;
 namespace Momoka.Home.Tests.Models.Layouts;
 
 /// <summary>
@@ -19,13 +20,25 @@ public class FloorPlanLayoutTests
         public FenceEntity() => Volume = new Line3D();
     }
 
+    /// <summary>A config-template-like partition: Line3D + the surface-driving property table.</summary>
+    private sealed class TestPartition : Entity
+    {
+        public TestPartition()
+        {
+            Volume = new Line3D();
+            AddProperty(new BooleanProperty(FloorPlanLayout.UseVoxelLayoutProperty, true));
+            AddProperty(new IntProperty(FloorPlanLayout.HeightProperty, 3));
+            AddProperty(new IntProperty(FloorPlanLayout.ThicknessProperty, 1));
+        }
+    }
+
     // ── Topology ─────────────────────────────────────────────
 
     [Fact]
     public void Build_PositionsPartitionAndRegistersEdge()
     {
         var graph = new FloorPlanLayout();
-        var wall = new Wall();
+        var wall = new TestPartition();
 
         Assert.True(graph.Build(new Int2(2, 0), new Int2(7, 0), wall));
         Assert.Equal(new Int3(2, 0, 0), wall.Coords);
@@ -48,7 +61,7 @@ public class FloorPlanLayoutTests
     {
         var graph = new FloorPlanLayout();
 
-        Assert.False(graph.Build(new Int2(0, 0), new Int2(3, 0), new Appliance()));
+        Assert.False(graph.Build(new Int2(0, 0), new Int2(3, 0), new Entity { Volume = new Box3D() }));
         Assert.Empty(graph.Edges);
     }
 
@@ -56,7 +69,7 @@ public class FloorPlanLayoutTests
     public void Destroy_RemovesEdge()
     {
         var graph = new FloorPlanLayout();
-        var wall = new Wall();
+        var wall = new TestPartition();
         graph.Build(new Int2(2, 0), new Int2(7, 0), wall);
 
         Assert.True(graph.Destroy(new Int2(2, 0), new Int2(7, 0)));
@@ -70,7 +83,7 @@ public class FloorPlanLayoutTests
     public void Surfaces_EastWestWall_ExposesSouthAndNorthFaces()
     {
         var plan = new FloorPlanLayout();
-        var wall = new Wall(); // use_voxel_layout = true, height = 3, thickness = 1
+        var wall = new TestPartition(); // use_voxel_layout = true, height = 3, thickness = 1
         plan.Build(new Int2(2, 0), new Int2(7, 0), wall); // 长 5
 
         var faces = plan.Surfaces.ToList();
@@ -91,7 +104,7 @@ public class FloorPlanLayoutTests
     public void Surfaces_NorthSouthWall_ExposesWestAndEastFaces()
     {
         var plan = new FloorPlanLayout();
-        var wall = new Wall();
+        var wall = new TestPartition();
         wall.SetValue(FloorPlanLayout.HeightProperty, 4); // 属性表驱动高度（按名，作用于实例克隆）
         plan.Build(new Int2(0, 2), new Int2(0, 6), wall); // 长 4
 
@@ -113,7 +126,7 @@ public class FloorPlanLayoutTests
     public void Surfaces_HeightDrivenByPropertyTable()
     {
         var plan = new FloorPlanLayout();
-        var wall = new Wall();
+        var wall = new TestPartition();
         wall.SetValue(FloorPlanLayout.HeightProperty, 6);
         plan.Build(new Int2(2, 0), new Int2(7, 0), wall);
 
@@ -125,7 +138,7 @@ public class FloorPlanLayoutTests
     public void Surfaces_ThicknessDrivenByPropertyTable()
     {
         var plan = new FloorPlanLayout();
-        var wall = new Wall();
+        var wall = new TestPartition();
         wall.SetValue(FloorPlanLayout.ThicknessProperty, 2);
         plan.Build(new Int2(2, 0), new Int2(7, 0), wall);
 
@@ -146,7 +159,7 @@ public class FloorPlanLayoutTests
     public void Surfaces_DiagonalWall_HasNoFaces()
     {
         var plan = new FloorPlanLayout();
-        var wall = new Wall();
+        var wall = new TestPartition();
         plan.Build(new Int2(0, 0), new Int2(3, 5), wall); // 斜墙：无轴对齐法线
 
         Assert.Empty(plan.Surfaces);
@@ -156,7 +169,7 @@ public class FloorPlanLayoutTests
     public void Surfaces_FaceToWorld_MapsOntoTheWallPlane()
     {
         var plan = new FloorPlanLayout();
-        var wall = new Wall();
+        var wall = new TestPartition();
         plan.Build(new Int2(2, 0), new Int2(7, 0), wall);
 
         var north = plan.Surfaces.First(f => f.Direction == Int3.North);
