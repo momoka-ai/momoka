@@ -21,7 +21,7 @@ public class UnitLayoutTests
         public VoxelLayoutSourceEntity()
         {
             Volume = new Box3D();
-            AddComponent(new PlacementLayoutSource { Layout = new GridLayout<bool>(new Int2(2, 2)) });
+            this.AddComponent(new PlacementLayoutSource { Layout = new GridLayout<bool>(new Int2(2, 2)) });
         }
     }
 
@@ -93,10 +93,10 @@ public class UnitLayoutTests
         {
             Key = new Key("floor");
             Volume = new Box3D { SizeX = 5, SizeY = 1, SizeZ = 5 };
-            AddProperties(new[] { new BooleanProperty(BuiltinProperty.IS_STRUCTURAL.Name, true) });
+            this.AddProperties(new[] { new BooleanProperty(BuiltinProperty.IS_STRUCTURAL.Name, true) });
             var surface = new GridLayout<bool>(new Int2(5, 5), new Int3(0, 1, 0));
             surface.Fill(true, Int2.Zero, new Int2(5, 5));
-            AddComponent(new PlacementLayoutSource { Layout = surface });
+            this.AddComponent(new PlacementLayoutSource { Layout = surface });
         }
     }
 
