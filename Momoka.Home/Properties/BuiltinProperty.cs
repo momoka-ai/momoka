@@ -1,8 +1,9 @@
 namespace Momoka.Home.Properties;
 
 /// <summary>
-/// Built-in property definitions shared across the model. Config declares them
-/// by name; code references them through these constants.
+/// Built-in property names shared across the model. Config declares them by
+/// name; code references them through these constants and reads values with the
+/// name-first <see cref="PropertySourceExtensions"/> API.
 /// </summary>
 public static class BuiltinProperty
 {
@@ -11,5 +12,5 @@ public static class BuiltinProperty
     /// (floors, stairs, yard ground). Placement surfaces without it are still
     /// placeable, but never seed a region.
     /// </summary>
-    public static readonly BooleanProperty IS_STRUCTURAL = new("is_structural");
+    public const string IsStructural = "is_structural";
 }

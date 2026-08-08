@@ -93,7 +93,7 @@ public class UnitLayoutTests
         {
             Key = new Key("floor");
             Volume = new Box3D { SizeX = 5, SizeY = 1, SizeZ = 5 };
-            this.AddProperties(new[] { new BooleanProperty(BuiltinProperty.IS_STRUCTURAL.Name, true) });
+            this.AddProperties(new[] { new BooleanProperty(BuiltinProperty.IsStructural, true) });
             var surface = new GridLayout<bool>(new Int2(5, 5), new Int3(0, 1, 0));
             surface.Fill(true, Int2.Zero, new Int2(5, 5));
             this.AddComponent(new PlacementLayoutSource { Layout = surface });

@@ -1,9 +1,10 @@
 namespace Momoka.Home.Properties;
 
 /// <summary>
-/// Property-table helpers for <see cref="IPropertySource"/> — declared once as
-/// extension methods so implementers only expose the property list and the
-/// change event.
+/// Property-table helpers for <see cref="IPropertySource"/> — name-first:
+/// implementers only expose the property list and the change event, and every
+/// lookup/mutation goes through the property name (builtins are string
+/// constants in <see cref="BuiltinProperty"/>).
 /// </summary>
 public static class PropertySourceExtensions
 {
@@ -19,32 +20,20 @@ public static class PropertySourceExtensions
             source.Properties.Add(property);
     }
 
-    public static T GetValue<T>(this IPropertySource source, Property<T> property) =>
-        property.Value;
-
-    public static void SetValue<T>(this IPropertySource source, Property<T> property, T value)
-    {
-        if (property.IsReadOnly)
-            throw new InvalidOperationException($"Property '{property.Name}' is read-only.");
-
-        if (!property.IsValidValue(value))
-            throw new ArgumentException($"Invalid value for property '{property.Name}'.");
-
-        property.Value = value;
-        source.NotifyPropertyChanged(property, value);
-    }
-
-    public static void ClearValue(this IPropertySource source, Property property)
-    {
-        property.BoxedValue = null;
-        source.NotifyPropertyChanged(property, property.GetUnsetValue());
-    }
-
     public static object? GetValue(this IPropertySource source, string name)
     {
         var property = FindProperty(source, name)
             ?? throw new KeyNotFoundException($"Property '{name}' not found.");
         return property.BoxedValue ?? property.GetUnsetValue();
+    }
+
+    /// <summary>Typed lookup by name; default when absent or type-mismatched.</summary>
+    public static T GetValue<T>(this IPropertySource source, string name)
+    {
+        var p = FindProperty(source, name);
+        if (p?.ValueType.Equals(typeof(T)) ?? false)
+            return ((Property<T>)p).Value;
+        return default!;
     }
 
     /// <summary>
@@ -78,7 +67,10 @@ public static class PropertySourceExtensions
     {
         var property = FindProperty(source, name);
         if (property is not null)
-            source.ClearValue(property);
+        {
+            property.BoxedValue = null;
+            source.NotifyPropertyChanged(property, property.GetUnsetValue());
+        }
     }
 
     public static List<Dictionary<string, object?>> GetSchema(this IPropertySource source) =>

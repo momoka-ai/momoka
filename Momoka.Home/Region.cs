@@ -81,7 +81,7 @@ public sealed class Region
     {
         foreach (var entity in space.Entities)
         {
-            if (!(entity.TryGetValue(BuiltinProperty.IS_STRUCTURAL.Name, out var value) && value is true))
+            if (!(entity.TryGetValue(BuiltinProperty.IsStructural, out var value) && value is true))
                 continue;
             foreach (var source in entity.GetComponents<PlacementLayoutSource>())
             {

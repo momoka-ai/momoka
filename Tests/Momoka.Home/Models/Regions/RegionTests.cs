@@ -25,7 +25,7 @@ public class RegionTests
     private static Entity SurfaceBox(string path, int sx, int sy, int sz, Int3 pos, int surfaceY)
     {
         var entity = Box(path, sx, sy, sz);
-        entity.AddProperties(new[] { new BooleanProperty(BuiltinProperty.IS_STRUCTURAL.Name, true) });
+        entity.AddProperties(new[] { new BooleanProperty(BuiltinProperty.IsStructural, true) });
         var surface = new GridLayout<bool>(new Int2(sx, sz), new Int3(pos.X, surfaceY, pos.Z));
         surface.Fill(true, Int2.Zero, new Int2(sx, sz));
         entity.AddComponent(new PlacementLayoutSource { Layout = surface });
