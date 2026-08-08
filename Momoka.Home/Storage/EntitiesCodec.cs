@@ -19,7 +19,6 @@ public static class EntitiesCodec
             new JsonGeometryConverter(),
             new JsonPropertyConverter(),
             new JsonComponentConverter(),
-            new JsonInt3Converter(),
             new JsonKeyConverter(),
         },
     };
