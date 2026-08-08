@@ -1,8 +1,10 @@
 using Xunit;
+using Momoka.Home.Components;
 using Momoka.Home.Entities;
 using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
+using Momoka.Home.Properties;
 using Momoka.Home.Storage;
 namespace Momoka.Home.Tests.Models.Serialization;
 
@@ -62,13 +64,13 @@ public class VoxelLayoutChunkCodecTests
         var dir = TempDir();
         try
         {
-            LayoutChunkCodec.Save(scene, dir);
+            LayoutChunkCodec.Save(scene, null, dir);
 
             Assert.True(File.Exists(Path.Combine(dir, "Layout.0.0.dat")));
             Assert.True(File.Exists(Path.Combine(dir, "Layout.1.1.dat")));
             Assert.True(File.Exists(Path.Combine(dir, "Layout.-1.-1.dat")));
 
-            var loaded = LayoutChunkCodec.Load(dir, entities);
+            var loaded = LayoutChunkCodec.Load(dir, entities).Grid;
 
             Assert.Same(entities[0], loaded[new Int3(0, 0, 0)]);   // wall
             Assert.Same(entities[0], loaded[new Int3(0, 1, 0)]);
@@ -92,7 +94,7 @@ public class VoxelLayoutChunkCodecTests
         var dir = TempDir();
         try
         {
-            LayoutChunkCodec.Save(scene, dir);
+            LayoutChunkCodec.Save(scene, null, dir);
             Assert.True(File.Exists(Path.Combine(dir, "Layout.1.1.dat")));
 
             // 清空 chunk(1,1) 的唯一数据：floor 的 4 个格
@@ -101,7 +103,7 @@ public class VoxelLayoutChunkCodecTests
             scene[new Int3(17, 0, 18)] = default!;
             scene[new Int3(18, 0, 18)] = default!;
 
-            LayoutChunkCodec.Save(scene, dir);
+            LayoutChunkCodec.Save(scene, null, dir);
 
             Assert.False(File.Exists(Path.Combine(dir, "Layout.1.1.dat"))); // 空 chunk 文件被清理
             Assert.True(File.Exists(Path.Combine(dir, "Layout.0.0.dat")));
@@ -116,7 +118,7 @@ public class VoxelLayoutChunkCodecTests
     [Fact]
     public void Load_MissingDirectory_ReturnsEmptyLayout()
     {
-        var loaded = LayoutChunkCodec.Load(TempDir(), Array.Empty<Entity>());
+        var loaded = LayoutChunkCodec.Load(TempDir(), Array.Empty<Entity>()).Grid;
         Assert.Null(loaded[new Int3(0, 0, 0)]);
     }
 
@@ -134,11 +136,75 @@ public class VoxelLayoutChunkCodecTests
         var dir = TempDir();
         try
         {
-            LayoutChunkCodec.Save(scene, dir);
+            LayoutChunkCodec.Save(scene, null, dir);
             var bytes = File.ReadAllBytes(Path.Combine(dir, "Layout.0.0.dat"));
 
             Assert.Throws<InvalidDataException>(() =>
                 LayoutChunkCodec.Decode(new Int2(0, 0), bytes, new Dictionary<Guid, Entity>()));
+        }
+        finally
+        {
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    /// <summary>结构件盒子：is_structural 标记（墙 / 天花板 / 门）。</summary>
+    private static Entity StructuralBox(string path, int sx, int sy, int sz)
+    {
+        var entity = Box(path, sx, sy, sz);
+        entity.AddProperties(new[] { new BooleanProperty(BuiltinProperty.IsStructural, true) });
+        return entity;
+    }
+
+    /// <summary>结构件盒子：顶面放置面（Up，Offset 在 surfaceY）+ is_structural。</summary>
+    private static Entity SurfaceBox(string path, int sx, int sy, int sz, Int3 pos, int surfaceY)
+    {
+        var entity = StructuralBox(path, sx, sy, sz);
+        var surface = new GridLayout<bool>(new Int2(sx, sz), new Int3(pos.X, surfaceY, pos.Z));
+        surface.Fill(true, Int2.Zero, new Int2(sx, sz));
+        entity.AddComponent(new PlacementLayoutSource { Layout = surface });
+        return entity;
+    }
+
+    /// <summary>10×9×30 封闭空间，中墙 (x=5) 分左右两室：左室 x=1..4、右室 x=6..8。</summary>
+    private static UnitLayout TwoRoomScene()
+    {
+        var l = new UnitLayout();
+        l.PlaceAt(SurfaceBox("floor", 10, 1, 10, new Int3(0, 0, 0), 1), new Int3(0, 0, 0));
+        l.PlaceAt(StructuralBox("ceiling", 10, 1, 10), new Int3(0, 30, 0));
+        l.PlaceAt(StructuralBox("wall", 10, 29, 1), new Int3(0, 1, 0));
+        l.PlaceAt(StructuralBox("wall", 10, 29, 1), new Int3(0, 1, 9));
+        l.PlaceAt(StructuralBox("wall", 1, 29, 8), new Int3(0, 1, 1));
+        l.PlaceAt(StructuralBox("wall", 1, 29, 8), new Int3(9, 1, 1));
+        l.PlaceAt(StructuralBox("wall", 1, 29, 8), new Int3(5, 1, 1));
+        return l;
+    }
+
+    [Fact]
+    public void SaveLoad_RoundTripsRegionLayer()
+    {
+        var unit = TwoRoomScene();
+        var regions = Region.BuildLayout(unit);
+        var dir = TempDir();
+        try
+        {
+            LayoutChunkCodec.Save(unit.Layout, regions, dir);
+            var loaded = LayoutChunkCodec.Load(dir, unit.Entities);
+            Assert.NotNull(loaded.Grid);
+
+            var regionsFile = Path.Combine(dir, "Regions.json");
+            RegionsCodec.Save(regions, regionsFile);
+            var restored = RegionsCodec.Load(loaded.RegionColumns, regionsFile);
+
+            var left = restored.At(2, 5, 2);
+            var right = restored.At(7, 5, 2);
+            Assert.NotNull(left);
+            Assert.NotNull(right);
+            Assert.NotEqual(left!.Id, right!.Id);
+            Assert.Equal(regions.At(2, 5, 2)!.Id, left.Id);
+            Assert.Equal(regions.At(7, 5, 2)!.Id, right.Id);
+            Assert.Equal(regions.At(2, 5, 2)!.Volume, left.Volume);
+            Assert.Equal(regions.At(2, 5, 2)!.Area, left.Area);
         }
         finally
         {
