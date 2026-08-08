@@ -20,7 +20,7 @@ public abstract class JsonTypeConverter<TBase> : JsonConverter where TBase : cla
         _serializer = JsonSerializer.Create(new JsonSerializerSettings
         {
             ContractResolver = new DefaultContractResolver { NamingStrategy = new SnakeCaseNamingStrategy() },
-            Converters = { this }
+            Converters = { this, new JsonGridLayoutConverter() }
         });
     }
 

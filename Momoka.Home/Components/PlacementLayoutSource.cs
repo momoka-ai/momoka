@@ -1,4 +1,6 @@
 using Momoka.Home.Layouts;
+using Momoka.Home.Storage;
+using Newtonsoft.Json;
 namespace Momoka.Home.Components;
 
 /// <summary>
@@ -7,8 +9,10 @@ namespace Momoka.Home.Components;
 /// Attach multiple instances for objects with several surfaces (bookshelves,
 /// stairs). Config-driven.
 /// </summary>
+[JsonTypeName("placement_layout")]
 public class PlacementLayoutSource : Component
 {
     /// <summary>The single placement surface this component provides, or null.</summary>
+    [JsonConverter(typeof(JsonGridLayoutConverter))]
     public GridLayout<bool>? Layout { get; set; }
 }

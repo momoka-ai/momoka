@@ -1,5 +1,9 @@
+using Momoka.Home.Storage;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 namespace Momoka.Home.Components;
 
+[JsonConverter(typeof(StringEnumConverter))]
 public enum DataSourceType
 {
     Temperature,
@@ -18,10 +22,13 @@ public enum DataSourceType
 }
 
 /// <summary>A sensor data source: a typed carrier of the measured quantity.</summary>
+[JsonTypeName("data_source")]
 public class DataSource : Component
 {
     public DataSourceType Type { get; set; }
     public float Value { get; set; }
+
+    public DataSource() { }
 
     public DataSource(DataSourceType type)
     {

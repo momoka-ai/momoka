@@ -1,5 +1,9 @@
+using Momoka.Home.Storage;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 namespace Momoka.Home.Components;
 
+[JsonConverter(typeof(StringEnumConverter))]
 public enum EventType
 {
     ButtonPress,
@@ -9,9 +13,12 @@ public enum EventType
 }
 
 /// <summary>An event source: a typed carrier of the event kind.</summary>
+[JsonTypeName("event_source")]
 public class EventSource : Component
 {
     public EventType Type { get; set; }
+
+    public EventSource() { }
 
     public EventSource(EventType type)
     {
