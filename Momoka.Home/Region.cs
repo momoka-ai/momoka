@@ -39,28 +39,31 @@ public sealed class Region
 
     /// <summary>
     /// Builds the region layer of a space: standing cells are the top surfaces of
-    /// the entities' <see cref="VoxelLayoutSource"/> placement planes (Up-facing,
-    /// with headroom ≥ the agent's height), mapped to root-absolute voxel
-    /// coordinates; the <see cref="ColumnLayout{T}.Build"/> engine labels
-    /// connected spans, each span's value becoming its region. Manual — call once
-    /// at ingestion; the layout's <see cref="VoxelLayout{T}.Bound"/> is derived
-    /// from the entities when unset.
+    /// the entities' <see cref="PlacementLayoutSource"/> placement planes
+    /// (Up-facing), mapped to root-absolute voxel coordinates. Occupancy is the
+    /// space's grid mapped to a boolean blocking grid via Select — the caller's
+    /// mapping decides what blocks. The <see cref="ColumnLayout{T}.Build"/>
+    /// engine labels connected spans, each span's value becoming its region.
+    /// Manual — call once at ingestion; the space's
+    /// <see cref="VoxelLayout{T}.Bound"/> is derived from the entities when
+    /// unset.
     /// </summary>
-    public static ColumnLayout<Region> BuildLayout(VoxelLayout<Entity> layout, Agent? agent = null)
+    public static ColumnLayout<Region> BuildLayout(UnitLayout space, Agent? agent = null)
     {
         agent ??= Agent.Human;
-        var bound = layout.Bound;
+        var bound = space.Layout.Bound;
         if (bound.IsEmpty)
         {
-            bound = ComputeExtent(layout);
-            layout.Bound = bound;
+            bound = ComputeExtent(space);
+            space.Layout.Bound = bound;
         }
         if (bound.IsEmpty)
             return ColumnLayout<Region>.Empty();
 
+        var occupancy = space.Layout.Select(_ => true);
         var labels = ColumnLayout<int>.Build(
-            layout,
-            GetWalkableCells(layout),
+            occupancy,
+            GetWalkableCells(space),
             new ColumnLayout<int>.Settings { MaxClimbHeight = agent.MaxClimbHeight });
 
         var regions = Aggregate(labels);
@@ -74,9 +77,9 @@ public sealed class Region
     /// engine's span scan — walls vanish because they occupy the standing cell
     /// itself; table tops / treadmill decks are excluded as non-structural.
     /// </summary>
-    private static IEnumerable<Int3> GetWalkableCells(VoxelLayout<Entity> layout)
+    private static IEnumerable<Int3> GetWalkableCells(UnitLayout space)
     {
-        foreach (var entity in layout.Entities)
+        foreach (var entity in space.Entities)
         {
             if (!(entity.TryGetValue(BuiltinProperty.IS_STRUCTURAL.Name, out var value) && value is true))
                 continue;
@@ -143,7 +146,7 @@ public sealed class Region
         return regions;
     }
 
-    private static Bound ComputeExtent(VoxelLayout<Entity> layout)
+    private static Bound ComputeExtent(UnitLayout space)
     {
         var minX = int.MaxValue;
         var minY = int.MaxValue;
@@ -152,7 +155,7 @@ public sealed class Region
         var maxY = int.MinValue;
         var maxZ = int.MinValue;
         var any = false;
-        foreach (var entity in layout.Entities)
+        foreach (var entity in space.Entities)
         {
             if (entity.Volume is null)
                 continue;

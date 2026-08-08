@@ -36,9 +36,9 @@ public class RegionTests
     /// 10×9×30 封闭空间；中墙 (x=5, 全高) 分左右两室。墙体错位角接避免重叠。
     /// 左室 x=1..4、右室 x=6..8，z=1..8，span [1,30)。
     /// </summary>
-    private static VoxelLayout<Entity> TwoRoomScene()
+    private static UnitLayout TwoRoomScene()
     {
-        var l = new VoxelLayout<Entity>();
+        var l = new UnitLayout();
         l.BuildAt(SurfaceBox("floor", 10, 1, 10, new Int3(0, 0, 0), 1), new Int3(0, 0, 0));
         l.BuildAt(Box("ceiling", 10, 1, 10), new Int3(0, 30, 0));
         l.BuildAt(Box("wall", 10, 29, 1), new Int3(0, 1, 0)); // 北 z=0
@@ -79,7 +79,7 @@ public class RegionTests
     public void BuildLayout_MergesThroughDoorway()
     {
         // 中墙留门洞 z=4：两段 [1..3] 与 [5..8]
-        var l = new VoxelLayout<Entity>();
+        var l = new UnitLayout();
         l.BuildAt(SurfaceBox("floor", 10, 1, 10, new Int3(0, 0, 0), 1), new Int3(0, 0, 0));
         l.BuildAt(Box("ceiling", 10, 1, 10), new Int3(0, 30, 0));
         l.BuildAt(Box("wall", 10, 29, 1), new Int3(0, 1, 0));
@@ -103,7 +103,7 @@ public class RegionTests
     public void BuildLayout_AgentClimbHeightControlsConnectivity()
     {
         // 相邻两列：A span [1,20)，B span [21,40)，间距 1
-        var l = new VoxelLayout<Entity>();
+        var l = new UnitLayout();
         l.BuildAt(SurfaceBox("floor", 1, 1, 1, new Int3(0, 0, 0), 1), new Int3(0, 0, 0));   // A 地板面 y=1
         l.BuildAt(Box("ceiling", 1, 1, 1), new Int3(0, 20, 0));                             // A 天花 y=20
         l.BuildAt(Box("base", 1, 20, 1), new Int3(1, 0, 0));                                 // B 基座 y=0..19
@@ -120,7 +120,7 @@ public class RegionTests
     [Fact]
     public void BuildLayout_FurnitureBecomesHole()
     {
-        var l = new VoxelLayout<Entity>();
+        var l = new UnitLayout();
         l.BuildAt(SurfaceBox("floor", 5, 1, 5, new Int3(0, 0, 0), 1), new Int3(0, 0, 0));
         l.BuildAt(Box("ceiling", 5, 1, 5), new Int3(0, 30, 0));
         l.BuildAt(Box("wall", 5, 29, 1), new Int3(0, 1, 0)); // 北 z=0
@@ -141,7 +141,7 @@ public class RegionTests
     public void BuildLayout_NonStructuralSurface_DoesNotSeedRegions()
     {
         // 地板（structural）+ 一张非 structural 的桌子（有 Up 顶面 y=8）
-        var l = new VoxelLayout<Entity>();
+        var l = new UnitLayout();
         l.BuildAt(SurfaceBox("floor", 5, 1, 5, new Int3(0, 0, 0), 1), new Int3(0, 0, 0));
         l.BuildAt(Box("ceiling", 5, 1, 5), new Int3(0, 30, 0));
         var table = Box("table", 3, 1, 3);
@@ -159,7 +159,7 @@ public class RegionTests
     [Fact]
     public void BuildLayout_EmptyLayout_HasNoRegions()
     {
-        var map = Region.BuildLayout(new VoxelLayout<Entity>());
+        var map = Region.BuildLayout(new UnitLayout());
         Assert.Null(map.At(0, 0, 0));
         Assert.Empty(map.AllSpans());
     }

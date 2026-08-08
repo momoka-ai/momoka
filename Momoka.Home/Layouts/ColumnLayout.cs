@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using Momoka.Home.Entities;
 using Momoka.Home.Primitives;
 namespace Momoka.Home.Layouts;
 
@@ -144,24 +143,23 @@ public sealed class ColumnLayout<T>
     }
 
     /// <summary>
-    /// Builds a label layout from the space's occupancy: <paramref name="cells"/>
+    /// Builds a label layout from a boolean occupancy grid: <paramref name="cells"/>
     /// are the standing cells in root-absolute coordinates (pre-filtered by the
-    /// caller — placement-surface tops with headroom). Each standing cell seeds a
-    /// span that extends upward until the next standing cell, the first occupied
-    /// cell, or the layout's <see cref="VoxelLayout{T}.Bound"/> top. Adjacent
-    /// columns' spans merge when their vertical gap ≤
+    /// caller — placement-surface tops with headroom); true cells block. Each
+    /// standing cell seeds a span that extends upward until the next standing
+    /// cell, the first blocked cell, or the layout's <see cref="VoxelLayout{T}.Bound"/>
+    /// top. Adjacent columns' spans merge when their vertical gap ≤
     /// <see cref="Settings.MaxClimbHeight"/> (4-connectivity in XZ). The output
     /// values are 1-based connected-component labels; use
     /// <see cref="Map{TOut}"/> to turn them into payloads. The layout's
     /// <see cref="VoxelLayout{T}.Bound"/> must be set (empty → empty layout).
     /// </summary>
     [SuppressMessage("Design", "CA1000:Do not declare static members on generic types",
-        Justification = "Deliberate generic factory: the Build name and Settings belong on ColumnLayout.")]
-    public static ColumnLayout<int> Build<TA>(
-        VoxelLayout<TA> layout,
+        Justification = "Deliberate: the Build name and Settings belong on ColumnLayout.")]
+    public static ColumnLayout<int> Build(
+        VoxelLayout<bool> layout,
         IEnumerable<Int3> cells,
         ColumnLayout<T>.Settings settings)
-        where TA : Entity
     {
         if (layout.Bound.IsEmpty)
             return ColumnLayout<int>.Empty();
@@ -216,7 +214,7 @@ public sealed class ColumnLayout<T>
                         {
                             if (i + 1 < ys.Count && y >= ys[i + 1])
                                 break;
-                            if (layout[new Int3(x, y, z)] is not null)
+                            if (layout[new Int3(x, y, z)])
                                 break;
                             y++;
                         }

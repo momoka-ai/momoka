@@ -1,6 +1,4 @@
 using Xunit;
-using Momoka.Home.Entities;
-using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
 namespace Momoka.Home.Tests.Models.Regions;
@@ -84,20 +82,20 @@ public class ColumnLayoutTests
 
     // ── 生成引擎 Build（站立格 + 占用）─────────────────
 
-    private sealed class TestEntity : Entity
+    /// <summary>一个带 Bound 的占用网格；true = 被占用（阻塞），按 (位置, 尺寸) 写入。</summary>
+    private static VoxelLayout<bool> Scene(int width, int depth, int height, params (Int3 Pos, Int3 Size)[] blocks)
     {
-        public TestEntity(Volume volume) => Volume = volume;
-    }
-
-    /// <summary>一个带 Bound 的布局；占用块按 (位置, 尺寸) 放入。</summary>
-    private static VoxelLayout<Entity> Scene(int width, int depth, int height, params (Int3 Pos, Int3 Size)[] blocks)
-    {
-        var layout = new VoxelLayout<Entity>
+        var layout = new VoxelLayout<bool>
         {
             Bound = Bound.FromCorners(Int3.Zero, new Int3(width - 1, height - 1, depth - 1)),
         };
         foreach (var (pos, size) in blocks)
-            layout.BuildAt(new TestEntity(new Box3D { SizeX = size.X, SizeY = size.Y, SizeZ = size.Z }), pos);
+        {
+            for (var x = 0; x < size.X; x++)
+                for (var y = 0; y < size.Y; y++)
+                    for (var z = 0; z < size.Z; z++)
+                        layout[pos + new Int3(x, y, z)] = true;
+        }
         return layout;
     }
 
@@ -177,7 +175,7 @@ public class ColumnLayoutTests
     public void Build_NoBound_ReturnsEmpty()
     {
         var labels = ColumnLayout<int>.Build(
-            new VoxelLayout<Entity>(),
+            new VoxelLayout<bool>(),
             new[] { new Int3(0, 1, 0) },
             new ColumnLayout<int>.Settings());
         Assert.Equal(0, labels.SpanCount);

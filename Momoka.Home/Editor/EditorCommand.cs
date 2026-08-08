@@ -37,7 +37,7 @@ public class MoveEntityCommand : EditorCommand
     {
         var entity = layout[_from];
         if (entity is null || entity.Id != _entityId) return;
-        layout[_from] = null;
+        layout[_from] = default!;
         layout[_to] = entity;
     }
 
@@ -45,7 +45,7 @@ public class MoveEntityCommand : EditorCommand
     {
         var entity = layout[_to];
         if (entity is null || entity.Id != _entityId) return;
-        layout[_to] = null;
+        layout[_to] = default!;
         layout[_from] = entity;
     }
 }
