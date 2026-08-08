@@ -17,8 +17,10 @@ namespace Momoka.Home;
 /// </summary>
 public sealed class UnitLayout : IEntitySource
 {
+    private VoxelLayout<Entity> _layout = new();
+
     /// <summary>The pure 3D voxel occupancy grid: the single root space.</summary>
-    public VoxelLayout<Entity> Layout { get; } = new();
+    public VoxelLayout<Entity> Layout => _layout;
 
     /// <summary>All entities of the space, kept in sync with the cell grid.</summary>
     public List<Entity> Entities { get; } = new();
@@ -42,6 +44,20 @@ public sealed class UnitLayout : IEntitySource
     {
         Regions = Region.BuildLayout(this, agent);
         return Regions;
+    }
+
+    /// <summary>
+    /// Restores a loaded snapshot (save/load path): swaps in the reconstructed
+    /// grid, repopulates the entity list and sets the region layer. Internal —
+    /// the grid must come from the storage codecs so palette references stay
+    /// consistent with <paramref name="entities"/>.
+    /// </summary>
+    internal void Restore(VoxelLayout<Entity> grid, IEnumerable<Entity> entities, ColumnLayout<Region>? regions)
+    {
+        _layout = grid;
+        Entities.Clear();
+        Entities.AddRange(entities);
+        Regions = regions;
     }
 
     /// <summary>The region containing the cell, or null (blocked / outside / unbuilt).</summary>
