@@ -1,0 +1,148 @@
+using Xunit;
+using Momoka.Home.Entities;
+using Momoka.Home.Geometry;
+using Momoka.Home.Layouts;
+using Momoka.Home.Primitives;
+using Momoka.Home.Storage;
+namespace Momoka.Home.Tests.Models.Serialization;
+
+/// <summary>
+/// LayoutChunkCodec persists the voxel layer as per-chunk binary files:
+/// paletted sections (palette of entity ids + packed words) round-trip cell
+/// references exactly — including multi-section, multi-chunk and
+/// negative-coordinate chunks.
+/// </summary>
+public class VoxelLayoutChunkCodecTests
+{
+    private static Entity Box(string path, int sx, int sy, int sz) => new()
+    {
+        Key = new Key(path),
+        Volume = new Box3D { SizeX = sx, SizeY = sy, SizeZ = sz },
+    };
+
+    private static string TempDir() =>
+        Path.Combine(Path.GetTempPath(), "momoka_chunks_" + Guid.NewGuid().ToString("N"));
+
+    /// <summary>
+    /// 一个跨多区块、多 section、含负坐标的场景：
+    /// wall 占 chunk(0,0) 的 section 0 和 2；floor 占 chunk(1,1)；pillar 占 chunk(-1,-1)。
+    /// </summary>
+    private static (VoxelLayout<Entity> Layout, List<Entity> Entities) Scene()
+    {
+        var layout = new VoxelLayout<Entity>
+        {
+            Bound = Bound.FromCorners(Int3.Zero, new Int3(40, 45, 40)),
+        };
+        var entities = new List<Entity>();
+
+        var wall = Box("wall", 1, 30, 1);
+        entities.Add(wall);
+        layout[new Int3(0, 0, 0)] = wall;
+        layout[new Int3(0, 1, 0)] = wall;
+        layout[new Int3(0, 32, 0)] = wall; // section 2
+
+        var floor = Box("floor", 2, 1, 2);
+        entities.Add(floor);
+        layout[new Int3(17, 0, 17)] = floor;
+        layout[new Int3(18, 0, 17)] = floor;
+        layout[new Int3(17, 0, 18)] = floor;
+        layout[new Int3(18, 0, 18)] = floor;
+
+        var pillar = Box("pillar", 1, 1, 1);
+        entities.Add(pillar);
+        layout[new Int3(-1, 0, -1)] = pillar;
+
+        return (layout, entities);
+    }
+
+    [Fact]
+    public void SaveLoad_RoundTripsCellsAndEntities()
+    {
+        var (scene, entities) = Scene();
+        var dir = TempDir();
+        try
+        {
+            LayoutChunkCodec.Save(scene, dir);
+
+            Assert.True(File.Exists(Path.Combine(dir, "Layout.0.0.dat")));
+            Assert.True(File.Exists(Path.Combine(dir, "Layout.1.1.dat")));
+            Assert.True(File.Exists(Path.Combine(dir, "Layout.-1.-1.dat")));
+
+            var loaded = LayoutChunkCodec.Load(dir, entities);
+
+            Assert.Same(entities[0], loaded[new Int3(0, 0, 0)]);   // wall
+            Assert.Same(entities[0], loaded[new Int3(0, 1, 0)]);
+            Assert.Same(entities[0], loaded[new Int3(0, 32, 0)]);  // section 2 还原
+            Assert.Same(entities[1], loaded[new Int3(17, 0, 17)]); // floor
+            Assert.Same(entities[1], loaded[new Int3(18, 0, 18)]);
+            Assert.Same(entities[2], loaded[new Int3(-1, 0, -1)]); // pillar（负坐标 chunk）
+            Assert.Null(loaded[new Int3(0, 2, 0)]);                // wall 上方空洞
+            Assert.Null(loaded[new Int3(5, 5, 5)]);                // 空区域
+        }
+        finally
+        {
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Save_RemovesStaleChunkFiles()
+    {
+        var (scene, entities) = Scene();
+        var dir = TempDir();
+        try
+        {
+            LayoutChunkCodec.Save(scene, dir);
+            Assert.True(File.Exists(Path.Combine(dir, "Layout.1.1.dat")));
+
+            // 清空 chunk(1,1) 的唯一数据：floor 的 4 个格
+            scene[new Int3(17, 0, 17)] = default!;
+            scene[new Int3(18, 0, 17)] = default!;
+            scene[new Int3(17, 0, 18)] = default!;
+            scene[new Int3(18, 0, 18)] = default!;
+
+            LayoutChunkCodec.Save(scene, dir);
+
+            Assert.False(File.Exists(Path.Combine(dir, "Layout.1.1.dat"))); // 空 chunk 文件被清理
+            Assert.True(File.Exists(Path.Combine(dir, "Layout.0.0.dat")));
+            Assert.True(File.Exists(Path.Combine(dir, "Layout.-1.-1.dat")));
+        }
+        finally
+        {
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Load_MissingDirectory_ReturnsEmptyLayout()
+    {
+        var loaded = LayoutChunkCodec.Load(TempDir(), Array.Empty<Entity>());
+        Assert.Null(loaded[new Int3(0, 0, 0)]);
+    }
+
+    [Fact]
+    public void Decode_CorruptData_Throws()
+    {
+        Assert.Throws<InvalidDataException>(() =>
+            LayoutChunkCodec.Decode(Int2.Zero, new byte[] { 1, 2, 3, 4, 5 }, new Dictionary<Guid, Entity>()));
+    }
+
+    [Fact]
+    public void Decode_UnknownPaletteEntity_Throws()
+    {
+        var (scene, _) = Scene();
+        var dir = TempDir();
+        try
+        {
+            LayoutChunkCodec.Save(scene, dir);
+            var bytes = File.ReadAllBytes(Path.Combine(dir, "Layout.0.0.dat"));
+
+            Assert.Throws<InvalidDataException>(() =>
+                LayoutChunkCodec.Decode(new Int2(0, 0), bytes, new Dictionary<Guid, Entity>()));
+        }
+        finally
+        {
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+    }
+}

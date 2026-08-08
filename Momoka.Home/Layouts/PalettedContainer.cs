@@ -15,6 +15,13 @@ public class PalettedContainer<TKey, T> : PalettedContainerRO<TKey, T>
         _palette.Resized += newBits => _storage = _storage.Resize(newBits);
     }
 
+    /// <summary>Restores a container from serialized palette + storage.</summary>
+    internal PalettedContainer(Palette<T>.Strategy<TKey> strategy, Palette<T> palette, PackedBitStorage storage)
+        : base(strategy, palette, storage)
+    {
+        _palette.Resized += newBits => _storage = _storage.Resize(newBits);
+    }
+
     public void Set(TKey key, T value)
     {
         // NOTE: resolve the palette id BEFORE touching _storage — IdFor may

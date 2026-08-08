@@ -16,6 +16,26 @@ public sealed class PackedBitStorage
     public int Size => _size;
     public int Bits => _bits;
 
+    /// <summary>Raw packed words, for storage serialization.</summary>
+    internal ulong[] Data => _data;
+
+    /// <summary>Restores storage from raw packed words (length must match size/bits).</summary>
+    internal PackedBitStorage(int size, int bits, ulong[] data) : this(size, bits)
+    {
+        if (data.Length != _data.Length)
+            throw new ArgumentException($"Raw storage length {data.Length} != expected {_data.Length} for {size} cells × {bits} bits.", nameof(data));
+        _data = data;
+    }
+
+    /// <summary>True when every cell is empty (id 0) — the storage holds no data.</summary>
+    internal bool AllZero()
+    {
+        foreach (var word in _data)
+            if (word != 0)
+                return false;
+        return true;
+    }
+
     /// <summary>Minimum number of bits needed to store <paramref name="size"/> distinct values.</summary>
     public static int RequiredBits(int size) =>
         Math.Max(1, (int)Math.Ceiling(Math.Log2(size)));

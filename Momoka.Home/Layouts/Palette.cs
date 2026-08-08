@@ -15,6 +15,18 @@ public class Palette<T> where T : notnull
 
     public int Size => _values.Count;
 
+    /// <summary>All palette values including the reserved empty slot at index 0. For storage serialization.</summary>
+    internal IReadOnlyList<T> Values => _values;
+
+    /// <summary>Rebuilds a palette from its non-empty values (ids 1..n assigned in order).</summary>
+    internal static Palette<T> FromValues(IReadOnlyList<T> values)
+    {
+        var palette = new Palette<T>();
+        foreach (var value in values)
+            palette.IdFor(value);
+        return palette;
+    }
+
     /// <summary>Raised when the palette grows — informs the container to widen its bit storage.</summary>
     public event Action<int>? Resized;
 

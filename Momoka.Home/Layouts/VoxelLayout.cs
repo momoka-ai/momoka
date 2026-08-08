@@ -98,6 +98,21 @@ public class VoxelLayout<T> where T : notnull
 
     // ── Chunk math (SectionSize = 16, power of two) ────────────────────
 
+    public VoxelLayout() { }
+
+    /// <summary>All chunks (empty chunks are absent). For storage serialization.</summary>
+    internal IEnumerable<VoxelChunk<T>> Chunks => _chunks.Values;
+
+    /// <summary>Restores a layout from serialized chunks.</summary>
+    internal VoxelLayout(Dictionary<long, VoxelChunk<T>> chunks, Bound bound)
+    {
+        _chunks = chunks;
+        Bound = bound;
+    }
+
+    internal static long ChunkKeyOf(Int2 index) =>
+        ((long)index.X << 32) | (uint)index.Z;
+
     private static long ChunkKey(Int3 coords) =>
         ((long)(coords.X >> 4) << 32) | (uint)(coords.Z >> 4);
 
@@ -114,7 +129,7 @@ public class VoxelLayout<T> where T : notnull
 /// </summary>
 public class VoxelChunk<T> where T : notnull
 {
-    private VoxelChunkSection<T>[] _sections = Array.Empty<VoxelChunkSection<T>>();
+    private VoxelChunkSection<T>?[] _sections = Array.Empty<VoxelChunkSection<T>>();
 
     /// <summary>Chunk column index in the XZ plane.</summary>
     public Int2 Index { get; }
@@ -123,6 +138,13 @@ public class VoxelChunk<T> where T : notnull
     public IReadOnlyList<VoxelChunkSection<T>?> Sections => _sections;
 
     public VoxelChunk(Int2 index) => Index = index;
+
+    /// <summary>Restores a chunk from serialized sections (may contain null gaps).</summary>
+    internal VoxelChunk(Int2 index, VoxelChunkSection<T>?[] sections)
+    {
+        Index = index;
+        _sections = sections;
+    }
 
     /// <summary>
     /// Chunk-local cell access: x/z in [0,16), y any (the column height).
@@ -188,10 +210,17 @@ public class VoxelChunk<T> where T : notnull
 public class VoxelChunkSection<T> where T : notnull
 {
     /// <summary>Paletted cell storage of this 16×16×16 section.</summary>
-    public PalettedContainer<Int3, T> Data { get; } = new(
-        new Palette<T>.Int3ChunkStrategy(
-            new Int3(VoxelLayout<T>.SectionSize, VoxelLayout<T>.SectionSize, VoxelLayout<T>.SectionSize),
-            initialBits: 4));
+    public PalettedContainer<Int3, T> Data { get; }
+
+    public VoxelChunkSection()
+        : this(new PalettedContainer<Int3, T>(NewStrategy())) { }
+
+    /// <summary>Restores a section from serialized storage.</summary>
+    internal VoxelChunkSection(PalettedContainer<Int3, T> data) => Data = data;
+
+    private static Palette<T>.Int3ChunkStrategy NewStrategy() => new(
+        new Int3(VoxelLayout<T>.SectionSize, VoxelLayout<T>.SectionSize, VoxelLayout<T>.SectionSize),
+        initialBits: 4);
 
     /// <summary>Section-local cell access (all components in [0,16)).</summary>
     public T? this[Int3 local]

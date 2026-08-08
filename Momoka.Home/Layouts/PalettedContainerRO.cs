@@ -18,6 +18,20 @@ public class PalettedContainerRO<TKey, T> where TKey : notnull where T : notnull
         _storage = new PackedBitStorage(strategy.Count, strategy.InitialBits);
     }
 
+    /// <summary>Restores a container from serialized palette + storage.</summary>
+    protected PalettedContainerRO(Palette<T>.Strategy<TKey> strategy, Palette<T> palette, PackedBitStorage storage)
+    {
+        _strategy = strategy;
+        _palette = palette;
+        _storage = storage;
+    }
+
+    /// <summary>Palette, for storage serialization.</summary>
+    internal Palette<T> Palette => _palette;
+
+    /// <summary>Packed bit storage, for storage serialization.</summary>
+    internal PackedBitStorage Storage => _storage;
+
     public T? Get(TKey key) =>
         _palette.ValueFor(_storage.Get(_strategy.AsIndexed(key)));
 
