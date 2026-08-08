@@ -48,23 +48,23 @@ public sealed class Region
     /// <see cref="VoxelLayout{T}.Bound"/> is derived from the entities when
     /// unset.
     /// </summary>
-    public static ColumnLayout<Region> BuildLayout(UnitLayout space, Agent? agent = null)
+    public static ColumnLayout<Region> BuildLayout(UnitLayout unit, Agent? agent = null)
     {
         agent ??= Agent.Human;
-        var bound = space.Layout.Bound;
+        var bound = unit.Layout.Bound;
         if (bound.IsEmpty)
         {
-            bound = ComputeExtent(space);
-            space.Layout.Bound = bound;
+            bound = ComputeExtent(unit);
+            unit.Layout.Bound = bound;
         }
         if (bound.IsEmpty)
             return ColumnLayout<Region>.Empty();
 
-        var occupancy = space.Layout.Select(e =>
+        var occupancy = unit.Layout.Select(e =>
             e.GetValue<bool>(BuiltinProperty.IsStructural) && !e.GetValue<bool>(BuiltinProperty.IsOpen));
         var labels = ColumnLayout<int>.Build(
             occupancy,
-            GetWalkableCells(space),
+            GetWalkableCells(unit),
             new ColumnLayout<int>.Settings { MaxClimbHeight = agent.MaxClimbHeight });
 
         var regions = Aggregate(labels);
@@ -78,9 +78,9 @@ public sealed class Region
     /// block the engine's span scan (walls, closed doors); table tops / treadmill
     /// decks are excluded as non-structural.
     /// </summary>
-    private static IEnumerable<Int3> GetWalkableCells(UnitLayout space)
+    private static IEnumerable<Int3> GetWalkableCells(UnitLayout unit)
     {
-        foreach (var entity in space.Entities)
+        foreach (var entity in unit.Entities)
         {
             if (!(entity.TryGetValue(BuiltinProperty.IsStructural, out var value) && value is true))
                 continue;
@@ -147,7 +147,7 @@ public sealed class Region
         return regions;
     }
 
-    private static Bound ComputeExtent(UnitLayout space)
+    private static Bound ComputeExtent(UnitLayout unit)
     {
         var minX = int.MaxValue;
         var minY = int.MaxValue;
@@ -156,7 +156,7 @@ public sealed class Region
         var maxY = int.MinValue;
         var maxZ = int.MinValue;
         var any = false;
-        foreach (var entity in space.Entities)
+        foreach (var entity in unit.Entities)
         {
             if (entity.Volume is null)
                 continue;

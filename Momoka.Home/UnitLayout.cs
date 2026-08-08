@@ -1,6 +1,5 @@
 using Momoka.Home.Components;
 using Momoka.Home.Entities;
-using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
 namespace Momoka.Home;
@@ -16,7 +15,7 @@ namespace Momoka.Home;
 /// are the <see cref="Regions"/> layer (replacing the retired floor-plan
 /// graphs).
 /// </summary>
-public sealed class UnitLayout : IEntitySource, IVoxelGeometry3D
+public sealed class UnitLayout : IEntitySource
 {
     /// <summary>The pure 3D voxel occupancy grid: the single root space.</summary>
     public VoxelLayout<Entity> Layout { get; } = new();
@@ -65,7 +64,7 @@ public sealed class UnitLayout : IEntitySource, IVoxelGeometry3D
     /// collide: the anchor or any of its (local) shape voxels lands on an
     /// occupied cell.
     /// </summary>
-    public bool IsEntityCollided(Entity entity, Int3 cs)
+    public bool IsCollided(Entity entity, Int3 cs)
     {
         if (Layout[cs] is not null)
             return true;
@@ -82,7 +81,7 @@ public sealed class UnitLayout : IEntitySource, IVoxelGeometry3D
     /// True if placing <paramref name="src"/> at <paramref name="cs"/> intersects
     /// the specific <paramref name="dest"/> entity (dest voxels vs src voxels).
     /// </summary>
-    public bool IsEntityCollided(Entity dest, Entity src, Int3 cs)
+    public bool IsCollided(Entity dest, Entity src, Int3 cs)
     {
         var destCells = dest.Volume.Cells3D()
             .Select(v => dest.Coords + v)
@@ -94,9 +93,9 @@ public sealed class UnitLayout : IEntitySource, IVoxelGeometry3D
     /// Builds (places) the entity at <paramref name="cs"/>: writes EVERY one of
     /// its shape voxels into the grid and registers it. False if collided.
     /// </summary>
-    public bool BuildAt(Entity entity, Int3 cs)
+    public bool PlaceAt(Entity entity, Int3 cs)
     {
-        if (IsEntityCollided(entity, cs))
+        if (IsCollided(entity, cs))
             return false;
 
         entity.Coords = cs;
@@ -109,17 +108,10 @@ public sealed class UnitLayout : IEntitySource, IVoxelGeometry3D
     }
 
     /// <summary>
-    /// Undoes <see cref="BuildAt"/> at the entity's registered position:
-    /// removes the entity whose Coords equals <paramref name="pos"/>.
+    /// Removes the entity covering the given target cell (indexed by occupancy,
+    /// not the placement anchor). False when the cell is empty.
     /// </summary>
-    public bool DestroyAt(Int3 pos)
-    {
-        var entity = Entities.FirstOrDefault(e => e.Coords == pos);
-        return entity is not null && Remove(entity);
-    }
-
-    /// <summary>Removes the entity covering the given target cell.</summary>
-    public bool DestroyTarget(Int3 target)
+    public bool DestroyAt(Int3 target)
     {
         if (Layout[target] is not Entity entity)
             return false;
@@ -168,10 +160,6 @@ public sealed class UnitLayout : IEntitySource, IVoxelGeometry3D
         return result;
     }
 
-    /// <summary>All entities assignable to the specified type.</summary>
-    public List<TEntity> GetEntitiesOfType<TEntity>() where TEntity : Entity =>
-        Entities.OfType<TEntity>().ToList();
-
     private bool Remove(Entity entity)
     {
         if (!Entities.Remove(entity))
@@ -184,37 +172,5 @@ public sealed class UnitLayout : IEntitySource, IVoxelGeometry3D
                 Layout[pos] = default!;
         }
         return true;
-    }
-
-    // ── IVoxelGeometry3D (upward composition) ────────────
-
-    /// <inheritdoc/>
-    public IEnumerable<Int3> Cells3D() =>
-        Entities.SelectMany(e => e.Volume.Cells3D().Select(c => e.Coords + c));
-
-    /// <inheritdoc/>
-    public void PlaceAt(VoxelLayout<Entity> target, Int3 at)
-    {
-        foreach (var entity in Entities)
-        {
-            foreach (var cell in entity.Volume.Cells3D())
-            {
-                target[at + entity.Coords + cell] = entity;
-            }
-        }
-    }
-
-    /// <inheritdoc/>
-    public void DestroyAt(VoxelLayout<Entity> target, Int3 at)
-    {
-        foreach (var entity in Entities)
-        {
-            foreach (var cell in entity.Volume.Cells3D())
-            {
-                var pos = at + entity.Coords + cell;
-                if (target[pos] == entity)
-                    target[pos] = default!;
-            }
-        }
     }
 }
