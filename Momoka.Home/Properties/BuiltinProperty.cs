@@ -13,4 +13,7 @@ public static class BuiltinProperty
     /// placeable, but never seed a region.
     /// </summary>
     public const string IsStructural = "is_structural";
+
+    /// <summary>Current open state of a portal (a door); structural portals are passable when open.</summary>
+    public const string IsOpen = "is_open";
 }

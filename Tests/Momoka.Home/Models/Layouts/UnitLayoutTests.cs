@@ -31,6 +31,13 @@ public class UnitLayoutTests
         Volume = new Box3D { SizeX = sx, SizeY = sy, SizeZ = sz },
     };
 
+    private static Entity StructuralBox(string path, int sx, int sy, int sz)
+    {
+        var entity = Box(path, sx, sy, sz);
+        entity.AddProperties(new[] { new BooleanProperty(BuiltinProperty.IsStructural, true) });
+        return entity;
+    }
+
     [Fact]
     public void Entities_ReflectsTheRootSpace()
     {
@@ -105,7 +112,7 @@ public class UnitLayoutTests
     {
         var unit = new UnitLayout();
         unit.BuildAt(new FloorEntity(), new Int3(0, 0, 0));
-        unit.BuildAt(Box("wall", 1, 29, 5), new Int3(2, 1, 0)); // 中墙 x=2 全高
+        unit.BuildAt(StructuralBox("wall", 1, 29, 5), new Int3(2, 1, 0)); // 中墙 x=2 全高
 
         var map = unit.RebuildRegions();
         Assert.Same(map, unit.Regions);

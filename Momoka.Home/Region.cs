@@ -40,9 +40,9 @@ public sealed class Region
     /// <summary>
     /// Builds the region layer of a space: standing cells are the top surfaces of
     /// the entities' <see cref="PlacementLayoutSource"/> placement planes
-    /// (Up-facing), mapped to root-absolute voxel coordinates. Occupancy is the
-    /// space's grid mapped to a boolean blocking grid via Select — the caller's
-    /// mapping decides what blocks. The <see cref="ColumnLayout{T}.Build"/>
+    /// (Up-facing), mapped to root-absolute voxel coordinates. Occupancy maps
+    /// each cell to <c>is_structural &amp;&amp; !is_open</c> — structure blocks,
+    /// open portals (doors) pass. The <see cref="ColumnLayout{T}.Build"/>
     /// engine labels connected spans, each span's value becoming its region.
     /// Manual — call once at ingestion; the space's
     /// <see cref="VoxelLayout{T}.Bound"/> is derived from the entities when
@@ -60,7 +60,8 @@ public sealed class Region
         if (bound.IsEmpty)
             return ColumnLayout<Region>.Empty();
 
-        var occupancy = space.Layout.Select(_ => true);
+        var occupancy = space.Layout.Select(e =>
+            e.GetValue<bool>(BuiltinProperty.IsStructural) && !e.GetValue<bool>(BuiltinProperty.IsOpen));
         var labels = ColumnLayout<int>.Build(
             occupancy,
             GetWalkableCells(space),
@@ -72,10 +73,10 @@ public sealed class Region
 
     /// <summary>
     /// Standing cells: Up-facing placement surfaces of entities marked
-    /// <see cref="BuiltinProperty.IS_STRUCTURAL"/> (floors, stairs, yard ground),
-    /// mapped to root-absolute voxel coordinates. Occupied cells are left to the
-    /// engine's span scan — walls vanish because they occupy the standing cell
-    /// itself; table tops / treadmill decks are excluded as non-structural.
+    /// <see cref="BuiltinProperty.IsStructural"/> (floors, stairs, yard ground),
+    /// mapped to root-absolute voxel coordinates. Structural-and-closed entities
+    /// block the engine's span scan (walls, closed doors); table tops / treadmill
+    /// decks are excluded as non-structural.
     /// </summary>
     private static IEnumerable<Int3> GetWalkableCells(UnitLayout space)
     {
