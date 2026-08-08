@@ -23,12 +23,12 @@
 
 | 模块 | 完成度 | 说明 |
 |------|--------|------|
-| Momoka.Home | 🟡 ~60% | 空间模型 / 属性 / 序列化核心完成；设备层 / 安全层 / Mesh 未实现 |
+| Momoka.Home | 🟡 ~60% | 空间模型 / 属性 / 序列化核心完成；设备层 / 安全层未实现 |
 | Momoka.Ui | 🔴 <10% | 仅 GDExtension 入口骨架 |
 | Momoka.Stage | 🔴 <5% | 仅目录与占位 README |
 | Momoka.Voice | 🟡 ~20% | HTTP 骨架完成；TTS 引擎未集成 |
 | Momoka.Ai / Core / Sense | 🔴 <10% | 仅程序入口骨架 |
-| 测试 / CI | 🟢 ~60% | 110 个测试全绿；CI = dotnet 构建+测试 / Godot 检查 / Python ruff |
+| 测试 / CI | 🟢 ~60% | 118 个测试全绿；CI = dotnet 构建+测试 / Godot 检查 / Python ruff |
 
 ---
 
@@ -82,7 +82,7 @@
 - [x] 序列化管线：`JsonTypeNameRegistry` + `JsonTypeConverter` + `JsonGeometryConverter` + `JsonPropertyConverter` + `CommandHistory`；`MideaVerifyTests` 用真实配置验证
 - [x] 组件：`Component` + `IComponentSource` + `CommandTarget` / `DataSource` / `EventSource` / `PlacementLayoutSource`
 - [x] 编辑器：`EditorCommand` / `MoveEntityCommand` + `CommandHistory`（undo / redo）
-- [x] 测试：110 个全绿（Layouts / Serialization / Shapes）
+- [x] 测试：118 个全绿（Layouts / Serialization / Shapes）
 - [x] 旧容器清理与迁移：`Home` / `Level` / `Building`、旧 2D `Region`、`IVoxelSpaceRoot`、`PlaneLayout`、`TextureProperty`、`FloorPlanLayout` 已删除；`Region` 迁主命名空间（`Momoka.Home`），`UnitLayout.Regions`（`ColumnLayout<Region>`）取代 `Floors`
 
 待实现（按当前优先级）：
@@ -90,8 +90,7 @@
 - [x] **3D Region 自动生成**：站立格（Up 放置面 + 净高过滤）→ `ColumnLayout` 引擎标 span（阻隔即占用，家具成洞）；`Region.BuildLayout()` + `UnitLayout.RebuildRegions()`（§5.6）；门开关 Portal 与 wall-extension 后续
 - [ ] **具体编辑命令**：`PlaceEntityCommand` / `RemoveEntityCommand`（含开口级联）/ `BuildWallCommand` / `PaintTileCommand`（刷材质面），接入 `CommandHistory`
 - [ ] **门洞渲染**：开门时渲染覆盖墙并允许连通性计算
-- [ ] **Mesh 转换函数**：`Shape` / 材质面 → 三角网格；据此决定 `Slab`（共享地板 / 天花板）是否必要
-- [ ] **参数化 `Shape` 体系**：屋顶形状 `Flat / Shed / Gable / Hip / Conical`（`Pitch` / `Overhang` 参数化）；非体素屋顶 `VoxelShapeEntity` 由顶部外环生成网格
+- [ ] **参数化 `Shape` 体系**：屋顶形状 `Flat / Shed / Gable / Hip / Conical`（`Pitch` / `Overhang` 参数化）；网格生成归 Momoka.Ui
 - [ ] **设备抽象层 `Providers`**：`IDeviceProvider` + `ProviderRegistry` + HomeAssistant 实现、GIIC 协议桥接
 - [ ] **设备配置 JSON**：`/devices/` 目录，以 JSON 声明第三方设备（实体配置管线已就绪，Provider 驱动待接入）
 - [ ] **安全约束 `Security`（L3–L4）**：Blackboard + 规则评估，拦截燃气 / 门锁 / 高压等危险操作
@@ -101,7 +100,6 @@
 - [ ] **多形态设备（低优先级）**：`DeviceShell` + 具象形态（静态网格占用 ↔ 移动连续位置），`Activate` / `Deactivate` 生命周期，身份贯穿形态切换（如扫地机器人）
 - [ ] **Palette 策略减法**：`Int2/Int3ChunkStrategy` 等暂留，待稳定后清理未用策略
 - [ ] **物业 / 管理方引用层（推迟）**：统一管理多 Unit 的引用式封装（住户 Residence 默认全权，物业另层且不可见住户内容）
-- [ ] **空气流体模拟（未来）**：房间粒度分段混合模型 → 自然通风建议
 - [ ] 补充单元测试覆盖上述功能
 
 ## Phase 2 — Momoka.Ui 家庭管理终端（未开始）
@@ -109,6 +107,7 @@
 > 目标：先把家庭管理系统跑起来——终端可视化户型与设备控制。AI 伴侣相关的渲染能力（Live2D / VAD / ASR / 音频）见 Phase 4。
 
 - [ ] 3D 家庭场景：glTF 户型加载、网格化墙壁 / 地板渲染
+- [ ] **网格生成**：从 Home 的 `Shape` / `Volume`（10cm 碰撞箱）生成三角网格与材质面；Home 不保存模型 / 贴图
 - [ ] 场景编辑交互：家具放置 / 选中 / 拖拽 / 旋转、材质编辑、撤销重做
 - [ ] 2D UI 叠加层：设备控制面板、设置、调试 HUD
 - [ ] 设备状态展示与控制（消费 Momoka.Home 数据）
@@ -164,7 +163,6 @@
 
 - [ ] 家庭管理系统 MVP：终端可视化户型 + 设备控制（Home + Ui + Stage）
 - [ ] AI 伴侣 MVP：角色对话 + 语音 + Live2D 反馈（Ai + Core + Sense + Voice）
-- [ ] 空气流体模拟与智能通风建议（见 Phase 1）
 - [ ] 插件生态：第三方设备 / 工具 / 角色扩展
 - [ ] 多语言支持（界面与语音）
 - [ ] 端侧模型优化与离线能力增强

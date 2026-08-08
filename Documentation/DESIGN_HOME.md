@@ -240,37 +240,7 @@ flowchart TB
 | 墙壁开口联动 | 删除墙 → 级联删除门窗 |
 | 设备配置 JSON | `/devices/` JSON 定义第三方设备，无需写代码 |
 | DSL 安全规则 | 复杂约束的表达式解析 |
-
-### 7.2 空气流体模拟（未来）
-
-不做 10cm 全屋 CFD（600K 格不可行）。采用**分段混合模型（房间粒度）**：
-
-```mermaid
-flowchart LR
-    Room["每个房间 = 1 充分混合节点<br/>（体积 V）"]
-    Opening["每扇窗/门 = 1 条流通通道<br/>（开度 → 阻力）"]
-    Inputs["输入：房间体积、窗朝向/开度、<br/>房间连通、室外风、AQI、温度、CO₂/PM2.5"]
-    Solve["求解：风压 + 烟囱效应<br/>→ 质量守恒线性方程组 → 浓度平流积分"]
-    Decision["决策（启发式）<br/>开窗通风 / 关窗新风 / 热回收"]
-    Output["产出建议 → LLM"]
-
-    Room --> Solve
-    Opening --> Solve
-    Inputs --> Solve
-    Solve --> Decision --> Output
-```
-
-输入：房间体积（Region）、窗户朝向/开度（Window + Curtain.POSITION）、房间连通、室外风速风向（天气 DataSource）、室外 AQI（空气质量 DataSource）、室内外温度、室内 CO2/PM2.5。
-
-求解：风压（朝向+风速²）+ 烟囱效应（温差+高度差）→ 质量守恒线性方程组 → 浓度平流积分 10 分钟。
-
-决策（启发式即可）：
-- AQI 低 → 开迎风窗自然通风
-- AQI 高 + 风向朝卧室 → 关卧室窗，开背风窗或新风
-- 温差大 → 优先新风（热回收）
-- 积灰风险 = 室外 AQI × 风暴露 × 开窗率
-
-归属：`Momoka.Home/Services/AirFlowModel.cs`（或 `Simulation/`），消费 Models 数据，产出建议给 LLM。
+| 网格生成 | `Shape` / `Volume` 是 10cm 碰撞箱，Home 不保存模型 / 贴图；三角网格生成归 Momoka.Ui |
 
 ---
 
