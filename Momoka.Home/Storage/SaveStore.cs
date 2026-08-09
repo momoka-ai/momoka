@@ -34,8 +34,7 @@ public static class SaveStore
         public string Name { get; set; } = string.Empty;
         public string Address { get; set; } = string.Empty;
         public UnitType Type { get; set; }
-        public Int3? BoundMin { get; set; }
-        public Int3? BoundMax { get; set; }
+        public Bound? Bound { get; set; }
         public string ChunkLayout { get; set; } = "Chunks";
     }
 
@@ -98,11 +97,7 @@ public static class SaveStore
             Address = residence.Address,
             Type = residence.Type,
         };
-        if (!grid.Bound.IsEmpty)
-        {
-            dto.BoundMin = grid.Bound.Min;
-            dto.BoundMax = grid.Bound.Max;
-        }
+        dto.Bound = grid.Bound.IsValid ? grid.Bound : null;
         File.WriteAllText(Path.Combine(saveDir, ResidenceFile), JsonConvert.SerializeObject(dto, Settings));
         File.WriteAllText(Path.Combine(saveDir, EntitiesFile), EntitiesCodec.Serialize(residence.Entities));
         LayoutChunkCodec.Save(grid, residence.Layout.Regions, Path.Combine(saveDir, dto.ChunkLayout));
@@ -120,8 +115,7 @@ public static class SaveStore
     private static ResidenceMetadata ReadResidence(string path) =>
         JsonConvert.DeserializeObject<ResidenceMetadata>(File.ReadAllText(path), Settings) ?? new ResidenceMetadata();
 
-    private static Bound ReadBound(ResidenceMetadata dto) =>
-        dto.BoundMin is { } min && dto.BoundMax is { } max ? Bound.FromCorners(min, max) : Bound.Empty;
+    private static Bound ReadBound(ResidenceMetadata dto) => dto.Bound ?? Bound.Invalid;
 
     /// <summary>Replaces path-hostile characters in a residence name for use as a folder name.</summary>
     private static string SanitizeFolder(string name)

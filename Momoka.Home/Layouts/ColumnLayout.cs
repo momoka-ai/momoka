@@ -161,7 +161,7 @@ public sealed class ColumnLayout<T>
         IEnumerable<Int3> cells,
         ColumnLayout<T>.Settings settings)
     {
-        if (layout.Bound.IsEmpty)
+        if (!layout.Bound.IsValid)
             return ColumnLayout<int>.Empty();
 
         var all = cells.ToList();

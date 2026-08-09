@@ -33,7 +33,7 @@ public class VoxelLayoutChunkCodecTests
     {
         var layout = new VoxelLayout<Entity>
         {
-            Bound = Bound.FromCorners(Int3.Zero, new Int3(40, 45, 40)),
+            Bound = Bound.FromCorners(Int3.Zero.ToFloat3(), new Int3(40, 45, 40).ToFloat3()),
         };
         var entities = new List<Entity>();
 

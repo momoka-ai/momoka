@@ -52,12 +52,12 @@ public sealed class Region
     {
         agent ??= Agent.Human;
         var bound = unit.Layout.Bound;
-        if (bound.IsEmpty)
+        if (!bound.IsValid)
         {
             bound = ComputeExtent(unit);
             unit.Layout.Bound = bound;
         }
-        if (bound.IsEmpty)
+        if (!bound.IsValid)
             return ColumnLayout<Region>.Empty();
 
         var occupancy = unit.Layout.Select(e =>
@@ -140,8 +140,8 @@ public sealed class Region
         for (var r = 1; r <= maxLabel; r++)
         {
             var bounds = Bound.FromCorners(
-                new Int3(minX[r], minY[r], minZ[r]),
-                new Int3(maxX[r], maxY[r], maxZ[r]));
+                new Int3(minX[r], minY[r], minZ[r]).ToFloat3(),
+                new Int3(maxX[r], maxY[r], maxZ[r]).ToFloat3());
             regions[r] = new Region(r, bounds, volume[r], footprints[r].Count);
         }
         return regions;
@@ -172,6 +172,6 @@ public sealed class Region
                 any = true;
             }
         }
-        return any ? Bound.FromCorners(new Int3(minX, minY, minZ), new Int3(maxX, maxY, maxZ)) : Bound.Empty;
+        return any ? Bound.FromCorners(new Int3(minX, minY, minZ).ToFloat3(), new Int3(maxX, maxY, maxZ).ToFloat3()) : Bound.Invalid;
     }
 }

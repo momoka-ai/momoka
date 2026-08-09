@@ -22,7 +22,7 @@ public class VoxelLayoutTests
     {
         var layout = new VoxelLayout<Entity>
         {
-            Bound = Bound.FromCorners(Int3.Zero, new Int3(7, 7, 7)),
+            Bound = Bound.FromCorners(Int3.Zero.ToFloat3(), new Int3(7, 7, 7).ToFloat3()),
         };
         var a = new TestEntity(new Box3D { SizeX = 2, SizeY = 1, SizeZ = 2 });
         var b = new TestEntity(new Box3D { SizeX = 1, SizeY = 1, SizeZ = 1 });

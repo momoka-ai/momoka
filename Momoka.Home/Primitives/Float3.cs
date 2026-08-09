@@ -9,6 +9,8 @@ namespace Momoka.Home.Primitives;
 /// </summary>
 public readonly record struct Float3(float X, float Y, float Z)
 {
+    public Float3(float length) : this(length, length, length) { }
+
     // ── Constants ──────────────────────────────────────────
     public static readonly Float3 Zero = new(0f, 0f, 0f);
     public static readonly Float3 One = new(1f, 1f, 1f);
@@ -37,6 +39,22 @@ public readonly record struct Float3(float X, float Y, float Z)
         new(a.X / s, a.Y / s, a.Z / s);
     public static Float3 operator -(Float3 a) =>
         new(-a.X, -a.Y, -a.Z);
+
+    // ── Comparison operators ──────────────────────────────
+    // Component-wise, not a total order: a <= b means EVERY component of a is
+    // <= the matching component of b (axis-aligned box containment).
+
+    public static bool operator <(Float3 a, Float3 b) =>
+        a.X < b.X && a.Y < b.Y && a.Z < b.Z;
+
+    public static bool operator <=(Float3 a, Float3 b) =>
+        a.X <= b.X && a.Y <= b.Y && a.Z <= b.Z;
+
+    public static bool operator >(Float3 a, Float3 b) =>
+        a.X > b.X && a.Y > b.Y && a.Z > b.Z;
+
+    public static bool operator >=(Float3 a, Float3 b) =>
+        a.X >= b.X && a.Y >= b.Y && a.Z >= b.Z;
 
     // ── Properties ─────────────────────────────────────────
 

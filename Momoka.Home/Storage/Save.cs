@@ -20,7 +20,7 @@ public sealed class Save
     public UnitType Type { get; set; }
 
     /// <summary>The space's bounds — restored from level metadata, since chunk files don't store it.</summary>
-    public Bound Bound { get; set; } = Bound.Empty;
+    public Bound Bound { get; set; } = Bound.Invalid;
 
     /// <summary>The chunks subfolder name inside the save directory.</summary>
     public string ChunkLayout { get; } = "Chunks";

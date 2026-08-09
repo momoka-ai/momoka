@@ -87,7 +87,7 @@ public class ColumnLayoutTests
     {
         var layout = new VoxelLayout<bool>
         {
-            Bound = Bound.FromCorners(Int3.Zero, new Int3(width - 1, height - 1, depth - 1)),
+            Bound = Bound.FromCorners(Int3.Zero.ToFloat3(), new Int3(width - 1, height - 1, depth - 1).ToFloat3()),
         };
         foreach (var (pos, size) in blocks)
         {

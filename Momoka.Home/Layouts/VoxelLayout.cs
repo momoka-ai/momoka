@@ -20,7 +20,7 @@ public class VoxelLayout<T> where T : notnull
     private readonly Dictionary<long, VoxelChunk<T>> _chunks = new();
 
     /// <summary>Inclusive footprint of the space (optional, set by the owner).</summary>
-    public Bound Bound { get; set; } = Bound.Empty;
+    public Bound Bound { get; set; } = Bound.Invalid;
 
     /// <summary>The entity at the given position, or null.</summary>
     public T? this[Int3 coords]

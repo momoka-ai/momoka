@@ -1,52 +1,59 @@
-using Momoka.Home;
 namespace Momoka.Home.Primitives;
 
 /// <summary>
-/// Axis-aligned 3D integer bounding box defined by two corner points.
-/// <see cref="Min"/> and <see cref="Max"/> are both inclusive, so
-/// <c>Size = Max - Min + 1</c>. A valid bound has <c>Min &lt;= Max</c>
-/// component-wise; <see cref="IsEmpty"/> indicates an invalid/unset bound.
+/// Axis-aligned 3D bounding box in continuous world units (cm), defined by two
+/// corner points (<see cref="Min"/>, <see cref="Max"/>). A bound is
+/// <see cref="IsValid"/> iff both corners lie inside the world extent
+/// (±<see cref="MAXIMUM"/>) and <see cref="Min"/> ≤ <see cref="Max"/>
+/// component-wise. The default value and <see cref="Invalid"/> are out-of-range
+/// sentinels meaning "unset" — validity is derived from the value itself (no
+/// backing flag), so the struct round-trips through JSON as { min, max }.
 /// </summary>
-public readonly record struct Bound(Int3 Min, Int3 Max)
+public readonly record struct Bound(Float3 Min, Float3 Max)
 {
-    // ── Constants ──────────────────────────────────────────
-    public static readonly Bound Empty = new(Int3.Zero, Int3.Zero, isEmpty: true);
+    /// <summary>World extent bounds in cells (±16384 = 1024 chunks of 16) — any coordinate beyond these marks a bound invalid/unset.</summary>
+    public static readonly Float3 MAXIMUM = new(16384.0f);
+    public static readonly Float3 MINIMUM = new(-16384.0f);
 
-    // Backing flag distinguishes Empty from a zero-size bound at origin.
-    private readonly bool _isEmpty;
+    /// <summary>Out-of-range sentinel meaning "unset / invalid".</summary>
+    public static readonly Bound Invalid = new(
+        new Float3(float.MaxValue, float.MaxValue, float.MaxValue),
+        new Float3(float.MinValue, float.MinValue, float.MinValue));
 
-    private Bound(Int3 min, Int3 max, bool isEmpty) : this(min, max)
-        => _isEmpty = isEmpty;
+    /// <summary>Two integer corners (cell units), converted to world units.</summary>
+    public Bound(Int3 min, Int3 max) : this(min.ToFloat3(), max.ToFloat3()) { }
 
-    public bool IsEmpty => _isEmpty;
+    /// <summary>Two integer XZ corners — a flat XZ-plane bound (Y treated as 0).</summary>
+    public Bound(Int2 min, Int2 max)
+        : this(new Float3(min.X, 0, min.Z), new Float3(max.X, 0, max.Z)) { }
 
-    // ── Factory ────────────────────────────────────────────
+    /// <summary>Six explicit corner components.</summary>
+    public Bound(float minX, float minY, float minZ, float maxX, float maxY, float maxZ)
+        : this(new Float3(minX, minY, minZ), new Float3(maxX, maxY, maxZ)) { }
+
+    /// <summary>True when both corners lie within ±16384 (see <see cref="MAXIMUM"/>/<see cref="MINIMUM"/>) and Min ≤ Max (component-wise).</summary>
+    public bool IsValid =>
+        Min >= MINIMUM && Min <= MAXIMUM &&
+        Max >= MINIMUM && Max <= MAXIMUM &&
+        Min <= Max;
 
     /// <summary>Normalize two arbitrary corners into a valid min/max bound.</summary>
-    public static Bound FromCorners(Int3 a, Int3 b) => new(
-        new Int3(Math.Min(a.X, b.X), Math.Min(a.Y, b.Y), Math.Min(a.Z, b.Z)),
-        new Int3(Math.Max(a.X, b.X), Math.Max(a.Y, b.Y), Math.Max(a.Z, b.Z)));
-
-    /// <summary>Bound spanning from <paramref name="origin"/> for the given size.</summary>
-    public static Bound FromSize(Int3 origin, Int3 size) =>
-        new(origin, origin + size - Int3.One);
-
-    /// <summary>2D XZ-plane bound (Y treated as 0).</summary>
-    public static Bound FromXz(Int2 min, Int2 max) =>
-        new(new Int3(min.X, 0, min.Z), new Int3(max.X, 0, max.Z));
+    public static Bound FromCorners(Float3 a, Float3 b) => new(
+        new Float3(Math.Min(a.X, b.X), Math.Min(a.Y, b.Y), Math.Min(a.Z, b.Z)),
+        new Float3(Math.Max(a.X, b.X), Math.Max(a.Y, b.Y), Math.Max(a.Z, b.Z)));
 
     // ── Size ───────────────────────────────────────────────
 
     /// <summary>Inclusive span along X.</summary>
-    public int SizeX => Max.X - Min.X + 1;
+    public float SizeX => Max.X - Min.X + 1;
     /// <summary>Inclusive span along Y.</summary>
-    public int SizeY => Max.Y - Min.Y + 1;
+    public float SizeY => Max.Y - Min.Y + 1;
     /// <summary>Inclusive span along Z.</summary>
-    public int SizeZ => Max.Z - Min.Z + 1;
+    public float SizeZ => Max.Z - Min.Z + 1;
 
-    public Int3 Size => new(SizeX, SizeY, SizeZ);
+    public Float3 Size => new(SizeX, SizeY, SizeZ);
 
-    public Int3 Center => new(
+    public Float3 Center => new(
         (Min.X + Max.X) / 2,
         (Min.Y + Max.Y) / 2,
         (Min.Z + Max.Z) / 2);
@@ -54,7 +61,7 @@ public readonly record struct Bound(Int3 Min, Int3 Max)
     // ── Queries ────────────────────────────────────────────
 
     /// <summary>Inclusive containment test.</summary>
-    public bool Contains(Int3 p) =>
+    public bool Contains(Float3 p) =>
         p.X >= Min.X && p.X <= Max.X &&
         p.Y >= Min.Y && p.Y <= Max.Y &&
         p.Z >= Min.Z && p.Z <= Max.Z;
@@ -73,28 +80,28 @@ public readonly record struct Bound(Int3 Min, Int3 Max)
 
     /// <summary>Smallest bound containing both bounds.</summary>
     public Bound Union(Bound other) => FromCorners(
-        new Int3(Math.Min(Min.X, other.Min.X), Math.Min(Min.Y, other.Min.Y), Math.Min(Min.Z, other.Min.Z)),
-        new Int3(Math.Max(Max.X, other.Max.X), Math.Max(Max.Y, other.Max.Y), Math.Max(Max.Z, other.Max.Z)));
+        new Float3(Math.Min(Min.X, other.Min.X), Math.Min(Min.Y, other.Min.Y), Math.Min(Min.Z, other.Min.Z)),
+        new Float3(Math.Max(Max.X, other.Max.X), Math.Max(Max.Y, other.Max.Y), Math.Max(Max.Z, other.Max.Z)));
 
-    /// <summary>Largest bound contained in both; <see cref="Empty"/> if disjoint.</summary>
+    /// <summary>Largest bound contained in both; <see cref="Invalid"/> if disjoint.</summary>
     public Bound Intersect(Bound other)
     {
-        var lo = new Int3(
+        var lo = new Float3(
             Math.Max(Min.X, other.Min.X),
             Math.Max(Min.Y, other.Min.Y),
             Math.Max(Min.Z, other.Min.Z));
-        var hi = new Int3(
+        var hi = new Float3(
             Math.Min(Max.X, other.Max.X),
             Math.Min(Max.Y, other.Max.Y),
             Math.Min(Max.Z, other.Max.Z));
         return lo.X > hi.X || lo.Y > hi.Y || lo.Z > hi.Z
-            ? Empty
+            ? Invalid
             : new Bound(lo, hi);
     }
 
     // ── Volume ─────────────────────────────────────────────
 
-    public long Volume => (long)SizeX * SizeY * SizeZ;
+    public float Volume => SizeX * SizeY * SizeZ;
 
     // ── Conversion ─────────────────────────────────────────
 

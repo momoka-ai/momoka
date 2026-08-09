@@ -247,7 +247,7 @@ public static class LayoutChunkCodec
                 regionColumns.AddRange(decoded.RegionColumns);
             }
         }
-        return new LoadedLayout(new VoxelLayout<Entity>(chunks, Bound.Empty), regionColumns);
+        return new LoadedLayout(new VoxelLayout<Entity>(chunks, Bound.Invalid), regionColumns);
     }
 
     private static Palette<Entity>.Int3ChunkStrategy NewStrategy() => new(

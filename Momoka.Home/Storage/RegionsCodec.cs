@@ -106,7 +106,7 @@ public static class RegionsCodec
         var byId = new Dictionary<int, Region>();
         foreach (var (id, s) in stats)
         {
-            var bounds = Bound.FromCorners(new Int3(s.MinX, s.MinY, s.MinZ), new Int3(s.MaxX, s.MaxY, s.MaxZ));
+            var bounds = Bound.FromCorners(new Int3(s.MinX, s.MinY, s.MinZ).ToFloat3(), new Int3(s.MaxX, s.MaxY, s.MaxZ).ToFloat3());
             var name = names.TryGetValue(id, out var n) ? n : $"Region {id}";
             byId[id] = new Region(id, bounds, s.Volume, s.Footprints.Count) { Name = name };
         }
