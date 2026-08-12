@@ -13,6 +13,16 @@ namespace Momoka.Home.Properties;
 /// </summary>
 public abstract class Property
 {
+    /// <summary>
+    /// Marks an entity as fixed building fabric (floors, walls, doors, windows) —
+    /// immovable and space-defining. Its placement surfaces seed region labels;
+    /// portals (doors) are passable when open.
+    /// </summary>
+    public const string IsImmutable = "is_immutable";
+
+    /// <summary>Current open state of a portal (a door); immutable portals are passable when open.</summary>
+    public const string IsOpen = "is_open";
+
     /// <summary>Identity of the property; maps to the JSON "key" field.</summary>
     [JsonProperty("key")]
     public string Name { get; set; } = "";

@@ -4,10 +4,17 @@ namespace Momoka.Home.Properties;
 /// Property-table helpers for <see cref="IPropertySource"/> — name-first:
 /// implementers only expose the property list and the change event, and every
 /// lookup/mutation goes through the property name (builtins are string
-/// constants in <see cref="BuiltinProperty"/>).
+/// constants in <see cref="Property"/>).
 /// </summary>
 public static class PropertySourceExtensions
 {
+    /// <summary>
+    /// True when <paramref name="source"/> is fixed building fabric (floor, wall,
+    /// door, window…) — immovable and space-defining; such cells bound regions.
+    /// </summary>
+    public static bool IsImmutable(this IPropertySource? source) =>
+        source is not null && source.GetValue<bool>(Property.IsImmutable);
+
     public static void AddProperty(this IPropertySource source, params Property[] properties)
     {
         foreach (var property in properties)

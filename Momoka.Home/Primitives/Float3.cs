@@ -56,16 +56,6 @@ public readonly record struct Float3(float X, float Y, float Z)
     public static bool operator >=(Float3 a, Float3 b) =>
         a.X >= b.X && a.Y >= b.Y && a.Z >= b.Z;
 
-    // ── Properties ─────────────────────────────────────────
-
-    /// <summary>Drop to XZ-plane (Int2, rounded).</summary>
-    [JsonIgnore]
-    public Int2 Int2 => new((int)Math.Round(X), (int)Math.Round(Z));
-
-    /// <summary>Round to Int3.</summary>
-    [JsonIgnore]
-    public Int3 Int3 =>
-        new((int)Math.Round(X), (int)Math.Round(Y), (int)Math.Round(Z));
 
     /// <summary>Floor to Int3 (truncate toward zero).</summary>
     [JsonIgnore]
@@ -115,6 +105,20 @@ public readonly record struct Float3(float X, float Y, float Z)
             MathF.Round(Y / gridSize) * gridSize,
             MathF.Round(Z / gridSize) * gridSize
         );
+
+    public Int2 AsInt2() => new(
+        (int)Math.Round(X),
+        (int)Math.Round(Z));
+
+    public Int3 AsInt3() => new(
+        (int)Math.Round(X),
+        (int)Math.Round(Y),
+        (int)Math.Round(Z));
+
+    public Int3 AsInt3F() => new(
+        (int)X,
+        (int)Y,
+        (int)Z);
 
     public override string ToString() =>
         $"({X:F3}, {Y:F3}, {Z:F3})";

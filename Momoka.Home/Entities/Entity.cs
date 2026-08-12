@@ -3,6 +3,7 @@ using Momoka.Home.Components;
 using Momoka.Home.Geometry;
 using Momoka.Home.Primitives;
 using Momoka.Home.Properties;
+using Newtonsoft.Json;
 namespace Momoka.Home.Entities;
 
 /// <summary>
@@ -10,31 +11,34 @@ namespace Momoka.Home.Entities;
 /// Carries behavior components (<see cref="Components"/>) and per-instance
 /// properties (<see cref="Properties"/>; config-driven — entities get cloned
 /// properties from their template at materialization), a position
-/// (<see cref="Coords"/>) in its parent 3D space and a body geometry
-/// (<see cref="Volume"/>). Component and property operations are provided once,
-/// as extension methods on <see cref="IComponentSource"/> and
+/// (<see cref="Pos"/>) in its parent 3D space and a body geometry
+/// (<see cref="Volume"/>). Directly JSON-serializable — see
+/// <see cref="Momoka.Home.Settings.JsonSerialization"/> — with each field
+/// bound by <see cref="JsonProperty"/>. Component and property operations are
+/// provided once, as extension methods on <see cref="IComponentSource"/> and
 /// <see cref="IPropertySource"/>.
 /// </summary>
 public class Entity : IComponentSource, IPropertySource
 {
+    [JsonProperty("id")]
     public Guid Id { get; init; } = Guid.NewGuid();
+
+    [JsonProperty("key")]
     public Key Key { get; init; }
 
-    /// <summary>Position of the entity in its parent 3D space.</summary>
-    public Int3 Coords { get; set; }
+    /// <summary>Position of the entity in its parent 3D space (absolute cm; <see cref="Position.Scale"/> = 1).</summary>
+    [JsonProperty("position")]
+    public Position Pos { get; set; }
 
     /// <summary>Body geometry: which voxel cells this entity occupies (null for pure markers).</summary>
+    [JsonProperty("volume")]
     public Volume Volume { get; set; } = null!;
 
-    // ── Behavior components ──────────────────────────────
+    [JsonProperty("components")]
+    public List<Component> Components { get; } = new();
 
-    public IList<Component> Components => _components;
-    private readonly List<Component> _components = new();
-
-    // ── Properties (per-instance, config-driven) ─────────
-
-    public IList<Property> Properties => _properties;
-    private readonly List<Property> _properties = new();
+    [JsonProperty("properties")]
+    public List<Property> Properties { get; set; } = new();
 
     public event EventHandler<PropertyValueChangedEventArgs>? PropertyValueChanged;
 

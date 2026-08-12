@@ -7,13 +7,14 @@ namespace Momoka.Home;
 /// pathfinding derive from these (e.g. <see cref="MaxClimbHeight"/> is the max
 /// step between adjacent columns' spans).
 /// </summary>
-public record Agent(
-    int Height = 18,         // 标准身高 ≈ 1.8 m —— 通行净高 / 高物阻隔阈值
-    int Radius = 4,          // 半径 ≈ 40 cm —— 通道宽度
-    int MaxClimbHeight = 2,  // 爬升高度 ≈ 20 cm —— 台阶 / 邻列 span 连通容差
-    int MaxJumpHeight = 6,   // 跳跃高度 ≈ 60 cm
-    int MaxWalkLength = 30)  // 最大单次步行距离 ≈ 3 m（寻路启发式）
+public record class Agent(
+    float Height,         // 标准身高 ≈ 1.8 m —— 通行净高 / 高物阻隔阈值
+    float Radius,          // 半径 ≈ 40 cm —— 通道宽度
+    float MaxClimbHeight,  // 爬升高度 ≈ 20 cm —— 台阶 / 邻列 span 连通容差
+    float MaxJumpHeight,   // 跳跃高度 ≈ 60 cm
+    float MaxWalkLength,   // 最大单次步行距离 ≈ 3 m（寻路启发式）
+    float MaxInteractLength)  // 最大触及距离
 {
     /// <summary>The default human agent.</summary>
-    public static Agent Human { get; } = new();
+    public static Agent Human { get; } = new(180f, 40f, 20f, 60f, 80f, 60f);
 }

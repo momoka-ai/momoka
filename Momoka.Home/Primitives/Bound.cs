@@ -3,39 +3,37 @@ namespace Momoka.Home.Primitives;
 /// <summary>
 /// Axis-aligned 3D bounding box in continuous world units (cm), defined by two
 /// corner points (<see cref="Min"/>, <see cref="Max"/>). A bound is
-/// <see cref="IsValid"/> iff both corners lie inside the world extent
-/// (±<see cref="MAXIMUM"/>) and <see cref="Min"/> ≤ <see cref="Max"/>
-/// component-wise. The default value and <see cref="Invalid"/> are out-of-range
+/// <see cref="Valid"/> iff both corners lie inside the world extent
+/// (±<see cref="MaxValue"/>) and <see cref="Min"/> ≤ <see cref="Max"/>
+/// component-wise. The default value and <see cref="UnsetValue"/> are out-of-range
 /// sentinels meaning "unset" — validity is derived from the value itself (no
 /// backing flag), so the struct round-trips through JSON as { min, max }.
 /// </summary>
 public readonly record struct Bound(Float3 Min, Float3 Max)
 {
-    /// <summary>World extent bounds in cells (±16384 = 1024 chunks of 16) — any coordinate beyond these marks a bound invalid/unset.</summary>
-    public static readonly Float3 MAXIMUM = new(16384.0f);
-    public static readonly Float3 MINIMUM = new(-16384.0f);
+    /// <summary>
+    /// World extent bounds in cells (±163840 = 1024 chunks of 16 x10cm) — 
+    /// any coordinate beyond these marks a bound invalid/unset.
+    /// </summary>
+    public static readonly Float3 MaxValue = new(163840.0f);
+    public static readonly Float3 MinValue = new(-163840.0f);
 
-    /// <summary>Out-of-range sentinel meaning "unset / invalid".</summary>
-    public static readonly Bound Invalid = new(
-        new Float3(float.MaxValue, float.MaxValue, float.MaxValue),
-        new Float3(float.MinValue, float.MinValue, float.MinValue));
+    public static readonly Bound UnsetValue = new(
+        new Float3(float.MaxValue),
+        new Float3(float.MinValue));
 
-    /// <summary>Two integer corners (cell units), converted to world units.</summary>
     public Bound(Int3 min, Int3 max) : this(min.ToFloat3(), max.ToFloat3()) { }
 
-    /// <summary>Two integer XZ corners — a flat XZ-plane bound (Y treated as 0).</summary>
-    public Bound(Int2 min, Int2 max)
-        : this(new Float3(min.X, 0, min.Z), new Float3(max.X, 0, max.Z)) { }
+    public Bound(Int2 min, Int2 max) : this(new Float3(min.X, 0, min.Z), new Float3(max.X, 0, max.Z)) { }
 
-    /// <summary>Six explicit corner components.</summary>
     public Bound(float minX, float minY, float minZ, float maxX, float maxY, float maxZ)
-        : this(new Float3(minX, minY, minZ), new Float3(maxX, maxY, maxZ)) { }
+        : this(
+            new Float3(minX, minY, minZ),
+            new Float3(maxX, maxY, maxZ))
+    { }
 
-    /// <summary>True when both corners lie within ±16384 (see <see cref="MAXIMUM"/>/<see cref="MINIMUM"/>) and Min ≤ Max (component-wise).</summary>
-    public bool IsValid =>
-        Min >= MINIMUM && Min <= MAXIMUM &&
-        Max >= MINIMUM && Max <= MAXIMUM &&
-        Min <= Max;
+    public bool Valid =>
+        Bound.IsValid(Min) && Bound.IsValid(Max) && Min <= Max;
 
     /// <summary>Normalize two arbitrary corners into a valid min/max bound.</summary>
     public static Bound FromCorners(Float3 a, Float3 b) => new(
@@ -57,6 +55,10 @@ public readonly record struct Bound(Float3 Min, Float3 Max)
         (Min.X + Max.X) / 2,
         (Min.Y + Max.Y) / 2,
         (Min.Z + Max.Z) / 2);
+
+    public static bool IsValid(float v) => (v >= -163840.0f) && (v <= 163840.0f);
+
+    public static bool IsValid(Float3 Position) => (Position >= MinValue) && (Position <= MaxValue);
 
     // ── Queries ────────────────────────────────────────────
 
@@ -83,7 +85,7 @@ public readonly record struct Bound(Float3 Min, Float3 Max)
         new Float3(Math.Min(Min.X, other.Min.X), Math.Min(Min.Y, other.Min.Y), Math.Min(Min.Z, other.Min.Z)),
         new Float3(Math.Max(Max.X, other.Max.X), Math.Max(Max.Y, other.Max.Y), Math.Max(Max.Z, other.Max.Z)));
 
-    /// <summary>Largest bound contained in both; <see cref="Invalid"/> if disjoint.</summary>
+    /// <summary>Largest bound contained in both; <see cref="UnsetValue"/> if disjoint.</summary>
     public Bound Intersect(Bound other)
     {
         var lo = new Float3(
@@ -95,7 +97,7 @@ public readonly record struct Bound(Float3 Min, Float3 Max)
             Math.Min(Max.Y, other.Max.Y),
             Math.Min(Max.Z, other.Max.Z));
         return lo.X > hi.X || lo.Y > hi.Y || lo.Z > hi.Z
-            ? Invalid
+            ? UnsetValue
             : new Bound(lo, hi);
     }
 

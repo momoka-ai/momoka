@@ -69,12 +69,16 @@ public readonly record struct Int3(int X, int Y, int Z)
         yield return new(X, Y, Z + 1);
     }
 
-    // ── To float / Vector3 ─────────────────────────────────
+    /// <summary>Enumerates every cell of the inclusive box <paramref name="min"/>–<paramref name="max"/> (x → y → z).</summary>
+    public static IEnumerable<Int3> Range(Int3 min, Int3 max)
+    {
+        for (var x = min.X; x <= max.X; x++)
+            for (var y = min.Y; y <= max.Y; y++)
+                for (var z = min.Z; z <= max.Z; z++)
+                    yield return new Int3(x, y, z);
+    }
 
-    /// <summary>Convert to Float3.</summary>
     public Float3 ToFloat3() => new(X, Y, Z);
-
-    /// <summary>Convert to System.Numerics.Vector3.</summary>
     public Vector3 ToVector3() => new(X, Y, Z);
 
     public override string ToString() => $"({X}, {Y}, {Z})";
