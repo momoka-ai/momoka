@@ -2,6 +2,7 @@ using Momoka.Home.Components;
 using Momoka.Home.Entities;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
+using Momoka.Home.Properties;
 namespace Momoka.Home;
 
 /// <summary>
@@ -10,58 +11,73 @@ namespace Momoka.Home;
 /// walls, furniture, yard objects — is an <see cref="Entity"/> placed in the
 /// single root grid, so placement and collision run directly against one root
 /// space with root-absolute coordinates (no nested offset chains). UnitLayout
-/// owns the entity list and the placement operations; <see cref="Layout"/> is
+/// owns the entity list and the placement operations; <see cref="Voxels"/> is
 /// the pure cell grid underneath. Space semantics — rooms / walkable areas —
 /// are the <see cref="Regions"/> layer (replacing the retired floor-plan
 /// graphs).
 /// </summary>
-public sealed class UnitLayout : IEntitySource
+public sealed class UnitLayout : IEntitySource, IVoxelSource<Entity>
 {
-    private VoxelLayout<Entity> _layout = new();
+    public VoxelLayout<Entity> Voxels { get; set; }
+    public VoxelLayout<Region> Regions { get; set; }
+    public List<Entity> Entities { get; init; }
 
-    /// <summary>The pure 3D voxel occupancy grid: the single root space.</summary>
-    public VoxelLayout<Entity> Layout => _layout;
+    public float VoxelSize { get; set; } = 10.0f;
 
-    /// <summary>All entities of the space, kept in sync with the cell grid.</summary>
-    public List<Entity> Entities { get; } = new();
-
-    IReadOnlyList<Entity> IEntitySource.Entities => Entities;
-
-    /// <summary>
-    /// The 3D region layer (rooms / walkable areas) of the space — a
-    /// <see cref="ColumnLayout{T}"/> of <see cref="Region"/> spans, built on
-    /// demand. Null until <see cref="RebuildRegions"/> has run.
-    /// </summary>
-    public ColumnLayout<Region>? Regions { get; private set; }
-
-    /// <summary>
-    /// (Re)builds the region layer from the current occupancy and placement
-    /// surfaces. Manual — call once at model ingestion; furniture
-    /// placement/removal does not invalidate it. Structural edits should trigger
-    /// a full scene rebuild.
-    /// </summary>
-    public ColumnLayout<Region> RebuildRegions(Agent? agent = null)
+    public UnitLayout()
     {
-        Regions = Region.BuildLayout(this, agent);
-        return Regions;
+        Voxels = new();
+        Regions = new();
+        Entities = new();
     }
 
-    /// <summary>
-    /// Restores a loaded snapshot (save/load path): swaps in the reconstructed
-    /// grid, repopulates the entity list and sets the region layer. Internal —
-    /// the grid must come from the storage codecs so palette references stay
-    /// consistent with <paramref name="entities"/>.
-    /// </summary>
-    internal void Restore(VoxelLayout<Entity> grid, IEnumerable<Entity> entities, ColumnLayout<Region>? regions)
+    public UnitLayout(VoxelLayout<Entity> voxelLayout, VoxelLayout<Region> regionLayout, List<Entity> entities)
     {
-        _layout = grid;
-        Entities.Clear();
-        Entities.AddRange(entities);
-        Regions = regions;
+        Voxels = voxelLayout;
+        Regions = regionLayout;
+        Entities = entities;
     }
 
-    /// <summary>The region containing the cell, or null (blocked / outside / unbuilt).</summary>
-    public Region? RegionAt(Int3 p) => Regions?.At(p.X, p.Y, p.Z);
+    public record class AtQuery(UnitLayout Source, Int3 Pos)
+    {
+        public Entity? Entity
+        {
+            get => Source.Voxels[Pos];
+            set => Source.Voxels[Pos] = value;
+        }
+
+        public Region? Region
+        {
+            get => Source.Regions[Pos];
+            set
+            {
+                var voxels = Source.Voxels;
+                var regions = Source.Regions;
+                if (voxels[Pos].IsImmutable())
+                {
+                    return;
+                }
+
+                var column = voxels.GetIteratorAt(Pos.X, Pos.Z);
+                int? ceiling = column
+                    .Where(c => c.Y > Pos.Y && c.Value.IsImmutable())
+                    .Select(c => (int?)c.Y)
+                    .FirstOrDefault();
+
+                // 只考虑被上下结构范围夹住的列
+                if (ceiling is null ||
+                    !column.Any(c => c.Y < Pos.Y && c.Value.IsImmutable()))
+                {
+                    return;
+                }
+
+                for (var y = ceiling.Value - 1; y >= column.MinY && !voxels[new Int3(Pos.X, y, Pos.Z)].IsImmutable(); y--)
+                {
+                    regions[new Int3(Pos.X, y, Pos.Z)] = value;
+                }
+            }
+        }
+    }
 
     /// <summary>
     /// All placement surfaces of the space: each entity's placement layouts (via
@@ -76,48 +92,35 @@ public sealed class UnitLayout : IEntitySource
     // ── Entity placement / queries ──────────────────────
 
     /// <summary>
-    /// True if placing <paramref name="entity"/> at <paramref name="cs"/> would
-    /// collide: the anchor or any of its (local) shape voxels lands on an
-    /// occupied cell.
+    /// True if placing <paramref name="src"/> at <paramref name="position"/>
+    /// (world units, cm) intersects the specific <paramref name="dest"/> entity
+    /// (dest voxels vs src voxels).
     /// </summary>
-    public bool IsCollided(Entity entity, Int3 cs)
+    public bool IsCollided(Entity dest, Entity src, Float3 position)
     {
-        if (Layout[cs] is not null)
-            return true;
-
-        foreach (var cell in entity.Volume.Cells3D())
-        {
-            if (Layout[cs + cell] is not null)
-                return true;
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// True if placing <paramref name="src"/> at <paramref name="cs"/> intersects
-    /// the specific <paramref name="dest"/> entity (dest voxels vs src voxels).
-    /// </summary>
-    public bool IsCollided(Entity dest, Entity src, Int3 cs)
-    {
+        var cs = Voxels.GetAsRelative(position);
+        var destAnchor = Voxels.GetAsRelative(dest.Pos.Absolute());
         var destCells = dest.Volume.Cells3D()
-            .Select(v => dest.Coords + v)
+            .Select(v => destAnchor + v)
             .ToHashSet();
         return src.Volume.Cells3D().Any(v => destCells.Contains(cs + v));
     }
 
     /// <summary>
-    /// Builds (places) the entity at <paramref name="cs"/>: writes EVERY one of
-    /// its shape voxels into the grid and registers it. False if collided.
+    /// Builds (places) the entity at <paramref name="position"/> (world units,
+    /// cm): rounds it to the anchor cell, writes EVERY one of its shape voxels
+    /// into the grid and registers it. False if collided.
     /// </summary>
-    public bool PlaceAt(Entity entity, Int3 cs)
+    public bool PlaceAt(Entity entity, Float3 position)
     {
-        if (IsCollided(entity, cs))
+        if (this.IsCollidedVolume(new Position(position), entity.Volume) is not null)
             return false;
 
-        entity.Coords = cs;
+        entity.Pos = new Position(position);
+        var cs = Voxels.GetAsRelative(position);
         foreach (var cell in entity.Volume.Cells3D())
         {
-            Layout[cs + cell] = entity;
+            Voxels[cs + cell] = entity;
         }
         Entities.Add(entity);
         return true;
@@ -129,7 +132,7 @@ public sealed class UnitLayout : IEntitySource
     /// </summary>
     public bool DestroyAt(Int3 target)
     {
-        if (Layout[target] is not Entity entity)
+        if (Voxels[target] is not Entity entity)
             return false;
         return Remove(entity);
     }
@@ -140,12 +143,13 @@ public sealed class UnitLayout : IEntitySource
     /// </summary>
     public void Rebuild()
     {
-        Layout.Clear();
+        Voxels.Clear();
         foreach (var entity in Entities)
         {
+            var cs = Voxels.GetAsRelative(entity.Pos.Absolute());
             foreach (var cell in entity.Volume.Cells3D())
             {
-                Layout[entity.Coords + cell] = entity;
+                Voxels[cs + cell] = entity;
             }
         }
     }
@@ -163,9 +167,10 @@ public sealed class UnitLayout : IEntitySource
         var result = new List<Entity>();
         foreach (var entity in Entities)
         {
+            var cs = Voxels.GetAsRelative(entity.Pos.Absolute());
             foreach (var loc in entity.Volume.Cells3D())
             {
-                var p = (entity.Coords + loc).Xz;
+                var p = cs + loc;
                 if (p.X >= min.X && p.X <= max.X && p.Z >= min.Z && p.Z <= max.Z)
                 {
                     result.Add(entity);
@@ -181,11 +186,12 @@ public sealed class UnitLayout : IEntitySource
         if (!Entities.Remove(entity))
             return false;
 
+        var cs = Voxels.GetAsRelative(entity.Pos.Absolute());
         foreach (var cell in entity.Volume.Cells3D())
         {
-            var pos = entity.Coords + cell;
-            if (Layout[pos] == entity)
-                Layout[pos] = default!;
+            var pos = cs + cell;
+            if (Voxels[pos] == entity)
+                Voxels[pos] = default!;
         }
         return true;
     }
