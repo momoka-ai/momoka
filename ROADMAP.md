@@ -28,7 +28,7 @@
 | Momoka.Stage | 🔴 <5% | 仅目录与占位 README |
 | Momoka.Voice | 🟡 ~20% | HTTP 骨架完成；TTS 引擎未集成 |
 | Momoka.Ai / Core / Sense | 🔴 <10% | 仅程序入口骨架 |
-| 测试 / CI | 🟢 ~60% | 118 个测试全绿；CI = dotnet 构建+测试 / Godot 检查 / Python ruff |
+| 测试 / CI | 🟢 ~60% | 125 个测试全绿；CI = dotnet 构建+测试 / Godot 检查 / Python ruff |
 
 ---
 
@@ -75,19 +75,19 @@
 
 - [x] 坐标原语：`Int2` / `Int3` / `Float3` / `Key` / `Bound`（`Primitives/`）
 - [x] 属性系统：`Property` 基类 + 6 种子类型（`Boolean` / `Int` / `Float` / `String` / `Literal` / `Enum`）+ `PropertyValueChangedEventArgs`；`TextureProperty` 已删除（并入 `String`）
-- [x] 实体系统（非泛型重构）：`Entity`（Id / Key / Coords(Int3) / Volume / 属性 / 组件）+ `EntityTemplate` / `EntityTemplateFactory` 配置管线 + `IEntitySource`；薄壳 `Wall` / `Door` / `Window` / `Appliance` / `Curtain` 已删除，由配置模板实例化
+- [x] 实体系统（非泛型重构）：`Entity`（Id / Key / Position(Float3) / Volume / 属性 / 组件）+ `EntityTemplate` / `EntityTemplateFactory` 配置管线 + `IEntitySource`；薄壳 `Wall` / `Door` / `Window` / `Appliance` / `Curtain` 已删除，由配置模板实例化
 - [x] 空间根：`UnitLayout`（`sealed`，单一扁平 3D 根，`IEntitySource` + `IVoxelGeometry3D`）+ `Residence`（总容器：Name / Address / Type / Layout / Entities / Surfaces / Components）+ `UnitType` 枚举
 - [x] 体素存储：`VoxelLayout<T>`（Minecraft 式 16³ 区块 + paletted）、`GridLayout<T>`、`Subdivision<T>`（`Face` 面实体支持：`AssignEntity` / `EntityOf`）、`Graph2D`、`Palette` / `PackedBitStorage` / `PalettedContainer(RO)`；`Layouts/` 只剩纯运算 / 数学布局
 - [x] 几何：`Volume` / `Shape` + `IVoxelGeometry2D/3D` + `Box3D` / `Line3D` / `Curve3D` / `Polygon3D` / `Prism3D` / `Conic3D` / `Spherical3D` / `Extruded3D` / `Composite3D` / `Rect2D` / `Polygon2D` / `Circular2D` / `Composite2D`（带 `[JsonTypeName]`）
-- [x] 序列化管线：`JsonTypeNameRegistry` + `JsonTypeConverter` + `JsonGeometryConverter` + `JsonPropertyConverter` + `CommandHistory`；`MideaVerifyTests` 用真实配置验证
+- [x] 序列化管线：`JsonTypeNameRegistry` + `JsonTypeConverter` + `JsonGeometryConverter` + `JsonPropertyConverter`；`MideaVerifyTests` 用真实配置验证
 - [x] 组件：`Component` + `IComponentSource` + `CommandTarget` / `DataSource` / `EventSource` / `PlacementLayoutSource`
-- [x] 编辑器：`EditorCommand` / `MoveEntityCommand` + `CommandHistory`（undo / redo）
-- [x] 测试：118 个全绿（Layouts / Serialization / Shapes）
+- [x] 测试：125 个全绿（Layouts / Regions / Serialization / Shapes）
 - [x] 旧容器清理与迁移：`Home` / `Level` / `Building`、旧 2D `Region`、`IVoxelSpaceRoot`、`PlaneLayout`、`TextureProperty`、`FloorPlanLayout` 已删除；`Region` 迁主命名空间（`Momoka.Home`），`UnitLayout.Regions`（`ColumnLayout<Region>`）取代 `Floors`
 
 待实现（按当前优先级）：
 
 - [x] **3D Region 自动生成**：站立格（Up 放置面 + 净高过滤）→ `ColumnLayout` 引擎标 span（阻隔即占用，家具成洞）；`Region.BuildLayout()` + `UnitLayout.RebuildRegions()`（§5.6）；门开关 Portal 与 wall-extension 后续
+- [ ] **传播图 `Propagation`（远期，2026-08-12 规划）**：Region 图上的加权 Dijkstra（节点=房间 Region，边=门户开/关/墙，代价=距离 + 穿墙损耗），一次算完供三类感知：① 灯可见性（同 Region 或开着的门连通 → 可感知，用于自动关用户不可见的灯）② 声音传播（最短路径长度 + 墙衰减 → 按用户位置自动调音量）③ WiFi 信号（log-distance path loss + 穿墙惩罚 → 每房间信号表）。**不依赖体素 LOS**——光/声/无线电能绕弯、是连续衰减而非二值可见；`CanSee`/`Occlusion` 仅留给摄像头视野/投影遮挡等真二值场景
 - [ ] **具体编辑命令**：`PlaceEntityCommand` / `RemoveEntityCommand`（含开口级联）/ `BuildWallCommand` / `PaintTileCommand`（刷材质面），接入 `CommandHistory`
 - [ ] **门洞渲染**：开门时渲染覆盖墙并允许连通性计算
 - [ ] **参数化 `Shape` 体系**：屋顶形状 `Flat / Shed / Gable / Hip / Conical`（`Pitch` / `Overhang` 参数化）；网格生成归 Momoka.Ui
@@ -99,6 +99,11 @@
 - [ ] **墙体开口宿主 + 级联删除**：门窗 / 吊灯挂载到墙 / 天花板实体（`Entity` 父子层级）；删除墙 → 级联删除
 - [ ] **多形态设备（低优先级）**：`DeviceShell` + 具象形态（静态网格占用 ↔ 移动连续位置），`Activate` / `Deactivate` 生命周期，身份贯穿形态切换（如扫地机器人）
 - [ ] **Palette 策略减法**：`Int2/Int3ChunkStrategy` 等暂留，待稳定后清理未用策略
+- [ ] **编辑器撤销/重做**：`EditorCommand` / `CommandHistory` 已删除（未到编辑器阶段），待 Phase 2 前重建
+- [ ] **Palette / PalettedContainer / PackedBitStorage 直接序列化**：四个类型各自挂 `[JsonConverter]`，产出 `palette_json + bits + data` 填表载荷，去掉手写字节 codec
+- [x] **Sqlite 存储层 · residence/entities（`Data/Sqlite`）**：`linq2db` + `Microsoft.Data.Sqlite`，单文件存档 `Saves/<Name>.db`；`Residence`（Id + Json 整存）+ `Entities`（Id + Json 每实体一行），PascalCase；`SqliteStore` 持有连接（IDisposable），全函数式 API（`CreateTable` / `InsertOrReplace` / `Insert` / `GetTable`），替代文件夹的 `Residence.json` / `Entities.json`
+- [ ] **Sqlite 存储层 · 体素层**：`regions`（id + name）/ `chunks` + `chunk_sections`（x, z, sy + palette JSON + bits + data BLOB，按 (x,z) 键查询）；一次事务原子写入，替代 `LayoutChunkCodec` / `RegionsCodec` 的文件层
+- [ ] **区块数据压缩**：section words（`ulong[]`）gzip 压缩后存 BLOB（对齐 Minecraft region 文件的 zlib 做法，稀疏区块收益大）
 - [ ] **物业 / 管理方引用层（推迟）**：统一管理多 Unit 的引用式封装（住户 Residence 默认全权，物业另层且不可见住户内容）
 - [ ] 补充单元测试覆盖上述功能
 
