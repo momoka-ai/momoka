@@ -1,5 +1,6 @@
 using Momoka.Home.Properties;
-namespace Momoka.Home.Storage;
+using Momoka.Home.Data.Json;
+namespace Momoka.Home.Data.Json.Converters;
 
 /// <summary>
 /// Serializes a <see cref="Property"/> via <see cref="JsonTypeConverter{T}"/>: the

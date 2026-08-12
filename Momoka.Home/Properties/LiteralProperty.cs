@@ -1,4 +1,4 @@
-using Momoka.Home.Storage;
+using Momoka.Home.Data.Json;
 using Newtonsoft.Json;
 namespace Momoka.Home.Properties;
 

@@ -21,5 +21,5 @@ public abstract class Component
 /// </summary>
 public interface IComponentSource
 {
-    IList<Component> Components { get; }
+    List<Component> Components { get; }
 }

@@ -1,5 +1,6 @@
 using Momoka.Home.Geometry;
-namespace Momoka.Home.Storage;
+using Momoka.Home.Data.Json;
+namespace Momoka.Home.Data.Json.Converters;
 
 /// <summary>
 /// Serializes <see cref="Volume"/> (and the 2D <see cref="Shape"/> footprints they

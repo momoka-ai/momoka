@@ -1,6 +1,6 @@
 using Momoka.Home;
 using Momoka.Home.Primitives;
-using Momoka.Home.Storage;
+using Momoka.Home.Data.Json;
 namespace Momoka.Home.Geometry;
 
 [JsonTypeName("line")]
@@ -22,7 +22,7 @@ public class Line3D : Volume
         if (steps == 0)
         {
             foreach (var pos in RasterizeCross(Start, Thickness))
-                yield return pos.Int3;
+                yield return pos.AsInt3();
             yield break;
         }
 
@@ -36,7 +36,7 @@ public class Line3D : Volume
             var center = new Float3(x, Start.Y, z);
 
             foreach (var pos in RasterizeCross(center, Thickness))
-                yield return pos.Int3;
+                yield return pos.AsInt3();
         }
     }
 

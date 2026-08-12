@@ -1,7 +1,7 @@
 using Momoka.Home.Entities;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
-namespace Momoka.Home.Storage;
+namespace Momoka.Home.Data;
 
 /// <summary>One column's region spans inside a chunk file (world XZ column).</summary>
 public readonly record struct ChunkRegionColumn(Int2 World, RegionSpan[] Spans);
@@ -206,22 +206,40 @@ public static class LayoutChunkCodec
     /// <summary>Extracts the region spans of a chunk's 16×16 footprint from the global region layer.</summary>
     public static IReadOnlyList<ChunkRegionColumn> ExtractRegionColumns(VoxelChunk<Entity> chunk, ColumnLayout<Region> regions)
     {
-        var columns = new List<ChunkRegionColumn>();
-        var size = VoxelLayout<Entity>.SectionSize;
-        for (var lz = 0; lz < size; lz++)
+        var byColumn = new Dictionary<long, List<(int Y, Region R)>>();
+        foreach (var (pos, region) in regions.Cells())
         {
-            for (var lx = 0; lx < size; lx++)
-            {
-                var world = new Int2(chunk.Index.X * size + lx, chunk.Index.Z * size + lz);
-                var spans = regions.Column(world.X, world.Z);
-                if (spans.Length == 0)
-                    continue;
+            if ((pos.X >> 4) != chunk.Index.X || (pos.Z >> 4) != chunk.Index.Z)
+                continue;
+            var key = (long)pos.Z << 32 | (uint)pos.X;
+            if (!byColumn.TryGetValue(key, out var ys))
+                byColumn[key] = ys = new List<(int, Region)>();
+            ys.Add((pos.Y, region));
+        }
 
-                var arr = new RegionSpan[spans.Length];
-                for (var i = 0; i < spans.Length; i++)
-                    arr[i] = new RegionSpan(spans[i].Y0, spans[i].Y1, spans[i].Value.Id);
-                columns.Add(new ChunkRegionColumn(world, arr));
+        var columns = new List<ChunkRegionColumn>();
+        foreach (var (key, ys) in byColumn)
+        {
+            ys.Sort((a, b) => a.Y.CompareTo(b.Y));
+            var spans = new List<RegionSpan>();
+            var runY0 = ys[0].Y;
+            var runRegion = ys[0].R;
+            var prevY = ys[0].Y;
+            for (var i = 1; i < ys.Count; i++)
+            {
+                var (y, r) = ys[i];
+                if (r == runRegion && y == prevY + 1)
+                {
+                    prevY = y;
+                    continue;
+                }
+                spans.Add(new RegionSpan(runY0, prevY + 1, runRegion.Id));
+                runY0 = y;
+                runRegion = r;
+                prevY = y;
             }
+            spans.Add(new RegionSpan(runY0, prevY + 1, runRegion.Id));
+            columns.Add(new ChunkRegionColumn(new Int2((int)(key & uint.MaxValue), (int)(key >> 32)), spans.ToArray()));
         }
         return columns;
     }
@@ -247,7 +265,7 @@ public static class LayoutChunkCodec
                 regionColumns.AddRange(decoded.RegionColumns);
             }
         }
-        return new LoadedLayout(new VoxelLayout<Entity>(chunks, Bound.Invalid), regionColumns);
+        return new LoadedLayout(new VoxelLayout<Entity>(chunks, Bound.UnsetValue), regionColumns);
     }
 
     private static Palette<Entity>.Int3ChunkStrategy NewStrategy() => new(

@@ -1,5 +1,5 @@
 using Momoka.Home.Primitives;
-using Momoka.Home.Storage;
+using Momoka.Home.Data.Json;
 namespace Momoka.Home.Geometry;
 
 /// <summary>
@@ -23,7 +23,7 @@ public class Curve3D : Line3D
         if (chord < 0.001)
         {
             foreach (var pos in RasterizeCross(Start, Thickness))
-                yield return pos.Int3;
+                yield return pos.AsInt3();
             yield break;
         }
 
@@ -46,7 +46,7 @@ public class Curve3D : Line3D
             var center = new Float3(x, Start.Y, z);
 
             foreach (var pos in RasterizeCross(center, Thickness))
-                yield return pos.Int3;
+                yield return pos.AsInt3();
         }
     }
 

@@ -1,5 +1,5 @@
 using System.Reflection;
-namespace Momoka.Home.Storage;
+namespace Momoka.Home.Data.Json;
 
 /// <summary>
 /// Attribute-driven registry mapping <see cref="JsonTypeNameAttribute"/> names to

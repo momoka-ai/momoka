@@ -1,4 +1,4 @@
-using Momoka.Home.Storage;
+using Momoka.Home.Data.Json;
 namespace Momoka.Home.Components;
 
 /// <summary>A command target: the set of commands the device accepts.</summary>

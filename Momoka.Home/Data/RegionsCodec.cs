@@ -2,7 +2,7 @@ using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
-namespace Momoka.Home.Storage;
+namespace Momoka.Home.Data;
 
 /// <summary>
 /// JSON codec for <c>Regions.json</c> — the human-editable per-id region names.
@@ -36,10 +36,10 @@ public static class RegionsCodec
     {
         var file = new RegionsFile();
         var seen = new HashSet<int>();
-        foreach (var (_, _, span) in regions.AllSpans())
+        foreach (var (_, region) in regions.Cells())
         {
-            if (seen.Add(span.Value.Id))
-                file.Regions.Add(new RegionEntry { Id = span.Value.Id, Name = span.Value.Name });
+            if (seen.Add(region.Id))
+                file.Regions.Add(new RegionEntry { Id = region.Id, Name = region.Name });
         }
         file.Regions.Sort((a, b) => a.Id.CompareTo(b.Id));
         File.WriteAllText(path, JsonConvert.SerializeObject(file, Settings));
@@ -53,8 +53,9 @@ public static class RegionsCodec
     /// </summary>
     public static ColumnLayout<Region> Load(IReadOnlyList<ChunkRegionColumn> columns, string? regionsFile)
     {
+        var regions = new ColumnLayout<Region>(_ => false);
         if (columns.Count == 0)
-            return ColumnLayout<Region>.Empty();
+            return regions;
 
         var names = new Dictionary<int, string>();
         if (regionsFile is not null && File.Exists(regionsFile))
@@ -67,21 +68,7 @@ public static class RegionsCodec
             }
         }
 
-        var minX = int.MaxValue;
-        var minZ = int.MaxValue;
-        var maxX = int.MinValue;
-        var maxZ = int.MinValue;
-        var perColumn = new Dictionary<long, List<RegionSpan>>();
-        foreach (var column in columns)
-        {
-            minX = Math.Min(minX, column.World.X);
-            minZ = Math.Min(minZ, column.World.Z);
-            maxX = Math.Max(maxX, column.World.X);
-            maxZ = Math.Max(maxZ, column.World.Z);
-            perColumn[ColumnKey(column.World.X, column.World.Z)] = column.Spans.ToList();
-        }
-
-        // Pass 1 — per-region stats from the spans (mirrors Region.Aggregate).
+        // Per-region stats from the spans (geometry recomputed — spans stay the single source of truth).
         var stats = new Dictionary<int, MutableStats>();
         foreach (var column in columns)
         {
@@ -111,24 +98,12 @@ public static class RegionsCodec
             byId[id] = new Region(id, bounds, s.Volume, s.Footprints.Count) { Name = name };
         }
 
-        // Pass 2 — flatten the per-column spans into the layout's storage.
-        var width = maxX - minX + 1;
-        var depth = maxZ - minZ + 1;
-        var spans = new List<ColumnLayout<Region>.Span>(columns.Count);
-        var offsets = new int[width * depth + 1];
-        for (var z = 0; z < depth; z++)
+        foreach (var column in columns)
         {
-            for (var x = 0; x < width; x++)
-            {
-                if (perColumn.TryGetValue(ColumnKey(minX + x, minZ + z), out var columnSpans))
-                {
-                    foreach (var span in columnSpans)
-                        spans.Add(new ColumnLayout<Region>.Span(span.Y0, span.Y1, byId[span.RegionId]));
-                }
-                offsets[z * width + x + 1] = spans.Count;
-            }
+            foreach (var span in column.Spans)
+                regions.SetSpan(column.World.X, span.Y0, span.Y1, column.World.Z, byId[span.RegionId]);
         }
-        return new ColumnLayout<Region>(width, depth, spans.ToArray(), offsets);
+        return regions;
     }
 
     private static long ColumnKey(int x, int z) => (long)z << 32 | (uint)x;

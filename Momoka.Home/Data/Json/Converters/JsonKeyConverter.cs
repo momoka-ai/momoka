@@ -1,7 +1,7 @@
 using Momoka.Home.Primitives;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-namespace Momoka.Home.Storage;
+namespace Momoka.Home.Data.Json.Converters;
 
 /// <summary>Serializes <see cref="Key"/> as its <c>ns:path</c> string.</summary>
 public class JsonKeyConverter : JsonConverter<Key>

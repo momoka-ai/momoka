@@ -1,4 +1,4 @@
-namespace Momoka.Home.Storage;
+namespace Momoka.Home.Data.Json;
 
 /// <summary>
 /// Declares the JSON discriminator string ("kind" for geometry, "type" for

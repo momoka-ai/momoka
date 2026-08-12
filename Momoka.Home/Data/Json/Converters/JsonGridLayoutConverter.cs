@@ -2,7 +2,7 @@ using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-namespace Momoka.Home.Storage;
+namespace Momoka.Home.Data.Json.Converters;
 
 /// <summary>
 /// Serializes a <see cref="GridLayout{T}"/> of bools: size, offset, direction
@@ -27,6 +27,8 @@ public class JsonGridLayoutConverter : JsonConverter<GridLayout<bool>>
         WriteInt3(writer, value.Offset);
         writer.WritePropertyName("direction");
         WriteInt3(writer, value.Direction);
+        writer.WritePropertyName("unit_length");
+        writer.WriteValue(value.UnitLength);
         writer.WritePropertyName("cells");
         writer.WriteStartArray();
         for (var z = 0; z < value.Size.Z; z++)
@@ -42,9 +44,10 @@ public class JsonGridLayoutConverter : JsonConverter<GridLayout<bool>>
         var size = ReadInt2(obj["size"]);
         var offset = ReadInt3(obj["offset"]);
         var direction = ReadInt3(obj["direction"]);
+        var unitLength = obj["unit_length"]?.Value<float>() ?? 10f;
         var cells = obj["cells"]!.ToObject<bool[]>();
 
-        var grid = new GridLayout<bool>(size, offset) { Direction = direction };
+        var grid = new GridLayout<bool>(size, offset) { Direction = direction, UnitLength = unitLength };
         var i = 0;
         for (var z = 0; z < size.Z; z++)
             for (var x = 0; x < size.X; x++)

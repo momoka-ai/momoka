@@ -9,7 +9,7 @@ namespace Momoka.Home.Properties;
 /// </summary>
 public interface IPropertySource
 {
-    IList<Property> Properties { get; }
+    List<Property> Properties { get; }
 
     event EventHandler<PropertyValueChangedEventArgs>? PropertyValueChanged;
 
