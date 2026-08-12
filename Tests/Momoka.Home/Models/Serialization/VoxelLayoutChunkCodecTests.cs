@@ -5,7 +5,7 @@ using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
 using Momoka.Home.Properties;
-using Momoka.Home.Storage;
+using Momoka.Home.Data;
 namespace Momoka.Home.Tests.Models.Serialization;
 
 /// <summary>
@@ -152,7 +152,7 @@ public class VoxelLayoutChunkCodecTests
     private static Entity StructuralBox(string path, int sx, int sy, int sz)
     {
         var entity = Box(path, sx, sy, sz);
-        entity.AddProperties(new[] { new BooleanProperty(BuiltinProperty.IsStructural, true) });
+        entity.AddProperties(new[] { new BooleanProperty(Property.IsImmutable, true) });
         return entity;
     }
 
@@ -170,13 +170,13 @@ public class VoxelLayoutChunkCodecTests
     private static UnitLayout TwoRoomScene()
     {
         var l = new UnitLayout();
-        l.PlaceAt(SurfaceBox("floor", 10, 1, 10, new Int3(0, 0, 0), 1), new Int3(0, 0, 0));
-        l.PlaceAt(StructuralBox("ceiling", 10, 1, 10), new Int3(0, 30, 0));
-        l.PlaceAt(StructuralBox("wall", 10, 29, 1), new Int3(0, 1, 0));
-        l.PlaceAt(StructuralBox("wall", 10, 29, 1), new Int3(0, 1, 9));
-        l.PlaceAt(StructuralBox("wall", 1, 29, 8), new Int3(0, 1, 1));
-        l.PlaceAt(StructuralBox("wall", 1, 29, 8), new Int3(9, 1, 1));
-        l.PlaceAt(StructuralBox("wall", 1, 29, 8), new Int3(5, 1, 1));
+        l.PlaceAt(SurfaceBox("floor", 10, 1, 10, new Int3(0, 0, 0), 1), new Float3(0, 0, 0));
+        l.PlaceAt(StructuralBox("ceiling", 10, 1, 10), new Float3(0, 300, 0));
+        l.PlaceAt(StructuralBox("wall", 10, 29, 1), new Float3(0, 10, 0));
+        l.PlaceAt(StructuralBox("wall", 10, 29, 1), new Float3(0, 10, 90));
+        l.PlaceAt(StructuralBox("wall", 1, 29, 8), new Float3(0, 10, 10));
+        l.PlaceAt(StructuralBox("wall", 1, 29, 8), new Float3(90, 10, 10));
+        l.PlaceAt(StructuralBox("wall", 1, 29, 8), new Float3(50, 10, 10));
         return l;
     }
 
@@ -188,7 +188,7 @@ public class VoxelLayoutChunkCodecTests
         var dir = TempDir();
         try
         {
-            LayoutChunkCodec.Save(unit.Layout, regions, dir);
+            LayoutChunkCodec.Save(unit.Voxels, regions, dir);
             var loaded = LayoutChunkCodec.Load(dir, unit.Entities);
             Assert.NotNull(loaded.Grid);
 

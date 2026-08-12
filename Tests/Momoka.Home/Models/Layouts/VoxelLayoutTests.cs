@@ -74,9 +74,9 @@ public class VoxelLayoutTests
         var a = new TestEntity(new Box3D());
         layout[new Int3(3, 5, 7)] = a;
 
-        Assert.Same(a, layout.GetEntityAtPoint(new Int3(3, 5, 7)));
-        Assert.Same(a, layout.GetEntityAtNearest(new Int3(3, 5, 7)));
-        Assert.Same(a, layout.GetEntityAtNearest(new Int3(4, 5, 7))); // 相邻格
-        Assert.Null(new VoxelLayout<Entity>().GetEntityAtNearest(new Int3(0, 0, 0))); // 空布局
+        Assert.Same(a, layout.AtPoint(new Int3(3, 5, 7)));
+        Assert.Same(a, layout.AtNearest(new Int3(3, 5, 7)));
+        Assert.Same(a, layout.AtNearest(new Int3(4, 5, 7))); // 相邻格
+        Assert.Null(new VoxelLayout<Entity>().AtNearest(new Int3(0, 0, 0))); // 空布局
     }
 }

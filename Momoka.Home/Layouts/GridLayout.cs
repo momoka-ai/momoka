@@ -25,6 +25,9 @@ public class GridLayout<T> where T : notnull
     /// <summary>Normal direction of the surface (which way placed objects face).</summary>
     public Int3 Direction { get; set; } = Int3.Up;
 
+    /// <summary>World length of one grid unit (cm) — this surface's own scale.</summary>
+    public float UnitLength { get; set; } = 10f;
+
     public GridLayout(Int2 size, Int3? offset = null)
     {
         Size = size;

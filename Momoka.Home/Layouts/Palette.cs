@@ -61,6 +61,27 @@ public class Palette<T> where T : notnull
         public abstract TKey AsKeyed(int index);
     }
 
+    public sealed class Int3ColumnSpanStrategy : Strategy<Int3>
+    {
+        public override int Count => throw new NotImplementedException();
+
+
+        public override int InitialBits => throw new NotImplementedException();
+
+
+        public override int AsIndexed(Int3 key)
+        {
+            throw new NotImplementedException();
+        }
+
+
+        public override Int3 AsKeyed(int index)
+        {
+            throw new NotImplementedException();
+        }
+
+    }
+
     /// <summary>
     /// Dense 3D mapping: origin plus fixed extents.
     /// index = (x-ox) + (z-oz)*SX + (y-oy)*SX*SZ
