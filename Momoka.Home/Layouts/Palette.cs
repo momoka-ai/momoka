@@ -61,61 +61,6 @@ public class Palette<T> where T : notnull
         public abstract TKey AsKeyed(int index);
     }
 
-    public sealed class Int3ColumnSpanStrategy : Strategy<Int3>
-    {
-        public override int Count => throw new NotImplementedException();
-
-
-        public override int InitialBits => throw new NotImplementedException();
-
-
-        public override int AsIndexed(Int3 key)
-        {
-            throw new NotImplementedException();
-        }
-
-
-        public override Int3 AsKeyed(int index)
-        {
-            throw new NotImplementedException();
-        }
-
-    }
-
-    /// <summary>
-    /// Dense 3D mapping: origin plus fixed extents.
-    /// index = (x-ox) + (z-oz)*SX + (y-oy)*SX*SZ
-    /// </summary>
-    public sealed class Int3DenseStrategy : Strategy<Int3>
-    {
-        public Int3 Origin { get; }
-        public int SizeX { get; }
-        public int SizeY { get; }
-        public int SizeZ { get; }
-        public override int Count => SizeX * SizeY * SizeZ;
-        public override int InitialBits { get; }
-
-        public Int3DenseStrategy(Int3 origin, int sizeX, int sizeY, int sizeZ, int initialBits = 4)
-        {
-            Origin = origin;
-            SizeX = sizeX;
-            SizeY = sizeY;
-            SizeZ = sizeZ;
-            InitialBits = initialBits;
-        }
-
-        public override int AsIndexed(Int3 key) =>
-            key.X - Origin.X + (key.Z - Origin.Z) * SizeX + (key.Y - Origin.Y) * SizeX * SizeZ;
-
-        public override Int3 AsKeyed(int index)
-        {
-            var x = index % SizeX;
-            var z = (index / SizeX) % SizeZ;
-            var y = index / (SizeX * SizeZ);
-            return new Int3(Origin.X + x, Origin.Y + y, Origin.Z + z);
-        }
-    }
-
     /// <summary>
     /// Chunk-local 3D mapping: XZ locked to 20x20 cells, Y configurable.
     /// Only accepts coordinates already normalized to chunk-local space
@@ -137,36 +82,9 @@ public class Palette<T> where T : notnull
     }
 
     /// <summary>
-    /// Dense 2D mapping for surfaces: origin plus XZ extents.
-    /// index = (x-ox) + (z-oz)*SX
+    /// Chunk-local 2D mapping: XZ locked to the given size, no origin.
+    /// index = (x % SX) + (z % SZ) * SX
     /// </summary>
-    public sealed class Int2DenseStrategy : Strategy<Int2>
-    {
-        public Int2 Origin { get; }
-        public int SizeX { get; }
-        public int SizeZ { get; }
-        public override int Count => SizeX * SizeZ;
-        public override int InitialBits { get; }
-
-        public Int2DenseStrategy(Int2 origin, int sizeX, int sizeZ, int initialBits = 4)
-        {
-            Origin = origin;
-            SizeX = sizeX;
-            SizeZ = sizeZ;
-            InitialBits = initialBits;
-        }
-
-        public override int AsIndexed(Int2 key) =>
-            key.X - Origin.X + (key.Z - Origin.Z) * SizeX;
-
-        public override Int2 AsKeyed(int index)
-        {
-            var x = index % SizeX;
-            var z = index / SizeX;
-            return new Int2(Origin.X + x, Origin.Z + z);
-        }
-    }
-
     public sealed class Int2ChunkStrategy(Int2 size, int initialBits) : Strategy<Int2>
     {
         public Int2 Size { get; } = size;
