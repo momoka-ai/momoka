@@ -64,6 +64,9 @@ vcpkg_installed/
 ## ZCode
 .zcode/
 
+## Mimosa (security scan hook workspace state)
+.mimosa/
+
 
 #Ignore vscode AI rules
 .github/instructions/codacy.instructions.md
