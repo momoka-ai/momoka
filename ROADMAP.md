@@ -98,9 +98,9 @@
 - [ ] **Build 管线**：视频流 → 3D 重建 → 网格（消费结构化户型数据）
 - [ ] **墙体开口宿主 + 级联删除**：门窗 / 吊灯挂载到墙 / 天花板实体（`Entity` 父子层级）；删除墙 → 级联删除
 - [ ] **多形态设备（低优先级）**：`DeviceShell` + 具象形态（静态网格占用 ↔ 移动连续位置），`Activate` / `Deactivate` 生命周期，身份贯穿形态切换（如扫地机器人）
-- [ ] **Palette 策略减法**：`Int2/Int3ChunkStrategy` 等暂留，待稳定后清理未用策略
+- [x] **Palette 策略减法**：`Int2/Int3ChunkStrategy` 等暂留，待稳定后清理未用策略（2026-08-13：删除 `Int3ColumnSpanStrategy` / `Int3DenseStrategy` / `Int2DenseStrategy` 三个零引用策略）
 - [ ] **编辑器撤销/重做**：`EditorCommand` / `CommandHistory` 已删除（未到编辑器阶段），待 Phase 2 前重建
-- [ ] **Palette / PalettedContainer / PackedBitStorage 直接序列化**：四个类型各自挂 `[JsonConverter]`，产出 `palette_json + bits + data` 填表载荷，去掉手写字节 codec
+- [x] **Palette / PalettedContainer / PackedBitStorage 直接序列化**：四个类型各自挂 `[JsonConverter]`，产出 `palette_json + bits + data` 填表载荷，去掉手写字节 codec（2026-08-13 简化落地：`Palette<T>` 挂 `JsonPaletteConverter`（Entity 写 Guid 引用）+ `PackedBitStorage.ToBytes/FromBytes` little-endian BLOB；`LayoutChunkCodec` 退役随 Sqlite 体素层）
 - [x] **Sqlite 存储层 · residence/entities（`Data/Sqlite`）**：`linq2db` + `Microsoft.Data.Sqlite`，单文件存档 `Saves/<Name>.db`；`Residence`（Id + Json 整存）+ `Entities`（Id + Json 每实体一行），PascalCase；`SqliteStore` 持有连接（IDisposable），全函数式 API（`CreateTable` / `InsertOrReplace` / `Insert` / `GetTable`），替代文件夹的 `Residence.json` / `Entities.json`
 - [ ] **Sqlite 存储层 · 体素层**：`regions`（id + name）/ `chunks` + `chunk_sections`（x, z, sy + palette JSON + bits + data BLOB，按 (x,z) 键查询）；一次事务原子写入，替代 `LayoutChunkCodec` / `RegionsCodec` 的文件层
 - [ ] **区块数据压缩**：section words（`ulong[]`）gzip 压缩后存 BLOB（对齐 Minecraft region 文件的 zlib 做法，稀疏区块收益大）

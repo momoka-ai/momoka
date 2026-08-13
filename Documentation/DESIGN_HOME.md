@@ -227,7 +227,7 @@ flowchart TB
 | Residence 接线 | Home 重构为总容器（Name/Address + Space=Residence），Residence 持 UnitLayout + UnitType | ✅ 已实现 |
 | 实体模板替换薄壳 | Wall/Door/Window 由配置模板（EntityTemplate）替代；EnumProperty 进配置词表后 Appliance 亦可 | 📋 部分阻塞 |
 | 物业/管理方引用层 | 统一管理多 Unit 的引用式封装（住户 Residence 默认全权，物业另层且不可见住户内容） | 📋 推迟 |
-| Palette 策略减法 | Int2/Int3ChunkStrategy 等暂留，待稳定后清理未用策略 | 📋 待减法 |
+| Palette 策略减法 | 已删除 Int3ColumnSpanStrategy / Int3DenseStrategy / Int2DenseStrategy，保留 Int3ChunkStrategy / Int2ChunkStrategy | ✅ 已删除 |
 | 门洞渲染 | 渲染属 Momoka.Ui（Home 不做渲染）；模型/材质由实体 Key 调取或 Property 表述；Home 只提供连通性（门开关 → 重算 Region） | 📋 待实现（Ui） |
 
 ### 7.1 其它（原待办）
