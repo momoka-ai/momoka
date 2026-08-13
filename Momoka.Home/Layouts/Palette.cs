@@ -1,12 +1,15 @@
 using Momoka.Home;
+using Momoka.Home.Data.Json.Converters;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
+using Newtonsoft.Json;
 namespace Momoka.Home.Layouts;
 
 /// <summary>
 /// Bidirectional id &lt;-&gt; value mapping for palette storage.
 /// Id 0 is reserved for empty (null).
 /// </summary>
+[JsonConverter(typeof(JsonPaletteConverter))]
 public class Palette<T> where T : notnull
 {
     // Index 0 is the reserved "empty" slot; holds default(T) (null at runtime).

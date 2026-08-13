@@ -1,4 +1,5 @@
 using Momoka.Home;
+using System.Runtime.InteropServices;
 namespace Momoka.Home.Layouts;
 
 /// <summary>
@@ -18,6 +19,26 @@ public sealed class PackedBitStorage
 
     /// <summary>Raw packed words, for storage serialization.</summary>
     internal ulong[] Data => _data;
+
+    /// <summary>
+    /// The raw words as little-endian bytes, for BLOB storage (Sqlite
+    /// <c>data</c> column). Byte layout matches <c>BinaryWriter.Write(ulong)</c>
+    /// as used by the chunk codec.
+    /// </summary>
+    internal byte[] ToBytes() => MemoryMarshal.AsBytes(_data.AsSpan()).ToArray();
+
+    /// <summary>
+    /// Restores storage from little-endian bytes produced by <see cref="ToBytes"/>.
+    /// </summary>
+    internal static PackedBitStorage FromBytes(int size, int bits, byte[] data)
+    {
+        if (data.Length % sizeof(ulong) != 0)
+            throw new ArgumentException($"Raw BLOB length {data.Length} is not a multiple of 8.", nameof(data));
+
+        var words = new ulong[data.Length / sizeof(ulong)];
+        data.CopyTo(MemoryMarshal.AsBytes(words.AsSpan()));
+        return new PackedBitStorage(size, bits, words);
+    }
 
     /// <summary>Restores storage from raw packed words (length must match size/bits).</summary>
     internal PackedBitStorage(int size, int bits, ulong[] data) : this(size, bits)
