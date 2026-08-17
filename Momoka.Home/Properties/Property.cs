@@ -23,6 +23,9 @@ public abstract class Property
     /// <summary>Current open state of a portal (a door); immutable portals are passable when open.</summary>
     public const string IsOpen = "is_open";
 
+    /// <summary>Marks an entity as see-through (glass, open mesh); non-transparent entities stop hitscan lines.</summary>
+    public const string IsTransparent = "is_transparent";
+
     /// <summary>Identity of the property; maps to the JSON "key" field.</summary>
     [JsonProperty("key")]
     public string Name { get; set; } = "";
