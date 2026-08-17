@@ -60,7 +60,7 @@ public static class LayoutChunkCodec
         foreach (var sy in present)
         {
             var section = sections[sy]!;
-            writer.Write(sy);
+            writer.Write(sy + chunk.BaseSy); // 世界 section Y（负 Y 支持；旧文件全非负时与数组索引相同）
 
             // Palette values, skipping the reserved empty slot at index 0.
             var palette = section.Data.Palette.Values;
@@ -118,10 +118,11 @@ public static class LayoutChunkCodec
 
         var sectionCount = reader.ReadInt32();
         var sectionBySy = new Dictionary<int, VoxelChunkSection<Entity>>();
-        var maxSy = 0;
+        var minSy = int.MaxValue;
+        var maxSy = int.MinValue;
         for (var i = 0; i < sectionCount; i++)
         {
-            var sy = reader.ReadInt32();
+            var sy = reader.ReadInt32(); // 世界 section Y
 
             var paletteCount = reader.ReadInt32();
             var paletteValues = new Entity[paletteCount];
@@ -143,13 +144,15 @@ public static class LayoutChunkCodec
             var container = new PalettedContainer<Int3, Entity>(
                 NewStrategy(), Palette<Entity>.FromValues(paletteValues), new PackedBitStorage(size, bits, words));
             sectionBySy[sy] = new VoxelChunkSection<Entity>(container);
+            if (sy < minSy)
+                minSy = sy;
             if (sy > maxSy)
                 maxSy = sy;
         }
 
-        var sections = new VoxelChunkSection<Entity>?[maxSy + 1];
+        var sections = new VoxelChunkSection<Entity>?[maxSy - minSy + 1];
         foreach (var (sy, section) in sectionBySy)
-            sections[sy] = section;
+            sections[sy - minSy] = section;
 
         var regionColumnCount = reader.ReadInt32();
         var regionColumns = new ChunkRegionColumn[regionColumnCount];
@@ -167,7 +170,7 @@ public static class LayoutChunkCodec
             regionColumns[i] = new ChunkRegionColumn(world, spans);
         }
 
-        return new DecodedChunk(new VoxelChunk<Entity>(index, sections), regionColumns);
+        return new DecodedChunk(new VoxelChunk<Entity>(index, sections, minSy), regionColumns);
     }
 
     // ── Whole layout / directory ────────────────────────
