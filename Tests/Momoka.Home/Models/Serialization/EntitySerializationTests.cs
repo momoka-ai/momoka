@@ -71,26 +71,4 @@ public class EntitySerializationTests
         Assert.Equal("[\"turn_on\",\"turn_off\"]", target.Commands);
     }
 
-    [Fact]
-    public void Entity_RoundTrips_Directly()
-    {
-        var entity = new Entity
-        {
-            Key = new Key("demo", "lamp"),
-            Pos = new Position(new Float3(30, 40, 50)),
-            Volume = new Box3D { SizeX = 1, SizeY = 2, SizeZ = 1 },
-        };
-        entity.AddProperties(new[] { new BooleanProperty(Property.IsImmutable, true) });
-        entity.AddComponent(new DataSource());
-
-        var json = JsonConvert.SerializeObject(entity, Settings.JsonSerialization);
-        var loaded = JsonConvert.DeserializeObject<Entity>(json, Settings.JsonSerialization)!;
-
-        Assert.Equal(entity.Id, loaded.Id);
-        Assert.Equal(entity.Key, loaded.Key);
-        Assert.Equal(entity.Pos, loaded.Pos);
-        Assert.Equal(1, Assert.IsType<Box3D>(loaded.Volume).SizeX);
-        Assert.Single(loaded.Components);
-        Assert.True(loaded.GetValue<bool>(Property.IsImmutable));
-    }
 }

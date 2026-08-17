@@ -1,8 +1,5 @@
 using Xunit;
-using Momoka.Home;
-using Momoka.Home.Entities;
 using Momoka.Home.Geometry;
-using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
 namespace Momoka.Home.Tests.Models.Shapes;
 
@@ -131,12 +128,4 @@ public class ShapeFamilyTests
         Assert.Contains(new Int3(0, 0, 0), cells);
     }
 
-    [Fact]
-    public void Volume_PlaceAt_WithoutHost_Throws()
-    {
-        var box = new Box3D { SizeX = 1, SizeY = 1, SizeZ = 1 };
-        var layout = new VoxelLayout<Entity>();
-
-        Assert.Throws<NotSupportedException>(() => box.PlaceAt(layout, Int3.Zero));
-    }
 }

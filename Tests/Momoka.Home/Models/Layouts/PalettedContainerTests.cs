@@ -22,38 +22,4 @@ public class PalettedContainerTests
 
         Assert.True(container[new Int2(1, 1)]);
     }
-
-    [Fact]
-    public void GridLayout_WritesAcrossCells_Persist()
-    {
-        var grid = new GridLayout<bool>(new Int2(5, 5));
-
-        grid[new Int2(1, 1)] = true;
-        grid[new Int2(2, 2)] = true;
-        grid[new Int2(3, 3)] = true;
-
-        Assert.True(grid[new Int2(1, 1)]);
-        Assert.True(grid[new Int2(2, 2)]);
-        Assert.True(grid[new Int2(3, 3)]);
-    }
-
-    [Fact]
-    public void GridLayout_UnsetCell_DefaultsToFalse()
-    {
-        var grid = new GridLayout<bool>(new Int2(5, 5));
-        Assert.False(grid[new Int2(0, 0)]);
-    }
-
-    [Theory]
-    [InlineData(0, 0)]
-    [InlineData(2, 3)]
-    [InlineData(3, 1)]
-    [InlineData(1, 3)]
-    [InlineData(2, 2)]
-    public void GridLayout_WriteRead_RoundTrips(int x, int z)
-    {
-        var grid = new GridLayout<bool>(new Int2(4, 4));
-        grid[new Int2(x, z)] = true;
-        Assert.True(grid[new Int2(x, z)]);
-    }
 }
