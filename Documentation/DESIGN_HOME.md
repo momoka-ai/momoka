@@ -6,10 +6,9 @@ Momoka.Home 是家庭数字孪生模块：
 
 | 子模块 | 职责 | 状态 |
 |--------|------|------|
-| **Models** | 实体、属性系统、空间数据结构（UnitLayout/VoxelLayout/GridLayout/FloorPlanLayout） | ✅ 核心完成 |
-| **Services** | 放置/区域/墙体绘制等行为层 | ✅ 基础完成 |
-| **Editor** | 编辑器命令（undo/redo） | ✅ 基础完成 |
-| **Storage** | 存档、命令历史 | ✅ 基础完成 |
+| **Models** | 实体、属性系统、空间数据结构（UnitLayout/VoxelLayout/GridLayout/ColumnLayout） | ✅ 核心完成 |
+| **Algorithms** | 空间查询：视线 / 视野内目标 / 碰撞 / 寻路（Traverse/Visibility/Occlusion/Collision/Pathfinding） | ✅ 核心完成 |
+| **Data** | JSON 序列化管线（JsonTypeNameRegistry + 转换器）与持久化（SqliteStore / LayoutChunkCodec / RegionsCodec） | ✅ 基础完成 |
 | **Providers** | 设备执行层抽象（HA、GIIC） | 📋 待实现 |
 | **Build** | 视频流 → 3D 重建 → 网格 | 📋 待实现 |
 | **Security** | 危险操作风险评估与拦截 | 📋 待实现 |
@@ -22,12 +21,14 @@ Momoka.Home 是家庭数字孪生模块：
 
 | 类型 | 精度 | 用途 |
 |------|------|------|
-| `Int2(X, Z)` | 整数，10cm 步长 | 2D 网格：墙体占位、区域包含、BlockGraph 节点键 |
-| `Int3(X, Y, Z)` | 整数，10cm 步长 | 3D 网格：分块容器索引 |
-| `Float3(X, Y, Z)` | 连续浮点 | 移动实体位置、Shape 顶点 |
+| `Int2(X, Z)` | 整数，10cm 步长 | 2D 网格：墙体占位、区域包含、Graph2D 节点键 |
+| `Int3(X, Y, Z)` | 整数，10cm 步长 | 3D 网格：分块容器索引、寻路节点 |
+| `Float3(X, Y, Z)` | 连续浮点 | 连续位置、Shape 顶点、方向向量 |
 | `Key(ns, path)` | — | 命名空间键：`momoka:door` |
+| `Bound` | Float3 世界单位 | 轴对齐包围盒（Min/Max），网格边界与查询范围 |
+| `Position` | 携带单位尺度 | 自描述坐标：`Pos` + `Scale`（cm 系数），`Absolute()` 恒返回真实 cm |
 
-相互转换：`Int2 →(Y=0)→ Int3 →(隐式)→ Float3`，`Float3 →(Round)→ Int3 →(Drop Y)→ Int2`。
+相互转换：`Int2 →(Y=0)→ Int3 →(Float)→ Float3`，`Float3 →(Round)→ Int3 →(Drop Y)→ Int2`；任意坐标经 `Position.Absolute()` 归一为世界 cm 后可与体素格互转（`GetAsRelative` / `GetAsAbsolute`）。
 
 ---
 
@@ -41,18 +42,10 @@ classDiagram
 
     class Entity {
         +Id +Key
-        +Coords(Int3)
+        +Pos(Position)
         +Volume 体素几何
         +Properties 属性系统(get/set/event/serialize)
         +Components 行为组件
-    }
-    class Wall
-    class Door
-    class Window
-    class Appliance
-    class Curtain
-    class Building {
-        +Bound + Levels(遗留)
     }
     class Component {
         行为载体
@@ -69,21 +62,28 @@ classDiagram
     class CommandTarget {
         命令列表
     }
+    class IEntitySource {
+        实体注册表查询
+    }
+    class IComponentSource {
+        组件增删查
+    }
+    class IPropertySource {
+        属性表增删查/事件
+    }
 
-    Entity <|-- Wall
-    Entity <|-- Door
-    Entity <|-- Window
-    Entity <|-- Appliance
-    Entity <|-- Building
-    Appliance <|-- Curtain
     Component <|-- PlacementLayoutSource
     Component <|-- DataSource
     Component <|-- EventSource
     Component <|-- CommandTarget
     Entity *-- Component
+    Entity ..|> IComponentSource
+    Entity ..|> IPropertySource
+    UnitLayout ..|> IEntitySource
+    Residence ..|> IEntitySource
 ```
 
-> 注：`Entity` 已非泛型化（`Entity<Int2>`/`Entity<Float3>` 删除）。所有物件扁平化为单一个 3D 实体，坐标 `Int3` 根绝对，`Volume` 描述体素几何。
+> 注：`Entity` 已非泛型化（`Entity<Int2>`/`Entity<Float3>` 删除），薄壳实体（`Wall`/`Door`/`Window`/`Appliance`/`Curtain`）与中间件（`Home`/`Level`/`Building`）已删除。所有物件扁平化为单一个 3D 实体，坐标 `Int3` 根绝对（经 `Position` 归一为 cm），`Volume` 描述体素几何。
 
 ### 3.2 Property 类型
 
@@ -107,16 +107,18 @@ classDiagram
 
 ## 4. 实体系统
 
-### 4.1 Children 与 Components 分离（Unity 风格）
+### 4.1 行为组件与数据分离（接口驱动）
 
-| | Children（空间层级） | Components（行为脚本） |
-|---|---|---|
-| 添加/移除 | `AddChild` / `RemoveChild` | `AddComponent` / `RemoveComponent` |
-| 查询 | `GetChild<T>()` / `GetChild(Guid)` / `FindChild(Guid)` | `GetComponent<T>()` / `GetComponents<T>()` / `GetComponentInChildren<T>()` / `TryGetComponent` |
-| 遍历 | `Traverse()`（空间树） | — |
+扁平化后 `Entity` 不再有空间子节点（空间层级——门挂墙、家具上台——规划为「墙体开口宿主 + 级联删除」，见 ROADMAP）。行为与数据经三个源接口统一暴露，实体只实现接口，操作全是扩展方法：
 
-- 空间层级：门挂在墙上、笔记本放在桌上——删除宿主级联删除子物件
-- 行为脚本：数据源、命令接口平铺，不参与空间
+| 接口 | 职责 | 操作（扩展方法） |
+|------|------|------|
+| `IComponentSource` | 行为组件容器 | `AddComponent` / `RemoveComponent` / `GetComponent<T>` / `GetComponents<T>` / `TryGetComponent<T>` |
+| `IPropertySource` | 每实例属性表 | `GetValue`/`SetValue`（名或键）/ `ClearValue` / `event PropertyValueChanged` / `IsImmutable()` 等 |
+| `IEntitySource` | 实体注册表 | 按 Id / Key / 类型 / 包围盒 / 原点查询，`Traverse()` 遍历全部 |
+
+- 行为脚本（`Component`）：数据源、命令接口平铺在实体上，不参与空间
+- 空间查询能力（视线 / 碰撞 / 寻路）经 `IVoxelSource<T>`（`UnitLayout` 实现）对外暴露，见 §6
 
 ### 4.2 实体
 
@@ -124,7 +126,7 @@ classDiagram
 
 ### 4.3 Volume/Shape 系统
 
-`Volume` 抽象基类（3D 体素几何，实现 `IVoxelGeometry3D` + `IVoxelGeometry2D`）+ 异形族：`Box3D`/`Line3D`/`Curve3D`/`Polygon3D`/`Prism3D`/`Conic3D`/`Spherical3D`/`Extruded3D`/`Composite3D` + 2D 族 `Rect2D`/`Polygon2D`/`Circular2D`/`Composite2D`。全部以 `[JsonTypeName]` 注册进 `JsonTypeNameRegistry`（`Momoka.Home.Storage`），配置以 `"kind"` 判别、参数 snake_case 直绑。
+`Volume` 抽象基类（3D 体素几何，实现 `IVoxelGeometry3D` + `IVoxelGeometry2D`）+ 异形族：`Box3D`/`Line3D`/`Curve3D`/`Polygon3D`/`Prism3D`/`Conic3D`/`Spherical3D`/`Extruded3D`/`Composite3D` + 2D 族 `Rect2D`/`Polygon2D`/`Circular2D`/`Composite2D`。全部以 `[JsonTypeName]` 注册进 `JsonTypeNameRegistry`（`Momoka.Home.Data.Json`），配置以 `"kind"` 判别、参数 snake_case 直绑。
 
 ---
 
@@ -137,9 +139,10 @@ classDiagram
 ```mermaid
 classDiagram
     class UnitLayout {
-        +VoxelLayout~Entity~ Layout
-        +List~FloorPlanLayout~ Floors
-        +IEnumerable~GridLayout~bool~~ Surfaces
+        +VoxelLayout~Entity~ Voxels
+        +VoxelLayout~Region~ Regions
+        +List~Entity~ Entities
+        +float VoxelSize = 10
     }
     class VoxelLayout~T~ {
         +Dictionary~long, VoxelChunk~T~~ chunks
@@ -157,7 +160,7 @@ classDiagram
     VoxelChunk --> VoxelChunkSection
 ```
 
-`Surfaces`：各实体 `PlacementLayoutSource` 的放置面（地板顶面、书架板等）。旧 `Floors`（户型图）已退役。
+`UnitLayout` 同时实现 `IEntitySource`（实体注册表）与 `IVoxelSource<Entity>`（空间查询源，见 §6）；`Voxels` 是底层纯格网，`Regions` 存区域标注（`Region`），`Entities` 是已放置实体列表。旧 `Floors`（户型图）与 `Surfaces` 放置面集合已退役——放置面由各实体 `PlacementLayoutSource` 组件按需暴露。
 
 ### 5.2 VoxelLayout — 区块式 3D 体素存储
 
@@ -189,48 +192,78 @@ Minecraft 式：XZ chunk 键**打包 long**（`(cx<<32)|cz`），每列是 `Voxe
 
 ---
 
-## 6. Services / Editor / Storage
+## 6. 空间查询（Algorithms）
+
+旧服务层（`PlacementService` / `RegionService` / `WallBuildingService` / `SelectionService`）与编辑器（`EditorCommand` / `CommandHistory`）已随扁平化重构删除——放置、碰撞、区域、撤销等具体编辑命令规划于 Phase 2 前重建（见 ROADMAP）。当前空间能力以**纯算法 + 源接口扩展**形式提供：
+
+```mermaid
+flowchart LR
+    subgraph Geo["纯几何（无体素/实体概念）"]
+        T["Traverse<br/>OnLine (DDA) / InCone / InFrustum"]
+        V["Visibility<br/>Project / IsInView"]
+        O["Occlusion<br/>阻挡档位枚举"]
+        C["Collision<br/>Result 命中记录"]
+        P["Pathfinding<br/>A*（加权、可传启发式）"]
+    end
+
+    subgraph Query["查询层（IVoxelSource 扩展）"]
+        Q1["CanSee 视线（点/包围盒/锥形）"]
+        Q2["FindItemsInView 视野内目标<br/>射线 / 圆锥 / 视锥 + 阻挡档位"]
+        Q3["IsCollided 碰撞<br/>点 / 球 / 体积（Volume）"]
+        Q4["FindPath 寻路<br/>A* + Agent 可通行参数"]
+    end
+
+    Geo --> Query
+    Query --> VOX["IVoxelSource~T~<br/>（UnitLayout 实现）"]
+```
+
+- **纯几何**：`Traverse`（Amanatides & Woo DDA 直线遍历 / 锥体 / 视锥包围盒扫描）、`Visibility`（点线分解 `Project`、圆柱视野 `IsInView`）、`Occlusion`（`None` / `OnlyImmutable` / `OnlyNonTransparent` / `Everything` 四档阻挡）、`Collision.Result<T>`（命中记录：实体 + 格 + 精确点）、`Pathfinding.AStar`（加权 A*，起点自带格尺度，可传启发式，0 启发式退化为 Dijkstra）
+- **查询层**：`VoxelSourceExtensions` 把几何接到体素网格上——视线（两点 / 包围盒最近点 / 锥形视野）、视野内目标（射线惰性 DDA 早停；圆锥 / 视锥按实体做严格射线遮挡判定）、碰撞（点 / 球 / `Volume` 体积，用于放置校验）、寻路（`FindPath`，XZ 4 连通 + 身高净高 + 支撑 + 爬升代价）
+- 坐标约定：查询一律收世界 cm（`Position.Absolute()`），内部自动对齐 10cm 格；`Position` 自描述尺度贯穿全程
+
+## 7. 数据与持久化（Data）
 
 ```mermaid
 flowchart TB
-    subgraph Services["Services"]
-        Placement["PlacementService<br/>碰撞检测、放置校验（静态）"]
-        RegionSvc["RegionService<br/>区域包含查询（静态）"]
-        WallBuild["WallBuildingService<br/>墙体绘制（静态）"]
-        Selection["SelectionService<br/>选中状态（实例化）"]
+    subgraph Json["JSON 序列化管线（snake_case）"]
+        Reg["JsonTypeNameRegistry<br/>[JsonTypeName] 名 → 具体类型"]
+        G["JsonGeometryConverter / JsonPropertyConverter<br/>JsonComponentConverter / JsonKeyConverter<br/>JsonGridLayoutConverter / JsonPaletteConverter"]
+        S["Settings.JsonSerialization<br/>统一序列化设置（唯一入口）"]
     end
 
-    subgraph Editor["Editor"]
-        Cmd["EditorCommand + MoveEntityCommand<br/>Apply/Revert，undo/redo"]
+    subgraph Persist["持久化"]
+        Sql["SqliteStore<br/>Residence 整存 + Entities 每实体一行<br/>（单文件 Saves/<Name>.db）"]
+        Codec["LayoutChunkCodec<br/>体素块文件（palette + bits + data）"]
+        RC["RegionsCodec<br/>Regions.json 区域名"]
     end
 
-    subgraph Storage["Storage"]
-        History["CommandHistory<br/>undo/redo 栈"]
-        Json["JsonTypeConverter / JsonGeometryConverter /<br/>JsonPropertyConverter / JsonTypeNameRegistry"]
-    end
-
-    Editor --> Storage
+    Json --> Sql
+    Json --> Codec
+    Codec --> RC
 ```
 
-静态 Service 的函数接受 `Level` 参数，纯计算；实例化 Service 持有状态。
+- **序列化**：`JsonTypeNameRegistry` 按族（2D / 3D）映射 `"kind"` → 具体类型，`Settings.JsonSerialization` 为唯一序列化入口（snake_case + 全部转换器）；`Palette` / `PalettedContainer` / `PackedBitStorage` 直接序列化为 `palette_json + bits + data` 载荷
+- **Sqlite 存储（residence/entities）**：`SqliteStore`（linq2db + Microsoft.Data.Sqlite），`Residence` 整存 + `Entities` 每实体一行；体素层仍走 `LayoutChunkCodec` / `RegionsCodec` 文件层（Sqlite 体素层 `chunks` / `chunk_sections` 规划中）
 
 ---
 
-## 7. 遗留代办 / 未来计划
+## 8. 遗留代办 / 未来计划
 
-### 7.0 空间与序列化收尾（当前）
+### 8.0 空间与序列化收尾（当前）
 
 | 项 | 说明 | 状态 |
 |----|------|------|
 | 3D Region 自动生成 | span flood-fill + 步高容差得房间/可行走区域（§5.6）；门开关（闭=阻塞/开=连通）Portal 与 wall-extension 后续 | ✅ 基础已实现 |
-| 旧 Level/Building/Home 迁移 | 由 UnitLayout/Residence 取代；Floor/Ceiling 平面退役（地板/天花板改为 Entity 挂 PlacementLayoutSource） | 📋 待迁移 |
-| Residence 接线 | Home 重构为总容器（Name/Address + Space=Residence），Residence 持 UnitLayout + UnitType | ✅ 已实现 |
-| 实体模板替换薄壳 | Wall/Door/Window 由配置模板（EntityTemplate）替代；EnumProperty 进配置词表后 Appliance 亦可 | 📋 部分阻塞 |
+| 空间查询层 | `IVoxelSource<T>` + 扩展：视线 / 视野内目标（射线/圆锥/视锥）/ 碰撞 / 寻路（§6） | ✅ 已实现 |
+| 旧 Level/Building/Home 迁移 | 由 UnitLayout/Residence 取代；Floor/Ceiling 平面退役（地板/天花板改为 Entity 挂 PlacementLayoutSource） | ✅ 已迁移 |
+| Residence 接线 | Home 重构为总容器（Name/Address + Layout=Residence），Residence 持 UnitLayout + UnitType | ✅ 已实现 |
+| 实体模板替换薄壳 | Wall/Door/Window 由配置模板（EntityTemplate）替代；薄壳实体已删除 | ✅ 已完成 |
+| Sqlite 存储（residence/entities） | `SqliteStore` 单文件存档；体素层仍走文件 codec（§7） | ✅ 已实现 |
 | 物业/管理方引用层 | 统一管理多 Unit 的引用式封装（住户 Residence 默认全权，物业另层且不可见住户内容） | 📋 推迟 |
 | Palette 策略减法 | 已删除 Int3ColumnSpanStrategy / Int3DenseStrategy / Int2DenseStrategy，保留 Int3ChunkStrategy / Int2ChunkStrategy | ✅ 已删除 |
 | 门洞渲染 | 渲染属 Momoka.Ui（Home 不做渲染）；模型/材质由实体 Key 调取或 Property 表述；Home 只提供连通性（门开关 → 重算 Region） | 📋 待实现（Ui） |
 
-### 7.1 其它（原待办）
+### 8.1 其它（原待办）
 
 | 项 | 说明 |
 |----|------|
@@ -244,37 +277,42 @@ flowchart TB
 
 ---
 
-## 8. 目录总览
+## 9. 目录总览
 
 ```
 Momoka.Home/
-├── UnitLayout.cs / Residence.cs / Region.cs / UnitType.cs / Agent.cs（根命名空间）
+├── Momoka.Home.csproj            # 依赖：Newtonsoft.Json / linq2db / Microsoft.Data.Sqlite
+├── UnitLayout.cs / Residence.cs / Region.cs / Agent.cs / UnitType.cs / Settings.cs（根命名空间）
 ├── Primitives/
-│   └── Int2.cs / Int3.cs / Float3.cs / Key.cs / Bound.cs
-├── Entities/
-│   ├── Entity.cs（身份 + Coords(Int3) + Volume + 属性 + 组件，非泛型）
-│   ├── Wall.cs / Door.cs / Window.cs / Appliance.cs / Curtain.cs / Building.cs
-│   └── EntityTemplate.cs / EntityTemplateFactory.cs（配置管线）
+│   └── Int2.cs / Int3.cs / Float3.cs / Key.cs / Bound.cs / Position.cs
 ├── Properties/
 │   ├── Property.cs + Boolean/Int/Float/String/Literal/Enum 子类
-│   ├── BuiltinProperty.cs（is_structural 等内置定义）
-│   └── PropertyValueChangedEventArgs.cs
-├── Geometry/
-│   ├── Volume.cs / IVoxelGeometry2D.cs / IVoxelGeometry3D.cs
-│   ├── Box3D / Line3D / Curve3D / Polygon3D / Prism3D / Conic3D / Spherical3D /
-│   │   Extruded3D / Composite3D / Rect2D / Polygon2D / Circular2D / Composite2D
-├── Layouts/（纯运算 / 数学布局）
-│   ├── GridLayout.cs / VoxelLayout.cs（VoxelLayout/VoxelChunk/VoxelChunkSection）/ ColumnLayout.cs
-│   ├── Palette.cs / PackedBitStorage.cs / PalettedContainer.cs / PalettedContainerRO.cs
-│   └── Graph2D.cs / Subdivision.cs
+│   ├── IPropertySource.cs / PropertySourceExtensions.cs / PropertyValueChangedEventArgs.cs
+├── Entities/
+│   ├── Entity.cs（身份 + Pos + Volume + 属性 + 组件，非泛型）
+│   ├── IEntitySource.cs / EntitySource.cs（实体注册表查询扩展）
+│   └── EntityTemplate.cs / EntityTemplateFactory.cs（配置管线）
 ├── Components/
-│   ├── Component.cs / IComponentSource.cs / PlacementLayoutSource.cs
-├── Storage/
-│   ├── CommandHistory.cs
-│   ├── JsonTypeConverter.cs / JsonGeometryConverter.cs / JsonPropertyConverter.cs
-│   └── JsonTypeNameAttribute.cs / JsonTypeNameRegistry.cs
-├── Editor/
-│   └── EditorCommand.cs
-├── Home.cs / Level.cs / Residence.cs / UnitType.cs / IEntitySource.cs
-└── Momoka.Home.csproj               # 依赖：Newtonsoft.Json
+│   ├── Component.cs / IComponentSource.cs / ComponentSourceExtensions.cs
+│   └── PlacementLayoutSource.cs / DataSource.cs / EventSource.cs / CommandTarget.cs
+├── Geometry/
+│   ├── Volume.cs / Shape.cs / IVoxelGeometry2D.cs / IVoxelGeometry3D.cs
+│   ├── Box3D / Line3D / Curve3D / Polygon3D / Prism3D / Conic3D / Spherical3D /
+│   │   Extruded3D / Composite3D（3D 族）
+│   └── Rect2D / Polygon2D / Circular2D / Composite2D（2D 族）
+├── Layouts/（纯运算 / 数学布局）
+│   ├── VoxelLayout.cs（VoxelLayout/VoxelChunk/VoxelChunkSection）/ GridLayout.cs / ColumnLayout.cs
+│   ├── Palette.cs / PackedBitStorage.cs / PalettedContainer.cs / PalettedContainerRO.cs
+│   ├── Graph.cs（Graph/Graph2D/Graph3D）/ Subdivision.cs
+│   └── VoxelSource.cs（IVoxelSource + 空间查询扩展）
+├── Algorithms/（纯几何 / 纯算法）
+│   └── Traverse.cs / Visibility.cs / Occlusion.cs / Collision.cs / Pathfinding.cs
+├── Data/
+│   ├── Json/（JsonTypeNameAttribute / JsonTypeNameRegistry）
+│   │   └── Converters/（JsonTypeConverter / JsonGeometryConverter / JsonPropertyConverter /
+│   │       JsonComponentConverter / JsonKeyConverter / JsonGridLayoutConverter / JsonPaletteConverter）
+│   ├── Sqlite/（DbConnection / SqliteStore）
+│   ├── LayoutChunkCodec.cs / RegionsCodec.cs（体素文件层）
+├── Helpers/
+│   └── ValueHelper.cs（floor 除法 / 取模）
 ```

@@ -87,7 +87,6 @@
 待实现（按当前优先级）：
 
 - [x] **3D Region 自动生成**：站立格（Up 放置面 + 净高过滤）→ `ColumnLayout` 引擎标 span（阻隔即占用，家具成洞）；`Region.BuildLayout()` + `UnitLayout.RebuildRegions()`（§5.6）；门开关 Portal 与 wall-extension 后续
-- [ ] **传播图 `Propagation`（远期，2026-08-12 规划）**：Region 图上的加权 Dijkstra（节点=房间 Region，边=门户开/关/墙，代价=距离 + 穿墙损耗），一次算完供三类感知：① 灯可见性（同 Region 或开着的门连通 → 可感知，用于自动关用户不可见的灯）② 声音传播（最短路径长度 + 墙衰减 → 按用户位置自动调音量）③ WiFi 信号（log-distance path loss + 穿墙惩罚 → 每房间信号表）。**不依赖体素 LOS**——光/声/无线电能绕弯、是连续衰减而非二值可见；`CanSee`/`Occlusion` 仅留给摄像头视野/投影遮挡等真二值场景
 - [ ] **具体编辑命令**：`PlaceEntityCommand` / `RemoveEntityCommand`（含开口级联）/ `BuildWallCommand` / `PaintTileCommand`（刷材质面），接入 `CommandHistory`
 - [ ] **门洞渲染**：开门时渲染覆盖墙并允许连通性计算
 - [ ] **参数化 `Shape` 体系**：屋顶形状 `Flat / Shed / Gable / Hip / Conical`（`Pitch` / `Overhang` 参数化）；网格生成归 Momoka.Ui
@@ -105,6 +104,7 @@
 - [ ] **Sqlite 存储层 · 体素层**：`regions`（id + name）/ `chunks` + `chunk_sections`（x, z, sy + palette JSON + bits + data BLOB，按 (x,z) 键查询）；一次事务原子写入，替代 `LayoutChunkCodec` / `RegionsCodec` 的文件层
 - [ ] **区块数据压缩**：section words（`ulong[]`）gzip 压缩后存 BLOB（对齐 Minecraft region 文件的 zlib 做法，稀疏区块收益大）
 - [ ] **物业 / 管理方引用层（推迟）**：统一管理多 Unit 的引用式封装（住户 Residence 默认全权，物业另层且不可见住户内容）
+- [ ] **传播图 `Propagation`（远期 · AI 伴侣阶段，低优先级）**：Region 图上的加权 Dijkstra（节点=房间 Region，边=门户开/关/墙，代价=距离 + 穿墙损耗），一次算完供三类感知：① 灯可见性（同 Region 或开着的门连通 → 可感知，用于自动关用户不可见的灯）② 声音传播（最短路径长度 + 墙衰减 → 按用户位置自动调音量）③ WiFi 信号（log-distance path loss + 穿墙惩罚 → 每房间信号表）。**不依赖体素 LOS**——光/声/无线电能绕弯、是连续衰减而非二值可见；`CanSee`/`Occlusion` 仅留给摄像头视野/投影遮挡等真二值场景。用于光线 / 声音 / 无线信号推断，属 AI 伴侣阶段的感知增强，非初期工程
 - [ ] 补充单元测试覆盖上述功能
 
 ## Phase 2 — Momoka.Ui 家庭管理终端（未开始）

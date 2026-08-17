@@ -147,10 +147,10 @@ ruff check .
 
 ## 测试要求
 
-> ⚠️ 目前仓库**尚无测试项目**（Phase 0 规划中）。引入测试时应遵循以下约定：
+> 当前 `Tests/Momoka.Home/`（xUnit）已有 **305 个测试**且全绿；提交前必须通过 `dotnet test Tests/Momoka.Home/Momoka.Home.Tests.csproj`。约定如下：
 
 - 测试项目命名：`<Module>.Tests`（如 `Momoka.Home.Tests`），使用 xUnit。
-- 添加到 `Momoka.sln`，并放入各模块目录下。
+- 添加到 `Momoka.sln`，并放入各模块目录下（现有测试在 `Tests/Momoka.Home/`）。
 - 新功能尽量附带单元测试；修复 Bug 建议附带回归测试。
 
 ---

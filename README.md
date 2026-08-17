@@ -62,22 +62,27 @@ Momoka 想解决的问题是：**让 AI 不仅「会说话」，还「懂这个�
 ### 已实现（2026-08）
 
 - **Momoka.Home — 空间数据模型**：
-  - 坐标系统：`Int2` / `Int3` / `Float3` / `Key`（10cm 网格步长）
-  - 属性系统：`Property<T>` 及 6 种类型（布尔 / 枚举 / 浮点 / 整数 / 字符串 / 纹理）、Entity 属性系统（get/set/事件/序列化，值存于 `Property.Value`）
-  - 实体系统：`Entity<T>`（`Int2` 瓦片 / `Int3` 体素内容 / `Float3` 连续活物）+ `Component` 行为载体（`DataSource` / `EventSource` / `CommandTarget` / `PlacementLayoutSource`），已实现 `Wall`、`Door`、`Window`、`Appliance`、`Curtain` 等
-  - 空间结构：`Home → Level → LevelChunk`（20×20×Y 分块）、体素风格 `PalettedContainer`、`BlockGraph` 墙体拓扑、`Region` 多边形区域、`Canvas` 地板/天花板
-  - 服务层：`PlacementService`（放置校验）、`RegionService`（区域查询）、`WallBuildingService`（墙体绘制）、`SelectionService`（选中状态）
-  - 编辑器：`EditorCommand` / `MoveEntityCommand` + `CommandHistory`（undo / redo）
+  - 坐标系统：`Int2` / `Int3` / `Float3` / `Key` / `Bound` / `Position`（10cm 网格步长；`Position` 自描述坐标，携带单位尺度，`Absolute()` 恒返回真实 cm）
+  - 属性系统：`Property` 基类 + 6 种子类型（`Boolean` / `Int` / `Float` / `String` / `Literal` / `Enum`）+ 内置属性（如 `is_structural`）+ 每实例属性（get/set/事件/序列化）
+  - 实体系统：非泛型 `Entity`（Id / Key / Pos / Volume / 属性 / 组件）+ `EntityTemplate` / `EntityTemplateFactory` 配置管线（薄壳 `Wall` / `Door` / `Window` 等已删除，由配置模板实例化）+ `IEntitySource` / `IComponentSource` / `IPropertySource` 统一源接口
+  - 空间根：`UnitLayout`（单一扁平 3D 根，所有物件根绝对坐标）+ `Residence`（总容器）+ `UnitType`
+  - 体素存储：`VoxelLayout<T>`（Minecraft 式 16³ 区块 + paletted）、`GridLayout<T>`、`Subdivision<T>`（面实体）、`Graph` / `Graph2D` / `Graph3D`、`Palette` / `PackedBitStorage` / `PalettedContainer(RO)`
+  - 几何体系：`Volume` / `Shape` + `IVoxelGeometry2D/3D` + `Box3D` / `Line3D` / `Curve3D` / `Polygon3D` / `Prism3D` / `Conic3D` / `Spherical3D` / `Extruded3D` / `Composite3D` + 2D 族（全部以 `[JsonTypeName]` 注册）
+  - **3D Region 自动生成**：站立格（`PlacementLayoutSource` Up 面 + 净高过滤）→ `ColumnLayout` 引擎标 span → 连通 flood-fill 聚合出房间 / 可行走区域（`Region.BuildLayout` / `UnitLayout.RebuildRegions`）
+  - **空间查询层**：`IVoxelSource<T>` + 扩展查询——视线（`CanSee`）、视野内目标（`FindItemsInView`：射线 / 圆锥 / 视锥）、碰撞（`IsCollided` / `IsCollidedVolume`）、寻路（`FindPath` A* + Agent 可通行参数）；`Traverse`（DDA / 锥 / 视锥遍历）与 `Occlusion`（阻挡档位）为纯几何基础
+  - 序列化管线：`JsonTypeNameRegistry` + `JsonGeometryConverter` / `JsonPropertyConverter` / `JsonComponentConverter` / `JsonKeyConverter` / `JsonPaletteConverter`；snake_case 统一配置 `Settings.JsonSerialization`
+  - **Sqlite 持久化**：`SqliteStore`（linq2db + Microsoft.Data.Sqlite，单文件存档 `Saves/<Name>.db`；`Residence` 整存 + `Entities` 每实体一行）；体素层走 `LayoutChunkCodec` / `RegionsCodec` 文件层
+  - **Palette 直接 JSON 序列化**：`palette_json + bits + data` 填表载荷
 - **Momoka.Voice**：FastAPI 骨架，`GET /health` 与 `POST /tts` 接口占位。
+- **测试与 CI**：`Tests/Momoka.Home/` 305 个测试全绿；CI = `dotnet build` + `dotnet test` / Godot 项目检查 / Python `ruff`。
 
 ### 未完成 / 待实现（详细计划见 [ROADMAP.md](ROADMAP.md)）
 
-- **Momoka.Home**：设备抽象层 `Providers`（HA / GIIC）、`Security`（L3–L4 危险操作拦截）、`Build` 管线（视频 → 3D 重建）、`HomeSerializer` 存档、设备配置 JSON、DSL 安全规则、空气流体模拟、墙体开口级联删除。
+- **Momoka.Home**：设备抽象层 `Providers`（HA / GIIC）、`Security`（L3–L4 危险操作拦截）、`Build` 管线（视频 → 3D 重建）、具体编辑命令（放置 / 拆除 / 砌墙 / 刷材质）与撤销重做（`CommandHistory` 待重建）、门洞渲染与墙体开口级联删除、参数化 `Shape` 屋顶体系、Sqlite 体素层（`chunks` / `chunk_sections`）、区块数据压缩、DSL 安全规则、`Propagation` 传播图（远期 · AI 伴侣阶段）。
 - **Momoka.Ai / Core / Sense**：全部核心功能待实现（当前仅为入口占位）。
 - **Momoka.Ui**：Live2D 渲染、3D 场景、VAD、ASR、音频 I/O 均待实现。
 - **Momoka.Stage**：各平台导出配置与平台代码待创建。
 - **Momoka.Voice**：接入 GPT-SoVITS / IndexTTS2 推理引擎。
-- **测试与 CI**：目前**尚无测试项目**；CI 中 `dotnet test` 步骤待补充实际测试。
 
 ---
 
@@ -85,9 +90,10 @@ Momoka 想解决的问题是：**让 AI 不仅「会说话」，还「懂这个�
 
 ### ✅ 已实现
 
-- 3D 户型数据模型（楼层 / 分块 / 实体 / 区域 / 墙体拓扑）
-- 基于属性的实体系统（含序列化中间格式）
-- 放置校验、区域查询、墙体绘制、选中与撤销/重做等编辑能力
+- 3D 户型数据模型：单一扁平 3D 空间根（`UnitLayout`）、体素区块存储（16³ paletted）、3D `Region` 自动生成
+- 基于属性的实体系统（含 snake_case JSON 序列化管线与配置模板实例化）
+- 空间查询层：视线 / 视野内目标（射线 / 圆锥 / 视锥）/ 碰撞 / A* 寻路
+- SQLite 持久化（`Residence` + `Entities` 存档）
 - TTS 微服务 HTTP 骨架
 
 ### 📋 规划中
@@ -152,7 +158,7 @@ flowchart LR
 | **Momoka.Ai** | C# / .NET 8 | 角色引擎、记忆系统、情感状态机、对话安全过滤、TTS 协调 | `Momoka.Ai/` |
 | **Momoka.Core** | C# / .NET 8 | 意图识别、快慢通道路由、Agent 推理循环、工具调度 | `Momoka.Core/` |
 | **Momoka.Sense** | C# / .NET 8 | 可穿戴设备桥接、GPS、环境传感器数据收集 | `Momoka.Sense/` |
-| **Momoka.Home** | C# / .NET 8 | 3D 户型数据结构、设备抽象层、GIIC 协议、安全约束校验 | `Momoka.Home/` |
+| **Momoka.Home** | C# / .NET 8 | 家庭数字孪生：3D 户型数据结构、空间查询、持久化；设备抽象层与安全约束校验（规划中） | `Momoka.Home/` |
 | **Momoka.Ui** | Godot 4.x + C++ | Live2D 渲染、2D/3D 场景、VAD、ASR、音频 I/O | `Momoka.Ui/` |
 | **Momoka.Stage** | Godot 导出配置 | Desktop / Mobile / Panel 平台适配 | `Momoka.Stage/` |
 | **Momoka.Voice** | Python 3.11+ | TTS 微服务，封装 GPT-SoVITS / IndexTTS2 | `Momoka.Voice/` |

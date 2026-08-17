@@ -62,22 +62,27 @@ Traditional voice assistants can only answer questions; they cannot understand r
 ### Implemented (2026-08)
 
 - **Momoka.Home — Spatial data model**:
-  - Coordinate system: `Int2` / `Int3` / `Float3` / `Key` (10cm grid steps)
-  - Property system: `Property<T>` with 5 types (boolean / enum / float / int / string), Entity property system (get/set/events/serialization, value stored on `Property.Value`)
-  - Entity system: `Entity<T>` (`Int2` tiles / `Int3` voxel content / `Float3` continuous living) + `Component` behavior carriers (`DataSource` / `EventSource` / `CommandTarget` / `PlacementLayoutSource`); implements `Wall`, `Door`, `Window`, `Appliance`, `Curtain`, etc.
-  - Spatial structures: `Home → Level → LevelChunk` (20×20×Y chunks), Minecraft-style `PalettedContainer`, `BlockGraph` wall topology, `Region` polygon areas, `Canvas` floors/ceilings
-  - Service layer: `PlacementService` (placement validation), `RegionService` (region queries), `WallBuildingService` (wall drawing), `SelectionService` (selection state)
-  - Editor: `EditorCommand` / `MoveEntityCommand` + `CommandHistory` (undo / redo)
+  - Coordinate system: `Int2` / `Int3` / `Float3` / `Key` / `Bound` / `Position` (10cm grid steps; `Position` is a self-describing coordinate that carries its unit scale — `Absolute()` always yields the real cm value)
+  - Property system: `Property` base class + 6 seed types (`Boolean` / `Int` / `Float` / `String` / `Literal` / `Enum`) + builtin properties (e.g. `is_structural`) + per-instance values (get/set/events/serialization)
+  - Entity system: non-generic `Entity` (Id / Key / Pos / Volume / properties / components) + `EntityTemplate` / `EntityTemplateFactory` config pipeline (thin shells like `Wall` / `Door` / `Window` were removed — entities are materialized from config templates) + unified source interfaces `IEntitySource` / `IComponentSource` / `IPropertySource`
+  - Spatial root: `UnitLayout` (a single flattened 3D root; everything uses root-absolute coordinates) + `Residence` (total container) + `UnitType`
+  - Voxel storage: `VoxelLayout<T>` (Minecraft-style 16³ chunks + paletted), `GridLayout<T>`, `Subdivision<T>` (face entities), `Graph` / `Graph2D` / `Graph3D`, `Palette` / `PackedBitStorage` / `PalettedContainer(RO)`
+  - Geometry: `Volume` / `Shape` + `IVoxelGeometry2D/3D` + `Box3D` / `Line3D` / `Curve3D` / `Polygon3D` / `Prism3D` / `Conic3D` / `Spherical3D` / `Extruded3D` / `Composite3D` + the 2D family (all registered via `[JsonTypeName]`)
+  - **3D Region auto-generation**: standable cells (Up placement surfaces + clearance filtering) → `ColumnLayout` span engine → flood-fill connectivity aggregates rooms / walkable areas (`Region.BuildLayout` / `UnitLayout.RebuildRegions`)
+  - **Spatial query layer**: `IVoxelSource<T>` + extension queries — line of sight (`CanSee`), items in view (`FindItemsInView`: ray / cone / frustum), collision (`IsCollided` / `IsCollidedVolume`), pathfinding (`FindPath` A* with agent walkability parameters); `Traverse` (DDA / cone / frustum) and `Occlusion` (blocking tiers) are the pure-geometry foundation
+  - Serialization pipeline: `JsonTypeNameRegistry` + `JsonGeometryConverter` / `JsonPropertyConverter` / `JsonComponentConverter` / `JsonKeyConverter` / `JsonPaletteConverter`; unified snake_case settings via `Settings.JsonSerialization`
+  - **SQLite persistence**: `SqliteStore` (linq2db + Microsoft.Data.Sqlite, single-file save `Saves/<Name>.db`; `Residence` stored whole + one `Entities` row per entity); the voxel layer still goes through `LayoutChunkCodec` / `RegionsCodec` file codecs
+  - **Direct palette JSON serialization**: `palette_json + bits + data` payload
 - **Momoka.Voice**: FastAPI skeleton with placeholder `GET /health` and `POST /tts` endpoints.
+- **Tests & CI**: `Tests/Momoka.Home/` — 305 tests all green; CI = `dotnet build` + `dotnet test` / Godot project check / Python `ruff`.
 
 ### Not implemented / Planned (see [ROADMAP.md](ROADMAP.md) for details)
 
-- **Momoka.Home**: device abstraction `Providers` (HA / GIIC), `Security` (L3–L4 dangerous-operation blocking), `Build` pipeline (video → 3D reconstruction), `HomeSerializer` save system, device config JSON, DSL safety rules, airflow simulation, wall-opening cascade deletion.
+- **Momoka.Home**: device abstraction `Providers` (HA / GIIC), `Security` (L3–L4 dangerous-operation blocking), `Build` pipeline (video → 3D reconstruction), concrete edit commands (place / remove / build wall / paint tile) with undo/redo (`CommandHistory` to be rebuilt), door-opening rendering with wall-opening cascade deletion, parametric `Shape` roof system, the SQLite voxel layer (`chunks` / `chunk_sections`), chunk compression, DSL safety rules, `Propagation` graph (long-term · AI companion phase).
 - **Momoka.Ai / Core / Sense**: all core features pending (entry scaffolds only).
 - **Momoka.Ui**: Live2D rendering, 3D scene, VAD, ASR, and audio I/O all pending.
 - **Momoka.Stage**: platform export presets and platform code to be created.
 - **Momoka.Voice**: integrate the GPT-SoVITS / IndexTTS2 inference engines.
-- **Tests & CI**: **no test projects yet**; the `dotnet test` step in CI awaits real tests.
 
 ---
 
@@ -85,9 +90,10 @@ Traditional voice assistants can only answer questions; they cannot understand r
 
 ### ✅ Implemented
 
-- 3D floor-plan data model (floors / chunks / entities / regions / wall topology)
-- Property-based entity system (with serialization intermediate format)
-- Placement validation, region queries, wall drawing, selection, undo/redo editing
+- 3D floor-plan data model: single flattened 3D spatial root (`UnitLayout`), voxel chunk storage (16³ paletted), 3D `Region` auto-generation
+- Property-based entity system (with snake_case JSON serialization pipeline and config-template materialization)
+- Spatial query layer: line of sight / items in view (ray / cone / frustum) / collision / A* pathfinding
+- SQLite persistence (`Residence` + `Entities` save)
 - TTS microservice HTTP skeleton
 
 ### 📋 Planned
@@ -98,7 +104,6 @@ Traditional voice assistants can only answer questions; they cannot understand r
 - Home device control (HomeAssistant / GIIC) with physical safety constraints
 - Wearable / GPS / environment sensor perception
 - Multi-platform terminals (desktop / mobile / control panel)
-- Airflow simulation and natural ventilation suggestions
 
 ---
 
@@ -153,7 +158,7 @@ flowchart LR
 | **Momoka.Ai** | C# / .NET 8 | Character engine, memory, emotion state machine, dialogue safety filter, TTS coordination | `Momoka.Ai/` |
 | **Momoka.Core** | C# / .NET 8 | Intent recognition, fast/slow routing, agent reasoning loop, tool scheduling | `Momoka.Core/` |
 | **Momoka.Sense** | C# / .NET 8 | Wearable bridging, GPS, environment sensor collection | `Momoka.Sense/` |
-| **Momoka.Home** | C# / .NET 8 | 3D floor-plan data structures, device abstraction, GIIC, safety constraints | `Momoka.Home/` |
+| **Momoka.Home** | C# / .NET 8 | Home digital twin: 3D floor-plan data structures, spatial queries, persistence; device abstraction and safety constraints (planned) | `Momoka.Home/` |
 | **Momoka.Ui** | Godot 4.x + C++ | Live2D rendering, 2D/3D scenes, VAD, ASR, audio I/O | `Momoka.Ui/` |
 | **Momoka.Stage** | Godot export configs | Desktop / Mobile / Panel platform adaptation | `Momoka.Stage/` |
 | **Momoka.Voice** | Python 3.11+ | TTS microservice wrapping GPT-SoVITS / IndexTTS2 | `Momoka.Voice/` |
