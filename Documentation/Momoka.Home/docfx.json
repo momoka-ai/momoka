@@ -3,7 +3,7 @@
     {
       "src": [
         {
-          "src": "../../..",
+          "src": "../..",
           "files": [
             "Momoka.Home/Momoka.Home.csproj"
           ]

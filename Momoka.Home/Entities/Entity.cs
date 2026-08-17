@@ -14,7 +14,7 @@ namespace Momoka.Home.Entities;
 /// (<see cref="Pos"/>) in its parent 3D space and a body geometry
 /// (<see cref="Volume"/>). Directly JSON-serializable — see
 /// <see cref="Momoka.Home.Settings.JsonSerialization"/> — with each field
-/// bound by <see cref="JsonProperty"/>. Component and property operations are
+/// bound by <c>JsonProperty</c>. Component and property operations are
 /// provided once, as extension methods on <see cref="IComponentSource"/> and
 /// <see cref="IPropertySource"/>.
 /// </summary>

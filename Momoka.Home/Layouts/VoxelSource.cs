@@ -74,10 +74,10 @@ public static class VoxelSourceExtensions
     /// <summary>
     /// 两点间视线判定：起点与终点之间无按 <see cref="Occlusion.OnlyImmutable"/> 档位
     /// 阻挡的实体（墙 / 门 / 窗等固定结构）即为可见——委托
-    /// <see cref="IsOccluded{T}(IVoxelSource{T}, Position, Position, Occlusion)"/> 取反。
+    /// <see cref="IsOccluded{T}(IVoxelSource{T}, Position, Position, Occlusion, T)"/> 取反。
     /// </summary>
     /// <remarks>
-    /// 纯二值遮挡判定：不含锥形视野 / 距离限制（见带 <paramref name="direction"/> 的重载）。
+    /// 纯二值遮挡判定：不含锥形视野 / 距离限制（见带 <c>direction</c> 参数的锥形重载）。
     /// </remarks>
     /// <example>
     /// <code>
@@ -309,7 +309,7 @@ public static class VoxelSourceExtensions
     /// - 遍历与判定见 <see cref="Traverse.InFrustum"/>（包围盒 + <see cref="Visibility.Project"/>
     ///   逐格投影判定 + 由近及远排序，成本随末端尺寸三次方增长、无法惰性早停）。
     /// - 遮挡为严格语义，同圆锥重载：对每个候选实体做 src → 命中点的射线判定
-    ///   （<see cref="IsOccluded{T}(IVoxelSource{T}, Position, Position, Occlusion, T?)"/>，
+    ///   （<see cref="IsOccluded{T}(IVoxelSource{T}, Position, Position, Occlusion, T)"/>，
     ///   排除候选自身），被更近的阻挡实体遮挡者跳过。
     /// </remarks>
     /// <example>
@@ -357,7 +357,7 @@ public static class VoxelSourceExtensions
     /// <summary>
     /// 形状遍历 → 命中实体的组装（圆锥 / 视锥重载共用）：排除起点格、取格值，
     /// 由近及远按实体去重后，逐实体做射线遮挡判定（严格语义，见
-    /// <see cref="IsOccluded{T}(IVoxelSource{T}, Position, Position, Occlusion, T?)"/>，
+    /// <see cref="IsOccluded{T}(IVoxelSource{T}, Position, Position, Occlusion, T)"/>，
     /// 排除候选自身）——被更近的阻挡实体遮挡者跳过。
     /// 体积扫描不能用射线重载的"首阻挡截断"：距离更远的侧向实体未必被遮挡，
     /// 按距离一刀切会误杀未被遮挡的实体。

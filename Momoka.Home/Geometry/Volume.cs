@@ -11,9 +11,8 @@ namespace Momoka.Home.Geometry;
 /// <see cref="IVoxelGeometry3D"/> (its own 3D cells) and
 /// <see cref="IVoxelGeometry2D"/> (its projection onto the local XZ plane).
 /// Placement into an entity grid goes through the host
-/// (<c>VoxelLayout&lt;Entity&gt;.BuildAt(Entity, pos)</c>), while containers
-/// (<see cref="Level"/>, <see cref="Building"/>) implement the interfaces for
-/// upward composition.
+/// (<c>VoxelLayout&lt;Entity&gt;.BuildAt(Entity, pos)</c>), while
+/// <see cref="UnitLayout"/> places hosts into the root grid.
 /// </summary>
 public abstract class Volume : IVoxelGeometry3D, IVoxelGeometry2D
 {
@@ -29,13 +28,13 @@ public abstract class Volume : IVoxelGeometry3D, IVoxelGeometry2D
     /// <summary>
     /// A bare volume has no host identity, so it cannot place itself into an entity
     /// grid. Place the host instead: <c>VoxelLayout&lt;Entity&gt;.BuildAt(Entity, pos)</c>.
-    /// Containers (<see cref="Level"/>, <see cref="Building"/>) implement real
-    /// PlaceAt/DestroyAt for upward composition.
+    /// <see cref="UnitLayout"/> implements the real placement contract
+    /// (PlaceAt/DestroyAt).
     /// </summary>
     public void PlaceAt(VoxelLayout<Entity> target, Int3 at) =>
-        throw new NotSupportedException("A bare volume has no host identity — place it via VoxelLayout&lt;Entity&gt;.BuildAt(Entity, pos) or via a container (Level/Building).");
+        throw new NotSupportedException("A bare volume has no host identity — place it via VoxelLayout&lt;Entity&gt;.BuildAt(Entity, pos) or via UnitLayout.");
 
     /// <inheritdoc cref="PlaceAt"/>
     public void DestroyAt(VoxelLayout<Entity> target, Int3 at) =>
-        throw new NotSupportedException("A bare volume has no host identity — remove it via VoxelLayout&lt;Entity&gt;.DestroyAt(pos) or via a container (Level/Building).");
+        throw new NotSupportedException("A bare volume has no host identity — remove it via VoxelLayout&lt;Entity&gt;.DestroyAt(pos) or via UnitLayout.");
 }

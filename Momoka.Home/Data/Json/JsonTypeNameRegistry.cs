@@ -3,7 +3,7 @@ namespace Momoka.Home.Data.Json;
 
 /// <summary>
 /// Attribute-driven registry mapping <see cref="JsonTypeNameAttribute"/> names to
-/// concrete types, scoped by a family base type (the <typeparamref name="TBase"/>
+/// concrete types, scoped by a family base type (the <c>TBase</c>
 /// generic argument of each lookup method). Scoping lets the 2D and 3D
 /// vocabularies share names ("polygon", "circle", "ring", "composite") without
 /// colliding. Each family map is built once, lazily, by scanning the assembly.

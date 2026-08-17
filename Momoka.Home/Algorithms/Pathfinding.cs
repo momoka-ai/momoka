@@ -10,7 +10,7 @@ namespace Momoka.Home.Algorithms;
 /// keys) but reports coordinates as self-describing <see cref="Position"/>s
 /// whose scale is taken from the start position — one result type, no
 /// intermediate artifact. Move rules stay parametric via the
-/// <paramref name="expand"/> delegate, so walkability (agent size, climb
+/// <c>expand</c> delegate, so walkability (agent size, climb
 /// limits) remains with the caller (e.g. pathfinding over an
 /// <see cref="IVoxelSource{T}"/>).
 /// </summary>

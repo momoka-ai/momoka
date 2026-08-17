@@ -8,7 +8,7 @@ namespace Momoka.Home.Layouts;
 /// plain array, no chunking needed. Also the placement surface:
 /// <see cref="Offset"/> and <see cref="Direction"/> position it in the parent
 /// space, <see cref="AsAbsolute"/>/<see cref="AsRelative"/> map between layout
-/// and world cells, and <see cref="IsCollided"/>/<see cref="Fill"/> provide the
+/// and world cells, and <see cref="IsCollided(Int2)"/>/<see cref="Fill"/> provide the
 /// placement contract — <c>GridLayout&lt;bool&gt;</c> (true = placeable) is what
 /// shelves, desktops and wall faces use.
 /// </summary>
