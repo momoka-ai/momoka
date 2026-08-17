@@ -217,8 +217,8 @@ flowchart LR
     Query --> VOX["IVoxelSource~T~<br/>（UnitLayout 实现）"]
 ```
 
-- **纯几何**：`Traverse`（Amanatides & Woo DDA 直线遍历 / 锥体 / 视锥包围盒扫描）、`Visibility`（点线分解 `Project`、圆柱视野 `IsInView`）、`Occlusion`（`None` / `OnlyImmutable` / `OnlyNonTransparent` / `Everything` 四档阻挡）、`Collision.Result<T>`（命中记录：实体 + 格 + 精确点）、`Pathfinding.AStar`（加权 A*，起点自带格尺度，可传启发式，0 启发式退化为 Dijkstra）
-- **查询层**：`VoxelSourceExtensions` 把几何接到体素网格上——视线（两点 / 包围盒最近点 / 锥形视野）、视野内目标（射线惰性 DDA 早停；圆锥 / 视锥按实体做严格射线遮挡判定）、碰撞（点 / 球 / `Volume` 体积，用于放置校验）、寻路（`FindPath`，XZ 4 连通 + 身高净高 + 支撑 + 爬升代价）
+- **纯几何**：`Traverse`（Amanatides & Woo DDA 直线遍历 / 锥体 / 视锥包围盒扫描）、`Visibility`（点线分解 `Project`、圆柱视野 `IsInView`）、`Occlusion`（`None` / `OnlyImmutable` / `OnlyNonTransparent` / `Everything` 四档阻挡，null 空格不阻挡）、`Collision.Result<T>`（命中记录：实体 + 格 + 精确点）、`Pathfinding.AStar`（加权 A*，起点自带格尺度，可传启发式，0 启发式退化为 Dijkstra；失败由 `Result?` 的 null 表达，结果无 Reachable 标志）
+- **查询层**：`VoxelSourceExtensions` 把几何接到体素网格上——视线（两点 / 包围盒最近点 / 锥形视野）、视野内目标（射线惰性 DDA 早停；圆锥 / 视锥按实体做严格射线遮挡判定 `IsOccluded(src, dest, occlusion, exclude)`，排除目标自身、None 短路）、碰撞（点 / 球 / `Volume` 体积，用于放置校验）、范围内实体（`GetItemsInBound`，占用格语义，经 `VoxelIterator` 扫列；与 `EntitySourceExtensions.GetEntitiesInBound(Bound)` 的锚点语义区分）、寻路（`FindPath`，XZ 4 连通 + 身高净高 + 支撑 + 爬升代价）
 - 坐标约定：查询一律收世界 cm（`Position.Absolute()`），内部自动对齐 10cm 格；`Position` 自描述尺度贯穿全程
 
 ## 7. 数据与持久化（Data）
@@ -254,7 +254,8 @@ flowchart TB
 | 项 | 说明 | 状态 |
 |----|------|------|
 | 3D Region 自动生成 | span flood-fill + 步高容差得房间/可行走区域（§5.6）；门开关（闭=阻塞/开=连通）Portal 与 wall-extension 后续 | ✅ 基础已实现 |
-| 空间查询层 | `IVoxelSource<T>` + 扩展：视线 / 视野内目标（射线/圆锥/视锥）/ 碰撞 / 寻路（§6） | ✅ 已实现 |
+| 空间查询层 | `IVoxelSource<T>` + 扩展：视线 / 视野内目标（射线/圆锥/视锥）/ 碰撞 / 范围内实体 / 寻路（§6） | ✅ 已实现 |
+| 放置 API | `UnitLayout.Add(entity[, position])` / `Remove(entity[, cascade])` / `Remove(Position)` / `Find(id|Position)`；删除 = 回落未放置池；`PlacementLayoutSource.Items` 表面宿主登记（级联回落 + 被依赖检查） | ✅ 已实现（`Add(Entity)` 自动寻位存根待实现） |
 | 旧 Level/Building/Home 迁移 | 由 UnitLayout/Residence 取代；Floor/Ceiling 平面退役（地板/天花板改为 Entity 挂 PlacementLayoutSource） | ✅ 已迁移 |
 | Residence 接线 | Home 重构为总容器（Name/Address + Layout=Residence），Residence 持 UnitLayout + UnitType | ✅ 已实现 |
 | 实体模板替换薄壳 | Wall/Door/Window 由配置模板（EntityTemplate）替代；薄壳实体已删除 | ✅ 已完成 |

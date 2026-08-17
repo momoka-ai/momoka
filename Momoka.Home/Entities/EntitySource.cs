@@ -3,9 +3,10 @@ using Momoka.Home.Primitives;
 namespace Momoka.Home.Entities;
 
 /// <summary>
-/// A spatial container that exposes the entities it holds (a Home, a Level).
-/// Containers are hand-built, not config-instantiated — this is the uniform way
-/// to enumerate their contents for queries, save/load and agentic perception.
+/// A spatial container that exposes the entities it holds — implemented by
+/// <see cref="Momoka.Home.UnitLayout"/> (placed entities) and
+/// <see cref="Momoka.Home.Residence"/> (the full catalog). This is the uniform
+/// way to enumerate their contents for queries, save/load and agentic perception.
 /// </summary>
 public interface IEntitySource
 {
