@@ -47,13 +47,13 @@ public class RegionTests
     private static UnitLayout TwoRoomScene()
     {
         var l = new UnitLayout();
-        l.PlaceAt(SurfaceBox("floor", 10, 1, 10, new Int3(0, 0, 0), 1), new Float3(0, 0, 0));
-        l.PlaceAt(StructuralBox("ceiling", 10, 1, 10), new Float3(0, 300, 0));
-        l.PlaceAt(StructuralBox("wall", 10, 29, 1), new Float3(0, 10, 0)); // 北 z=0
-        l.PlaceAt(StructuralBox("wall", 10, 29, 1), new Float3(0, 10, 90)); // 南 z=9
-        l.PlaceAt(StructuralBox("wall", 1, 29, 8), new Float3(0, 10, 10));  // 西 x=0
-        l.PlaceAt(StructuralBox("wall", 1, 29, 8), new Float3(90, 10, 10));  // 东 x=9
-        l.PlaceAt(StructuralBox("wall", 1, 29, 8), new Float3(50, 10, 10));  // 中 x=5
+        l.Add(SurfaceBox("floor", 10, 1, 10, new Int3(0, 0, 0), 1), new Position(new Float3(0, 0, 0)));
+        l.Add(StructuralBox("ceiling", 10, 1, 10), new Position(new Float3(0, 300, 0)));
+        l.Add(StructuralBox("wall", 10, 29, 1), new Position(new Float3(0, 10, 0))); // 北 z=0
+        l.Add(StructuralBox("wall", 10, 29, 1), new Position(new Float3(0, 10, 90))); // 南 z=9
+        l.Add(StructuralBox("wall", 1, 29, 8), new Position(new Float3(0, 10, 10)));  // 西 x=0
+        l.Add(StructuralBox("wall", 1, 29, 8), new Position(new Float3(90, 10, 10)));  // 东 x=9
+        l.Add(StructuralBox("wall", 1, 29, 8), new Position(new Float3(50, 10, 10)));  // 中 x=5
         return l;
     }
 
@@ -88,14 +88,14 @@ public class RegionTests
     {
         // 中墙留门洞 z=4：两段 [1..3] 与 [5..8]
         var l = new UnitLayout();
-        l.PlaceAt(SurfaceBox("floor", 10, 1, 10, new Int3(0, 0, 0), 1), new Float3(0, 0, 0));
-        l.PlaceAt(StructuralBox("ceiling", 10, 1, 10), new Float3(0, 300, 0));
-        l.PlaceAt(StructuralBox("wall", 10, 29, 1), new Float3(0, 10, 0));
-        l.PlaceAt(StructuralBox("wall", 10, 29, 1), new Float3(0, 10, 90));
-        l.PlaceAt(StructuralBox("wall", 1, 29, 8), new Float3(0, 10, 10));
-        l.PlaceAt(StructuralBox("wall", 1, 29, 8), new Float3(90, 10, 10));
-        l.PlaceAt(StructuralBox("wall", 1, 29, 3), new Float3(50, 10, 10)); // 中墙 z=1..3
-        l.PlaceAt(StructuralBox("wall", 1, 29, 4), new Float3(50, 10, 50)); // 中墙 z=5..8
+        l.Add(SurfaceBox("floor", 10, 1, 10, new Int3(0, 0, 0), 1), new Position(new Float3(0, 0, 0)));
+        l.Add(StructuralBox("ceiling", 10, 1, 10), new Position(new Float3(0, 300, 0)));
+        l.Add(StructuralBox("wall", 10, 29, 1), new Position(new Float3(0, 10, 0)));
+        l.Add(StructuralBox("wall", 10, 29, 1), new Position(new Float3(0, 10, 90)));
+        l.Add(StructuralBox("wall", 1, 29, 8), new Position(new Float3(0, 10, 10)));
+        l.Add(StructuralBox("wall", 1, 29, 8), new Position(new Float3(90, 10, 10)));
+        l.Add(StructuralBox("wall", 1, 29, 3), new Position(new Float3(50, 10, 10))); // 中墙 z=1..3
+        l.Add(StructuralBox("wall", 1, 29, 4), new Position(new Float3(50, 10, 50))); // 中墙 z=5..8
 
         var map = Region.BuildLayout(l);
         var regions = DistinctRegions(map);
@@ -112,11 +112,11 @@ public class RegionTests
     {
         // 相邻两列：A span [1,20)，B span [21,40)，间距 1
         var l = new UnitLayout();
-        l.PlaceAt(SurfaceBox("floor", 1, 1, 1, new Int3(0, 0, 0), 1), new Float3(0, 0, 0));   // A 地板面 y=1
-        l.PlaceAt(StructuralBox("ceiling", 1, 1, 1), new Float3(0, 200, 0));                 // A 天花 y=20
-        l.PlaceAt(StructuralBox("base", 1, 20, 1), new Float3(10, 0, 0));                    // B 基座 y=0..19
-        l.PlaceAt(SurfaceBox("floor", 1, 1, 1, new Int3(1, 20, 0), 21), new Float3(10, 200, 0)); // B 地板面 y=21
-        l.PlaceAt(StructuralBox("ceiling", 1, 1, 1), new Float3(10, 400, 0));                // B 天花 y=40
+        l.Add(SurfaceBox("floor", 1, 1, 1, new Int3(0, 0, 0), 1), new Position(new Float3(0, 0, 0)));   // A 地板面 y=1
+        l.Add(StructuralBox("ceiling", 1, 1, 1), new Position(new Float3(0, 200, 0)));                 // A 天花 y=20
+        l.Add(StructuralBox("base", 1, 20, 1), new Position(new Float3(10, 0, 0)));                    // B 基座 y=0..19
+        l.Add(SurfaceBox("floor", 1, 1, 1, new Int3(1, 20, 0), 21), new Position(new Float3(10, 200, 0))); // B 地板面 y=21
+        l.Add(StructuralBox("ceiling", 1, 1, 1), new Position(new Float3(10, 400, 0)));                // B 天花 y=40
 
         var merged = Region.BuildLayout(l, Agent.Human with { MaxClimbHeight = 1 });
         Assert.Single(DistinctRegions(merged));
@@ -129,13 +129,13 @@ public class RegionTests
     public void BuildLayout_NonStructuralFurniture_DoesNotBlock()
     {
         var l = new UnitLayout();
-        l.PlaceAt(SurfaceBox("floor", 5, 1, 5, new Int3(0, 0, 0), 1), new Float3(0, 0, 0));
-        l.PlaceAt(StructuralBox("ceiling", 5, 1, 5), new Float3(0, 300, 0));
-        l.PlaceAt(StructuralBox("wall", 5, 29, 1), new Float3(0, 10, 0)); // 北 z=0
-        l.PlaceAt(StructuralBox("wall", 5, 29, 1), new Float3(0, 10, 40)); // 南 z=4
-        l.PlaceAt(StructuralBox("wall", 1, 29, 3), new Float3(0, 10, 10)); // 西 x=0
-        l.PlaceAt(StructuralBox("wall", 1, 29, 3), new Float3(40, 10, 10)); // 东 x=4
-        l.PlaceAt(Box("shelf", 1, 20, 1), new Float3(20, 10, 20)); // 中央高书架（非结构 → 不阻断）
+        l.Add(SurfaceBox("floor", 5, 1, 5, new Int3(0, 0, 0), 1), new Position(new Float3(0, 0, 0)));
+        l.Add(StructuralBox("ceiling", 5, 1, 5), new Position(new Float3(0, 300, 0)));
+        l.Add(StructuralBox("wall", 5, 29, 1), new Position(new Float3(0, 10, 0))); // 北 z=0
+        l.Add(StructuralBox("wall", 5, 29, 1), new Position(new Float3(0, 10, 40))); // 南 z=4
+        l.Add(StructuralBox("wall", 1, 29, 3), new Position(new Float3(0, 10, 10))); // 西 x=0
+        l.Add(StructuralBox("wall", 1, 29, 3), new Position(new Float3(40, 10, 10))); // 东 x=4
+        l.Add(Box("shelf", 1, 20, 1), new Position(new Float3(20, 10, 20))); // 中央高书架（非结构 → 不阻断）
 
         var map = Region.BuildLayout(l);
         var room = Assert.Single(DistinctRegions(map));
@@ -149,13 +149,13 @@ public class RegionTests
     public void BuildLayout_StructuralColumn_MakesHole()
     {
         var l = new UnitLayout();
-        l.PlaceAt(SurfaceBox("floor", 5, 1, 5, new Int3(0, 0, 0), 1), new Float3(0, 0, 0));
-        l.PlaceAt(StructuralBox("ceiling", 5, 1, 5), new Float3(0, 300, 0));
-        l.PlaceAt(StructuralBox("wall", 5, 29, 1), new Float3(0, 10, 0)); // 北 z=0
-        l.PlaceAt(StructuralBox("wall", 5, 29, 1), new Float3(0, 10, 40)); // 南 z=4
-        l.PlaceAt(StructuralBox("wall", 1, 29, 3), new Float3(0, 10, 10)); // 西 x=0
-        l.PlaceAt(StructuralBox("wall", 1, 29, 3), new Float3(40, 10, 10)); // 东 x=4
-        l.PlaceAt(StructuralBox("column", 1, 29, 1), new Float3(20, 10, 20)); // 结构柱
+        l.Add(SurfaceBox("floor", 5, 1, 5, new Int3(0, 0, 0), 1), new Position(new Float3(0, 0, 0)));
+        l.Add(StructuralBox("ceiling", 5, 1, 5), new Position(new Float3(0, 300, 0)));
+        l.Add(StructuralBox("wall", 5, 29, 1), new Position(new Float3(0, 10, 0))); // 北 z=0
+        l.Add(StructuralBox("wall", 5, 29, 1), new Position(new Float3(0, 10, 40))); // 南 z=4
+        l.Add(StructuralBox("wall", 1, 29, 3), new Position(new Float3(0, 10, 10))); // 西 x=0
+        l.Add(StructuralBox("wall", 1, 29, 3), new Position(new Float3(40, 10, 10))); // 东 x=4
+        l.Add(StructuralBox("column", 1, 29, 1), new Position(new Float3(20, 10, 20))); // 结构柱
 
         var map = Region.BuildLayout(l);
         var room = Assert.Single(DistinctRegions(map));
@@ -170,13 +170,13 @@ public class RegionTests
     {
         // 地板（structural）+ 一张非 structural 的桌子（有 Up 顶面 y=8）
         var l = new UnitLayout();
-        l.PlaceAt(SurfaceBox("floor", 5, 1, 5, new Int3(0, 0, 0), 1), new Float3(0, 0, 0));
-        l.PlaceAt(StructuralBox("ceiling", 5, 1, 5), new Float3(0, 300, 0));
+        l.Add(SurfaceBox("floor", 5, 1, 5, new Int3(0, 0, 0), 1), new Position(new Float3(0, 0, 0)));
+        l.Add(StructuralBox("ceiling", 5, 1, 5), new Position(new Float3(0, 300, 0)));
         var table = Box("table", 3, 1, 3);
         var tableSurface = new GridLayout<bool>(new Int2(3, 3), new Int3(1, 8, 1));
         tableSurface.Fill(true, Int2.Zero, new Int2(3, 3));
         table.AddComponent(new PlacementLayoutSource { Layout = tableSurface });
-        l.PlaceAt(table, new Float3(10, 70, 10)); // 桌面 y=7 占用，顶面 y=8
+        l.Add(table, new Position(new Float3(10, 70, 10))); // 桌面 y=7 占用，顶面 y=8
 
         var map = Region.BuildLayout(l);
         var room = Assert.Single(DistinctRegions(map));
@@ -191,17 +191,17 @@ public class RegionTests
     {
         // 中墙留门洞 z=4：两段 [1..3] 与 [5..8]，门实体填洞
         var l = new UnitLayout();
-        l.PlaceAt(SurfaceBox("floor", 10, 1, 10, new Int3(0, 0, 0), 1), new Float3(0, 0, 0));
-        l.PlaceAt(StructuralBox("ceiling", 10, 1, 10), new Float3(0, 300, 0));
-        l.PlaceAt(StructuralBox("wall", 10, 29, 1), new Float3(0, 10, 0));
-        l.PlaceAt(StructuralBox("wall", 10, 29, 1), new Float3(0, 10, 90));
-        l.PlaceAt(StructuralBox("wall", 1, 29, 8), new Float3(0, 10, 10));
-        l.PlaceAt(StructuralBox("wall", 1, 29, 8), new Float3(90, 10, 10));
-        l.PlaceAt(StructuralBox("wall", 1, 29, 3), new Float3(50, 10, 10)); // 中墙 z=1..3
-        l.PlaceAt(StructuralBox("wall", 1, 29, 4), new Float3(50, 10, 50)); // 中墙 z=5..8
+        l.Add(SurfaceBox("floor", 10, 1, 10, new Int3(0, 0, 0), 1), new Position(new Float3(0, 0, 0)));
+        l.Add(StructuralBox("ceiling", 10, 1, 10), new Position(new Float3(0, 300, 0)));
+        l.Add(StructuralBox("wall", 10, 29, 1), new Position(new Float3(0, 10, 0)));
+        l.Add(StructuralBox("wall", 10, 29, 1), new Position(new Float3(0, 10, 90)));
+        l.Add(StructuralBox("wall", 1, 29, 8), new Position(new Float3(0, 10, 10)));
+        l.Add(StructuralBox("wall", 1, 29, 8), new Position(new Float3(90, 10, 10)));
+        l.Add(StructuralBox("wall", 1, 29, 3), new Position(new Float3(50, 10, 10))); // 中墙 z=1..3
+        l.Add(StructuralBox("wall", 1, 29, 4), new Position(new Float3(50, 10, 50))); // 中墙 z=5..8
         var door = StructuralBox("door", 1, 29, 1);
         door.AddProperties(new[] { new BooleanProperty(Property.IsOpen, false) });
-        l.PlaceAt(door, new Float3(50, 10, 40)); // 门实体占门洞 z=4
+        l.Add(door, new Position(new Float3(50, 10, 40))); // 门实体占门洞 z=4
 
         // 关门：两室分离
         var closed = Region.BuildLayout(l);

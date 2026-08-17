@@ -386,6 +386,37 @@ public static class VoxelSourceExtensions
     }
 
     /// <summary>
+    /// 范围内实体（占用格语义）：返回占用格 XZ 落在 [min, max]（含）内的所有实体，
+    /// 按实体去重。逐列经 <see cref="VoxelIterator{T}"/> 从 Bound 底扫到顶（惰性 yield，
+    /// 消费前不执行）。与 <see cref="EntitySourceExtensions.GetEntitiesInBound(Bound)"/>
+    /// 的"锚点在范围内"语义不同：本方法按占用格判定（拖拽选择等场景）。
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// // 选中 XZ 格范围 [0,0]–[3,3] 内的所有家具
+    /// var selected = unit.GetItemsInBound(new Int2(0, 0), new Int2(3, 3));
+    /// </code>
+    /// </example>
+    /// <typeparam name="T">体素格值类型。</typeparam>
+    /// <param name="voxelSource">体素空间查询源。</param>
+    /// <param name="min">范围最小格（含）。</param>
+    /// <param name="max">范围最大格（含）。</param>
+    /// <returns>占用格在范围内的实体序列（去重）；网格未设置 Bound 时为空序列。</returns>
+    public static IEnumerable<T> GetItemsInBound<T>(
+        this IVoxelSource<T> voxelSource,
+        Int2 min,
+        Int2 max) where T : notnull
+    {
+        var voxels = voxelSource.Voxels;
+        var seen = new HashSet<T>();
+        for (var x = min.X; x <= max.X; x++)
+            for (var z = min.Z; z <= max.Z; z++)
+                foreach (var (_, value) in voxels.GetIteratorAt(x, z))
+                    if (value is not null && seen.Add(value))
+                        yield return value;
+    }
+
+    /// <summary>
     /// 点碰撞查询：src 所在格是否被实体占据，返回占据该格的实体命中信息。
     /// </summary>
     /// <example>
@@ -513,8 +544,7 @@ public static class VoxelSourceExtensions
     /// <remarks>
     /// - 起终点先对齐到格，再就近解析到可站立高度；找不到可站立点则退回原高度（可能"悬空"）。
     /// - 终点判定为"XZ 到达目标列且高度差 ≤ maxClimb"，即到达目标附近即可（落点 Y 随接近方向而定）。
-    /// - 超出 maxDistance 预算或不可达时返回 <c>Reachable = false</c> 的结果；
-    ///   网格未设置 Bound 时返回 null。
+    /// - 失败（不可达 / 超预算 / 网格未设置 Bound）统一返回 null——成功路径才是非 null 结果。
     /// - 返回路径为世界 cm 的自描述 Position（scale = 体素长，Absolute() 即 cm）；
     ///   总代价 = 步数 + 爬升惩罚（每爬 1 格 +0.1），非纯几何距离。
     /// </remarks>
@@ -523,7 +553,7 @@ public static class VoxelSourceExtensions
     /// // 让 1.7m 高的人从 (100,0,100) 走到 (500,0,400)，最大步行 20m
     /// var result = unit.FindPath(
     ///     new Position(100, 0, 100), new Position(500, 0, 400), agent, 2000);
-    /// if (result is { Reachable: true })
+    /// if (result is not null)
     ///     foreach (var waypoint in result.Path) { /* 途经点，Absolute() 为 cm */ }
     /// </code>
     /// </example>
@@ -534,10 +564,8 @@ public static class VoxelSourceExtensions
     /// <param name="agent">移动者参数：Height（身高，净高过滤）、MaxClimbHeight（最大爬升高度）、
     /// MaxWalkLength（默认预算，cm）。</param>
     /// <param name="maxDistance">最大步行距离（cm），超出视为不可达。</param>
-    /// <returns>
-    /// 可行走：<c>Reachable = true</c>，Path 为途经点序列、Distance 为总代价；
-    /// 不可达 / 超预算：<c>Reachable = false</c>；网格未设置 Bound：null。
-    /// </returns>
+    /// <returns>成功：<see cref="Pathfinding.Result"/>（Path 为途经点序列、Distance 为总代价）；
+    /// 不可达 / 超预算 / 网格未设置 Bound：null。</returns>
     public static Pathfinding.Result? FindPath<T>(
         this IVoxelSource<T> voxelSource,
         Position src,
@@ -602,7 +630,6 @@ public static class VoxelSourceExtensions
                 return nexts;
             },
             n => n.ManhattanDistance(goal),
-            maxDistance / length)
-        ?? new Pathfinding.Result(false, Array.Empty<Position>(), 0);
+            maxDistance / length);
     }
 }

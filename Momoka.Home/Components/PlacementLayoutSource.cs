@@ -1,4 +1,6 @@
+using Momoka.Home.Entities;
 using Momoka.Home.Layouts;
+using Momoka.Home.Primitives;
 using Momoka.Home.Data.Json;
 using Momoka.Home.Data.Json.Converters;
 using Newtonsoft.Json;
@@ -13,7 +15,13 @@ namespace Momoka.Home.Components;
 [JsonTypeName("placement_layout")]
 public class PlacementLayoutSource : Component
 {
-    /// <summary>The single placement surface this component provides, or null.</summary>
-    [JsonConverter(typeof(JsonGridLayoutConverter))]
-    public GridLayout<bool>? Layout { get; set; }
+    /// <summary>放置表面。语义上携带本组件即必提供表面，故恒非空
+    /// （JSON 缺省 / 旧数据时取默认空网格，不产生 null）。</summary>
+    public GridLayout<bool> Layout { get; set; } = new(Int2.Zero);
+
+    /// <summary>放置在本表面上的物件（表面宿主登记，由 <c>UnitLayout.Add</c>
+    /// 登记 / <c>UnitLayout.Remove</c> 反登记；级联回落与"被依赖"检查依赖此表）。
+    /// 运行时登记态——暂不序列化（存档加载后依赖关系由管线后置重建，待实现）。</summary>
+    [JsonIgnore]
+    public List<Entity> Items { get; } = new();
 }

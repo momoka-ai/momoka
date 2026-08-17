@@ -327,7 +327,6 @@ public class VoxelSourceQueryTests
             Human, maxDistance: 2000);
 
         Assert.NotNull(result);
-        Assert.True(result!.Value.Reachable);
         Assert.Equal(new Int3(1, 1, 1), result.Value.Path[0].AsInt3());
         Assert.Equal(new Int3(8, 1, 8), result.Value.Path[^1].AsInt3());
         Assert.Equal(14.0, result.Value.Distance); // 曼哈顿 7+7，无爬升
@@ -355,8 +354,7 @@ public class VoxelSourceQueryTests
             new Position(new Int3(8, 1, 8), 10f),
             Human, maxDistance: 2000);
 
-        Assert.NotNull(result);
-        Assert.False(result!.Value.Reachable);
+        Assert.Null(result);
     }
 
     [Fact]
@@ -379,7 +377,6 @@ public class VoxelSourceQueryTests
             Human, maxDistance: 2000);
 
         Assert.NotNull(result);
-        Assert.True(result!.Value.Reachable);
         Assert.Contains(result.Value.Path, p => p.AsInt3() == new Int3(5, 1, 5)); // 借道门洞
         Assert.Equal(14.0, result.Value.Distance);
     }
@@ -404,7 +401,6 @@ public class VoxelSourceQueryTests
             Human, maxDistance: 2000);
 
         Assert.NotNull(result);
-        Assert.True(result!.Value.Reachable);
         Assert.Contains(result.Value.Path, p => p.AsInt3() == new Int3(5, 3, 5)); // 跨过台阶
         Assert.Equal(12.2, result.Value.Distance); // XZ 曼哈顿 12 步 + 2 格爬升 × 0.1
     }
@@ -431,7 +427,6 @@ public class VoxelSourceQueryTests
             new Position(new Int3(7, 3, 7), 10f),
             robot, maxDistance: 2000);
 
-        Assert.NotNull(result);
-        Assert.False(result!.Value.Reachable);
+        Assert.Null(result);
     }
 }

@@ -40,7 +40,6 @@ public class PathfindingTests
         var result = Find2D(0, 0, 3, 3, new HashSet<Int3>());
 
         Assert.NotNull(result);
-        Assert.True(result!.Value.Reachable);
         Assert.Equal(6.0, result.Value.Distance); // 曼哈顿 3+3
         Assert.Equal(7, result.Value.Path.Count);  // 起点 + 6 步
         Assert.Equal(new Position(new Int3(0, 0, 0), 10f), result.Value.Path[0]);
@@ -62,7 +61,6 @@ public class PathfindingTests
         var result = Find2D(0, 0, 4, 4, blocked);
 
         Assert.NotNull(result);
-        Assert.True(result!.Value.Reachable);
         Assert.Equal(10.0, result.Value.Distance); // 8 + 2 绕行
         Assert.DoesNotContain(result.Value.Path, p => blocked.Contains(p.AsInt3()));
     }
@@ -89,7 +87,6 @@ public class PathfindingTests
         var result = Find2D(0, 0, 0, 0, new HashSet<Int3>());
 
         Assert.NotNull(result);
-        Assert.True(result!.Value.Reachable);
         Assert.Equal(0.0, result.Value.Distance);
         Assert.Single(result.Value.Path);
     }
@@ -107,7 +104,6 @@ public class PathfindingTests
         var result = Find2D(0, 0, 3, 3, new HashSet<Int3>(), maxCost: 6);
 
         Assert.NotNull(result);
-        Assert.True(result!.Value.Reachable);
         Assert.Equal(6.0, result.Value.Distance);
     }
 
@@ -132,7 +128,6 @@ public class PathfindingTests
             double.PositiveInfinity);
 
         Assert.NotNull(result);
-        Assert.True(result!.Value.Reachable);
         Assert.Equal(4.0, result.Value.Distance);
         Assert.Equal(3, result.Value.Path.Count);
     }

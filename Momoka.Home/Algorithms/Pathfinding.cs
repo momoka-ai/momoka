@@ -18,10 +18,9 @@ public static class Pathfinding
 {
     /// <summary>A path over a voxel grid: waypoints as self-describing
     /// <see cref="Position"/>s (scale = cell size; <c>Absolute()</c> = cm) and
-    /// the total travelled distance. Unreachable searches return null instead;
-    /// <see cref="Reachable"/> is kept for callers that report failure as a
-    /// value rather than null.</summary>
-    public readonly record struct Result(bool Reachable, IReadOnlyList<Position> Path, double Distance);
+    /// the total travelled distance. 失败（不可达 / 超出预算）由可空返回
+    /// （<c>Result?</c> 的 null）表达，故结果本身恒为成功路径。</summary>
+    public readonly record struct Result(IReadOnlyList<Position> Path, double Distance);
 
     /// <summary>
     /// Weighted A* over a voxel grid: returns the first cell satisfying
@@ -84,6 +83,6 @@ public static class Pathfinding
             node = prev;
         }
         path.Reverse();
-        return new Result(true, path, gScore[goal.Value]);
+        return new Result(path, gScore[goal.Value]);
     }
 }

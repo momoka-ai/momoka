@@ -79,6 +79,8 @@ public sealed class UnitLayout : IEntitySource, IVoxelSource<Entity>
         }
     }
 
+    public AtQuery At(Position pos) => new AtQuery(this, pos.Rescale(10f).AsInt3());
+
     /// <summary>
     /// All placement surfaces of the space: each entity's placement layouts (via
     /// its <see cref="PlacementLayoutSource"/> components — a floor slab's top
@@ -86,56 +88,122 @@ public sealed class UnitLayout : IEntitySource, IVoxelSource<Entity>
     /// </summary>
     public IEnumerable<GridLayout<bool>> Surfaces => Entities
         .SelectMany(e => e.GetComponents<PlacementLayoutSource>())
-        .Where(c => c.Layout is not null)
-        .Select(c => c.Layout!);
+        .Select(c => c.Layout);
 
-    // ── Entity placement / queries ──────────────────────
+    // ── Entity placement / removal / queries ────────────
 
     /// <summary>
     /// True if placing <paramref name="src"/> at <paramref name="position"/>
     /// (world units, cm) intersects the specific <paramref name="dest"/> entity
-    /// (dest voxels vs src voxels).
+    /// (dest voxels vs src voxels) — 实体对体积判定，委托 <see cref="Volume.Intersects"/>。
     /// </summary>
     public bool IsCollided(Entity dest, Entity src, Float3 position)
     {
-        var cs = Voxels.GetAsRelative(position);
+        var anchor = Voxels.GetAsRelative(position);
         var destAnchor = Voxels.GetAsRelative(dest.Pos.Absolute());
-        var destCells = dest.Volume.Cells3D()
-            .Select(v => destAnchor + v)
-            .ToHashSet();
-        return src.Volume.Cells3D().Any(v => destCells.Contains(cs + v));
+        return src.Volume.Intersects(anchor, dest.Volume, destAnchor);
     }
 
     /// <summary>
-    /// Builds (places) the entity at <paramref name="position"/> (world units,
-    /// cm): rounds it to the anchor cell, writes EVERY one of its shape voxels
-    /// into the grid and registers it. False if collided.
+    /// 将物件加入体素空间，自行寻找一个可放置位置。
     /// </summary>
-    public bool PlaceAt(Entity entity, Float3 position)
+    /// <remarks>存根：自动寻位（扫描 Bound 内不碰撞的位置）待实现。</remarks>
+    public bool Add(Entity entity) =>
+        throw new NotImplementedException("自动寻位待实现：扫描 Bound 内可放置位置");
+
+    /// <summary>
+    /// 将物件按指定位置加入体素空间（世界 cm）：对齐到锚点格、写入全部体素格、
+    /// 加入已放置列表，并登记表面宿主（占用格落在哪个已放置实体的表面格上，
+    /// 多表面重叠取首个）。与现有实体碰撞时返回 false。
+    /// </summary>
+    public bool Add(Entity entity, Position position)
     {
-        if (this.IsCollidedVolume(new Position(position), entity.Volume) is not null)
+        if (this.IsCollidedVolume(position, entity.Volume) is not null)
             return false;
 
-        entity.Pos = new Position(position);
-        var cs = Voxels.GetAsRelative(position);
+        entity.Pos = position;
+        var anchor = Voxels.GetAsRelative(position.Absolute());
         foreach (var cell in entity.Volume.Cells3D())
-        {
-            Voxels[cs + cell] = entity;
-        }
+            Voxels[anchor + cell] = entity;
         Entities.Add(entity);
+
+        // 登记表面宿主：占用格落在哪个已放置实体的表面格上（多表面重叠取首个）
+        var occupied = entity.Volume.Cells3D().Select(v => anchor + v).ToHashSet();
+        foreach (var other in Entities)
+        {
+            if (other == entity)
+                continue;
+            foreach (var surface in other.GetComponents<PlacementLayoutSource>())
+            {
+                if (surface.Items.Contains(entity))
+                    continue;
+                var layout = surface.Layout;
+                var hits = false;
+                for (var x = 0; x < layout.Size.X && !hits; x++)
+                    for (var z = 0; z < layout.Size.Z && !hits; z++)
+                        if (occupied.Contains(layout.AsAbsolute(new Int2(x, z))))
+                            hits = true;
+                if (!hits)
+                    continue;
+                surface.Items.Add(entity);
+                return true;
+            }
+        }
         return true;
     }
 
     /// <summary>
-    /// Removes the entity covering the given target cell (indexed by occupancy,
-    /// not the placement anchor). False when the cell is empty.
+    /// 将物件从体素空间删除（回落"未放置"池，物件本体保留在 Residence 总目录）。
+    /// 未放置或正被依赖（其提供的表面仍有物件放置其上）时返回 false，不做删除。
     /// </summary>
-    public bool DestroyAt(Int3 target)
+    public bool Remove(Entity entity) => Remove(entity, cascade: false);
+
+    /// <summary>
+    /// 删除物件，<paramref name="cascade"/> 为 true 时级联递归删除其表面上的所有
+    /// 物件（A 上的 B、B 上的 C 一并回落）。物件不存在时返回 false。
+    /// 回落 = 清除体素投影 + 移出已放置列表；宿主关系（表面 Items）同步清理。
+    /// </summary>
+    public bool Remove(Entity entity, bool cascade)
     {
-        if (Voxels[target] is not Entity entity)
+        if (!Entities.Contains(entity))
             return false;
-        return Remove(entity);
+
+        var surfaces = entity.GetComponents<PlacementLayoutSource>();
+        if (!cascade && surfaces.Any(s => s.Items.Count > 0))
+            return false; // 正被依赖：表面仍有物件，普通删除失败
+
+        // 级联：表面上的物件递归回落（先快照，避免遍历中修改）
+        foreach (var item in surfaces.SelectMany(s => s.Items).ToList())
+            Remove(item, cascade: true);
+        foreach (var s in surfaces)
+            s.Items.Clear();
+
+        // 反登记：从宿主表面移除自己
+        foreach (var other in Entities)
+            foreach (var s in other.GetComponents<PlacementLayoutSource>())
+                s.Items.Remove(entity);
+
+        Entities.Remove(entity);
+        var cs = Voxels.GetAsRelative(entity.Pos.Absolute());
+        foreach (var cell in entity.Volume.Cells3D())
+        {
+            var pos = cs + cell;
+            if (Voxels[pos] == entity)
+                Voxels[pos] = default!;
+        }
+        return true;
     }
+
+    /// <summary>将指定位置（世界 cm）的物件删除，返回被删除的物件；无物件或删除失败（被依赖）时返回 null。</summary>
+    public Entity? Remove(Position position)
+    {
+        var entity = At(position).Entity;
+        return entity is not null && Remove(entity) ? entity : null;
+    }
+
+    /// <summary>按唯一 Id 查找已放置的物件。</summary>
+    public Entity? Find(Guid id) =>
+        Entities.FirstOrDefault(e => e.Id == id);
 
     /// <summary>
     /// Clears the grid and re-rasterizes every held entity — a forced flush
@@ -154,45 +222,12 @@ public sealed class UnitLayout : IEntitySource, IVoxelSource<Entity>
         }
     }
 
-    /// <summary>Finds an entity by its unique Id across this space.</summary>
-    public Entity? FindEntity(Guid id) =>
-        Entities.FirstOrDefault(e => e.Id == id);
-
+    /// <summary>
     /// <summary>
     /// Returns all entities whose shape intersects the axis-aligned box
-    /// <paramref name="min"/>–<paramref name="max"/> (inclusive). Drag-select.
+    /// <paramref name="min"/>–<paramref name="max"/> (inclusive). Drag-select —
+    /// 占用格语义，委托 <see cref="VoxelSourceExtensions.GetItemsInBound{T}"/>。
     /// </summary>
-    public List<Entity> GetEntitiesInBound(Int2 min, Int2 max)
-    {
-        var result = new List<Entity>();
-        foreach (var entity in Entities)
-        {
-            var cs = Voxels.GetAsRelative(entity.Pos.Absolute());
-            foreach (var loc in entity.Volume.Cells3D())
-            {
-                var p = cs + loc;
-                if (p.X >= min.X && p.X <= max.X && p.Z >= min.Z && p.Z <= max.Z)
-                {
-                    result.Add(entity);
-                    break;
-                }
-            }
-        }
-        return result;
-    }
-
-    private bool Remove(Entity entity)
-    {
-        if (!Entities.Remove(entity))
-            return false;
-
-        var cs = Voxels.GetAsRelative(entity.Pos.Absolute());
-        foreach (var cell in entity.Volume.Cells3D())
-        {
-            var pos = cs + cell;
-            if (Voxels[pos] == entity)
-                Voxels[pos] = default!;
-        }
-        return true;
-    }
+    public IEnumerable<Entity> GetEntitiesInBound(Int2 min, Int2 max) =>
+        this.GetItemsInBound(min, max);
 }

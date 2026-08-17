@@ -170,13 +170,13 @@ public class VoxelLayoutChunkCodecTests
     private static UnitLayout TwoRoomScene()
     {
         var l = new UnitLayout();
-        l.PlaceAt(SurfaceBox("floor", 10, 1, 10, new Int3(0, 0, 0), 1), new Float3(0, 0, 0));
-        l.PlaceAt(StructuralBox("ceiling", 10, 1, 10), new Float3(0, 300, 0));
-        l.PlaceAt(StructuralBox("wall", 10, 29, 1), new Float3(0, 10, 0));
-        l.PlaceAt(StructuralBox("wall", 10, 29, 1), new Float3(0, 10, 90));
-        l.PlaceAt(StructuralBox("wall", 1, 29, 8), new Float3(0, 10, 10));
-        l.PlaceAt(StructuralBox("wall", 1, 29, 8), new Float3(90, 10, 10));
-        l.PlaceAt(StructuralBox("wall", 1, 29, 8), new Float3(50, 10, 10));
+        l.Add(SurfaceBox("floor", 10, 1, 10, new Int3(0, 0, 0), 1), new Position(new Float3(0, 0, 0)));
+        l.Add(StructuralBox("ceiling", 10, 1, 10), new Position(new Float3(0, 300, 0)));
+        l.Add(StructuralBox("wall", 10, 29, 1), new Position(new Float3(0, 10, 0)));
+        l.Add(StructuralBox("wall", 10, 29, 1), new Position(new Float3(0, 10, 90)));
+        l.Add(StructuralBox("wall", 1, 29, 8), new Position(new Float3(0, 10, 10)));
+        l.Add(StructuralBox("wall", 1, 29, 8), new Position(new Float3(90, 10, 10)));
+        l.Add(StructuralBox("wall", 1, 29, 8), new Position(new Float3(50, 10, 10)));
         return l;
     }
 
