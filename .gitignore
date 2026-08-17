@@ -47,6 +47,7 @@ env/
 ## IDE
 .idea/
 .codacy/
+.kilo/
 *.swp
 *.swo
 *~
@@ -64,9 +65,10 @@ vcpkg_installed/
 ## ZCode
 .zcode/
 
-## Mimosa (security scan hook workspace state)
-.mimosa/
-
 
 #Ignore vscode AI rules
 .github/instructions/codacy.instructions.md
+
+## DocFX
+Documentation/Momoka.Home/_site/
+Documentation/Momoka.Home/api/
