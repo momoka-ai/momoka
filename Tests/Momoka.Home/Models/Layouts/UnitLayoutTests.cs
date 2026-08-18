@@ -107,7 +107,7 @@ public class UnitLayoutTests
         var entity = Box("box", 2, 1, 2);
 
         Assert.True(unit.Add(entity, new Position(new Float3(50, 0, 50))));
-        Assert.Equal(new Float3(50, 0, 50), entity.Pos.Absolute());
+        Assert.Equal(new Float3(50, 0, 50), entity.Transform.Position);
 
         // 全部 4 个体素格都写入（不只锚点）
         Assert.True(unit.Voxels[new Int3(5, 0, 5)] is not null);

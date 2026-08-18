@@ -249,7 +249,7 @@ public sealed class Region
                 continue;
             foreach (var cell in entity.Volume.Cells3D())
             {
-                var p = entity.Pos.Absolute() + cell.ToFloat3();
+                var p = entity.Transform.Position + cell.ToFloat3();
                 if (p.X < minX) minX = p.X;
                 if (p.Y < minY) minY = p.Y;
                 if (p.Z < minZ) minZ = p.Z;

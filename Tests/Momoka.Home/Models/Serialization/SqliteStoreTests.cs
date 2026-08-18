@@ -34,11 +34,11 @@ public class SqliteStoreTests
         residence.Components.Add(new DataSource(DataSourceType.Temperature) { Value = 24.5f });
 
         var lamp = Box("lamp", 1, 1, 1);
-        lamp.Pos = new Position(new Float3(20, 10, 30));
+        lamp.Transform = new Transform(new Float3(20, 10, 30), Rotation.Identity);
         lamp.AddProperties(new[] { new BooleanProperty(Property.IsImmutable, true) });
 
         var ac = Box("ac", 2, 1, 1);
-        ac.Pos = new Position(new Float3(40, 20, 50));
+        ac.Transform = new Transform(new Float3(40, 20, 50), Rotation.Identity);
         ac.AddComponent(new CommandTarget { Commands = "[\"turn_on\",\"turn_off\"]" });
 
         residence.Entities.AddRange(new[] { lamp, ac });
@@ -76,7 +76,7 @@ public class SqliteStoreTests
                 {
                     var rebuilt = Assert.Single(loaded.Entities, e => e.Id == original.Id);
                     Assert.Equal(original.Key, rebuilt.Key);
-                    Assert.Equal(original.Pos, rebuilt.Pos);
+                    Assert.Equal(original.Transform, rebuilt.Transform);
                     Assert.Equal(original.Volume.GetType(), rebuilt.Volume.GetType());
                     Assert.Equal(original.Properties.Count, rebuilt.Properties.Count);
                     Assert.Equal(original.Components.Count, rebuilt.Components.Count);

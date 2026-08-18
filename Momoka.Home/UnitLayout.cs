@@ -101,7 +101,7 @@ public sealed class UnitLayout : IEntitySource, IVoxelSource<Entity>
     public bool IsCollided(Entity dest, Entity src, Float3 position)
     {
         var anchor = Voxels.GetAsRelative(position);
-        var destAnchor = Voxels.GetAsRelative(dest.Pos.Absolute());
+        var destAnchor = Voxels.GetAsRelative(dest.Transform.Position);
         return src.Volume.Intersects(anchor, dest.Volume, destAnchor);
     }
 
@@ -123,7 +123,7 @@ public sealed class UnitLayout : IEntitySource, IVoxelSource<Entity>
         if (this.IsCollidedVolume(position, entity.Volume) is not null)
             return false;
 
-        entity.Pos = position;
+        entity.Transform = entity.Transform with { Position = position.Absolute() };
         var anchor = Voxels.GetAsRelative(position.Absolute());
         foreach (var cell in entity.Volume.Cells3D())
             Voxels[anchor + cell] = entity;
@@ -167,7 +167,7 @@ public sealed class UnitLayout : IEntitySource, IVoxelSource<Entity>
         if (this.IsCollidedVolume(position, entity.Volume) is not null)
             return false;
 
-        entity.Pos = position;
+        entity.Transform = entity.Transform with { Position = position.Absolute() };
         var anchor = Voxels.GetAsRelative(position.Absolute());
         foreach (var cell in entity.Volume.Cells3D())
             Voxels[anchor + cell] = entity;
@@ -213,7 +213,7 @@ public sealed class UnitLayout : IEntitySource, IVoxelSource<Entity>
                 s.Items.Remove(entity);
 
         Entities.Remove(entity);
-        var cs = Voxels.GetAsRelative(entity.Pos.Absolute());
+        var cs = Voxels.GetAsRelative(entity.Transform.Position);
         foreach (var cell in entity.Volume.Cells3D())
         {
             var pos = cs + cell;
@@ -243,7 +243,7 @@ public sealed class UnitLayout : IEntitySource, IVoxelSource<Entity>
         Voxels.Clear();
         foreach (var entity in Entities)
         {
-            var cs = Voxels.GetAsRelative(entity.Pos.Absolute());
+            var cs = Voxels.GetAsRelative(entity.Transform.Position);
             foreach (var cell in entity.Volume.Cells3D())
             {
                 Voxels[cs + cell] = entity;
