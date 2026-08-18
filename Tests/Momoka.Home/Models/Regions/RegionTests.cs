@@ -30,13 +30,17 @@ public class RegionTests
         return entity;
     }
 
-    /// <summary>结构件盒子：顶面放置面（Up，Offset 在 surfaceY）+ is_structural。</summary>
+    /// <summary>结构件盒子：顶面放置面（Up，Transform 位置在 surfaceY）+ is_structural。</summary>
     private static Entity SurfaceBox(string path, int sx, int sy, int sz, Int3 pos, int surfaceY)
     {
         var entity = StructuralBox(path, sx, sy, sz);
-        var surface = new GridLayout<bool>(new Int2(sx, sz), new Int3(pos.X, surfaceY, pos.Z));
+        var surface = new GridLayout<bool>(new Int2(sx, sz));
         surface.Fill(true, Int2.Zero, new Int2(sx, sz));
-        entity.AddComponent(new PlacementLayoutSource { Layout = surface });
+        entity.AddComponent(new PlacementLayoutSource
+        {
+            Layout = surface,
+            Transform = new Transform(new Float3(pos.X * 10, surfaceY * 10, pos.Z * 10), Rotation.Up),
+        });
         return entity;
     }
 
@@ -173,9 +177,13 @@ public class RegionTests
         l.Add(SurfaceBox("floor", 5, 1, 5, new Int3(0, 0, 0), 1), new Position(new Float3(0, 0, 0)));
         l.Add(StructuralBox("ceiling", 5, 1, 5), new Position(new Float3(0, 300, 0)));
         var table = Box("table", 3, 1, 3);
-        var tableSurface = new GridLayout<bool>(new Int2(3, 3), new Int3(1, 8, 1));
+        var tableSurface = new GridLayout<bool>(new Int2(3, 3));
         tableSurface.Fill(true, Int2.Zero, new Int2(3, 3));
-        table.AddComponent(new PlacementLayoutSource { Layout = tableSurface });
+        table.AddComponent(new PlacementLayoutSource
+        {
+            Layout = tableSurface,
+            Transform = new Transform(new Float3(10, 80, 10), Rotation.Up),
+        });
         l.Add(table, new Position(new Float3(10, 70, 10))); // 桌面 y=7 占用，顶面 y=8
 
         var map = Region.BuildLayout(l);

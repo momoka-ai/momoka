@@ -7,26 +7,6 @@ namespace Momoka.Home.Tests.Models.Layouts;
 
 public class GridLayoutTests
 {
-    [Theory]
-    [InlineData(0, 1, 0)]   // Up
-    [InlineData(0, -1, 0)]  // Down
-    [InlineData(1, 0, 0)]   // East
-    [InlineData(-1, 0, 0)]  // West
-    [InlineData(0, 0, 1)]   // North
-    [InlineData(0, 0, -1)]  // South
-    public void ToWorld_ToLocal_RoundTrips_AllSixDirections(int dx, int dy, int dz)
-    {
-        var layout = new GridLayout<bool>(new Int2(10, 10), new Int3(5, 5, 5))
-        {
-            Direction = new Int3(dx, dy, dz),
-        };
-
-        foreach (var local in new[] { new Int2(0, 0), new Int2(3, 7), new Int2(9, 1) })
-        {
-            Assert.Equal(local, layout.AsRelative(layout.AsAbsolute(local)));
-        }
-    }
-
     [Fact]
     public void IsCollided_Cell_TrueWhenBlocked_FalseWhenPlaceable()
     {

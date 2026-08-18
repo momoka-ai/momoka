@@ -43,7 +43,7 @@ public class Residence : IEntitySource, IComponentSource
     /// All known (registered) entities of the residence — including objects not
     /// yet placed in <see cref="Layout"/> (e.g. paired appliances awaiting a
     /// spot). Registration happens at creation; placement is
-    /// <see cref="UnitLayout.PlaceAt"/>'s job, which writes the entity into the
+    /// <see cref="UnitLayout.Add(Entity)"/>'s job, which writes the entity into the
     /// grid and registers it in <see cref="UnitLayout.Entities"/> (the placed
     /// subset). Not serialized in the residence JSON: each entity is a row of
     /// the <c>Entities</c> table.

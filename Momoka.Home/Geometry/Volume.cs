@@ -10,7 +10,7 @@ namespace Momoka.Home.Geometry;
 /// <see cref="IVoxelGeometry3D"/> (its own 3D cells) and
 /// <see cref="IVoxelGeometry2D"/> (its projection onto the local XZ plane).
 /// Placement into an entity grid goes through the host
-/// (<c>VoxelLayout&lt;Entity&gt;.BuildAt(Entity, pos)</c>), while
+/// (<c>UnitLayout.Add(entity, position)</c>), while
 /// <see cref="UnitLayout"/> places hosts into the root grid.
 /// </summary>
 public abstract class Volume : IVoxelGeometry3D, IVoxelGeometry2D
@@ -26,12 +26,12 @@ public abstract class Volume : IVoxelGeometry3D, IVoxelGeometry2D
 
     /// <summary>
     /// A bare volume has no host identity, so it cannot place itself into an entity
-    /// grid. Place the host instead: <c>VoxelLayout&lt;Entity&gt;.BuildAt(Entity, pos)</c>.
+    /// grid. Place the host instead: <c>UnitLayout.Add(entity, position)</c>.
     /// <see cref="UnitLayout"/> implements the real placement contract
-    /// (PlaceAt/DestroyAt).
+    /// (Add/Remove).
     /// </summary>
     public void PlaceAt(VoxelLayout<Entity> target, Int3 at) =>
-        throw new NotSupportedException("A bare volume has no host identity — place it via VoxelLayout&lt;Entity&gt;.BuildAt(Entity, pos) or via UnitLayout.");
+        throw new NotSupportedException("A bare volume has no host identity — place it via UnitLayout.Add(entity, position).");
 
     /// <summary>
     /// 两个体积是否重叠：本形状锚定在 <paramref name="anchor"/>、other 锚定在
@@ -46,5 +46,5 @@ public abstract class Volume : IVoxelGeometry3D, IVoxelGeometry2D
 
     /// <inheritdoc cref="PlaceAt"/>
     public void DestroyAt(VoxelLayout<Entity> target, Int3 at) =>
-        throw new NotSupportedException("A bare volume has no host identity — remove it via VoxelLayout&lt;Entity&gt;.DestroyAt(pos) or via UnitLayout.");
+        throw new NotSupportedException("A bare volume has no host identity — remove it via UnitLayout.Remove(entity).");
 }

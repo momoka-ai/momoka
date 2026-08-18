@@ -4,8 +4,9 @@ using Momoka.Home.Primitives;
 namespace Momoka.Home.Tests.Models.Algorithms;
 
 /// <summary>
-/// 直线几何与圆柱形视野判定：点线分解（<see cref="Visibility.Project"/>）的
-/// 投影距离 / 垂直分量，以及 <see cref="Visibility.IsInView"/> 的距离与半径边界。
+/// 直线几何与圆锥形视野判定：点线分解（<see cref="Visibility.Project"/>）的
+/// 投影距离 / 垂直分量，以及 <see cref="Visibility.IsInCone"/> 的距离与锥形边界
+/// （半径随距离线性扩大——近端锥窄，与圆柱判定的关键差异）。
 /// </summary>
 public class VisibilityTests
 {
@@ -48,37 +49,40 @@ public class VisibilityTests
         Assert.Equal(new Float3(0, 0, 0), p.Lateral);
     }
 
-    // ── IsInView：圆柱形视野包含判定 ──────────────────────
+    // ── IsInCone：圆锥形视野包含判定（半径随距离线性扩大） ──
 
     [Fact]
-    public void IsInView_InsideCylinder_ReturnsTrue()
+    public void IsInCone_InsideCone_ReturnsTrue()
     {
-        Assert.True(Visibility.IsInView(new Float3(3, 0, 0), Float3.Zero, new Float3(1, 0, 0), 10f, 2f));
-        Assert.True(Visibility.IsInView(new Float3(3, 1, 1), Float3.Zero, new Float3(1, 0, 0), 10f, 2f));
+        Assert.True(Visibility.IsInCone(new Float3(8, 0, 0), Float3.Zero, new Float3(1, 0, 0), 10f, 2f)); // 轴上
+        Assert.True(Visibility.IsInCone(new Float3(6, 1, 0), Float3.Zero, new Float3(1, 0, 0), 10f, 2f)); // 垂距 1 ≤ 6/10×2
     }
 
     [Fact]
-    public void IsInView_BeyondMaxDistance_ReturnsFalse()
+    public void IsInCone_BeyondMaxDistance_ReturnsFalse()
     {
-        Assert.False(Visibility.IsInView(new Float3(15, 0, 0), Float3.Zero, new Float3(1, 0, 0), 10f, 2f));
+        Assert.False(Visibility.IsInCone(new Float3(15, 0, 0), Float3.Zero, new Float3(1, 0, 0), 10f, 2f));
     }
 
     [Fact]
-    public void IsInView_BeyondRadius_ReturnsFalse()
+    public void IsInCone_NearConeIsNarrow_ReturnsFalse()
     {
-        Assert.False(Visibility.IsInView(new Float3(3, 3, 0), Float3.Zero, new Float3(1, 0, 0), 10f, 2f));
+        // 近端锥窄：同样垂距在远处成立、在近处越界（圆柱判定无此差异）
+        Assert.False(Visibility.IsInCone(new Float3(3, 1, 0), Float3.Zero, new Float3(1, 0, 0), 10f, 2f)); // 1 > 3/10×2
+        Assert.False(Visibility.IsInCone(new Float3(6, 2, 0), Float3.Zero, new Float3(1, 0, 0), 10f, 2f)); // 2 > 6/10×2
     }
 
     [Fact]
-    public void IsInView_BehindOrigin_ReturnsFalse()
+    public void IsInCone_BehindOrigin_ReturnsFalse()
     {
-        Assert.False(Visibility.IsInView(new Float3(-1, 0, 0), Float3.Zero, new Float3(1, 0, 0), 10f, 2f));
+        Assert.False(Visibility.IsInCone(new Float3(-1, 0, 0), Float3.Zero, new Float3(1, 0, 0), 10f, 2f));
     }
 
     [Fact]
-    public void IsInView_OnBoundary_IsInclusive()
+    public void IsInCone_OnBoundary_IsInclusive()
     {
-        Assert.True(Visibility.IsInView(new Float3(10, 0, 0), Float3.Zero, new Float3(1, 0, 0), 10f, 2f)); // 恰好最远
-        Assert.True(Visibility.IsInView(new Float3(3, 2, 0), Float3.Zero, new Float3(1, 0, 0), 10f, 2f)); // 恰好半径
+        Assert.True(Visibility.IsInCone(new Float3(10, 0, 0), Float3.Zero, new Float3(1, 0, 0), 10f, 2f)); // 恰好最远
+        Assert.True(Visibility.IsInCone(new Float3(10, 2, 0), Float3.Zero, new Float3(1, 0, 0), 10f, 2f)); // 恰好末端半径
+        Assert.True(Visibility.IsInCone(new Float3(5, 1, 0), Float3.Zero, new Float3(1, 0, 0), 10f, 2f));  // 恰好线性边界
     }
 }

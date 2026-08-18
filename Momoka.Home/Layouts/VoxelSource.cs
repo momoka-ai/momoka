@@ -2,6 +2,7 @@ using System.Numerics;
 using Momoka.Home.Algorithms;
 using Momoka.Home.Geometry;
 using Momoka.Home.Primitives;
+using Momoka.Home.Entities;
 using Momoka.Home.Properties;
 
 namespace Momoka.Home.Layouts;
@@ -20,7 +21,8 @@ public interface IVoxelSource<T> where T : notnull
 
 /// <summary>
 /// <see cref="IVoxelSource{T}"/> 的空间查询扩展：基于体素网格提供四类查询——
-/// 视线（<c>CanSee</c>）、视野内目标（<c>FindItemsInView</c>）、碰撞（<c>IsCollided</c>）、
+/// 视线（<c>CanSee</c>）、直线 / 圆锥 / 视锥内目标（<c>FindItemsOnLine</c> /
+/// <c>FindItemsInCone</c> / <c>FindItemsInView</c>）、碰撞（<c>IsCollided</c>）、
 /// 寻路（<c>FindPath</c>）。所有坐标以世界 cm 为准，内部自动对齐到 10cm 体素格寻址。
 /// </summary>
 public static class VoxelSourceExtensions
@@ -132,7 +134,8 @@ public static class VoxelSourceExtensions
 
     /// <summary>
     /// 锥形视野内视线判定：先判断 dest 是否落在以 src 为顶点、direction 为轴、
-    /// maxDistance 为射程、maxRadius 为锥半径的锥体内（<see cref="Visibility.IsInView"/>），
+    /// maxDistance 为射程、末端半径 maxRadius 的锥体内（<see cref="Visibility.IsInCone"/>，
+    /// 半径随距离线性扩大——近端锥窄），
     /// 再委托两点 <see cref="CanSee{T}(IVoxelSource{T}, Position, Position)"/> 做遮挡判定。
     /// 两步都通过才可见。
     /// </summary>
@@ -153,7 +156,8 @@ public static class VoxelSourceExtensions
     /// <param name="dest">目标点（世界 cm）。</param>
     /// <param name="direction">视线方向（任意长度，内部归一化；零向量返回 false）。</param>
     /// <param name="maxDistance">最大射程（cm），目标投影距离超过即不可见。</param>
-    /// <param name="maxRadius">锥体半径（cm），目标偏离视线轴的垂距超过即不可见。</param>
+    /// <param name="maxRadius">锥体末端半径（cm）——半径随距离线性扩大（起点处 0，
+    /// 末端 maxRadius），目标垂距 > 投影距离 / maxDistance × maxRadius 即不可见。</param>
     /// <returns>目标在锥体内且无遮挡时为 <c>true</c>。</returns>
     public static bool CanSee<T>(
         this IVoxelSource<T> voxelSource,
@@ -168,7 +172,7 @@ public static class VoxelSourceExtensions
         if (mag < 1e-6f)
             return false;
         dir = dir / mag;
-        if (!Visibility.IsInView(dest.Absolute(), src.Absolute(), dir, maxDistance, maxRadius))
+        if (!Visibility.IsInCone(dest.Absolute(), src.Absolute(), dir, maxDistance, maxRadius))
             return false;
         return voxelSource.CanSee(src, dest);
     }
@@ -195,7 +199,7 @@ public static class VoxelSourceExtensions
     /// <example>
     /// <code>
     /// // 沿 +X 打一条 10m 的线，找第一个撞到的固定结构（可变物件会被穿透并返回）
-    /// var wall = unit.FindItemsInView(new Position(0, 0, 0), Vector3.UnitX, 1000)
+    /// var wall = unit.FindItemsOnLine(new Position(0, 0, 0), Vector3.UnitX, 1000)
     ///     .FirstOrDefault(r => r.Hit.IsImmutable());
     /// </code>
     /// </example>
@@ -206,7 +210,7 @@ public static class VoxelSourceExtensions
     /// <param name="distance">直线最大长度（cm）；超出网格 Bound 的格视为空，自动停止。</param>
     /// <param name="occlusion">阻挡档位：哪些实体被返回后扫描即停止（见 remarks）。</param>
     /// <returns>触碰到的 <see cref="Collision.Result{T}"/> 序列（由近及远、按实体去重）；无命中时为空序列。</returns>
-    public static IEnumerable<Collision.Result<T>> FindItemsInView<T>(
+    public static IEnumerable<Collision.Result<T>> FindItemsOnLine<T>(
         this IVoxelSource<T> voxelSource,
         Position src,
         Vector3 dir,
@@ -261,7 +265,7 @@ public static class VoxelSourceExtensions
     /// <example>
     /// <code>
     /// // 末端半径 50cm 的圆锥（模拟人眼视野），任何实体都阻挡 → 只取最近被撞到的实体
-    /// var nearest = unit.FindItemsInView(eyePos, aimDir, 500, 50, Occlusion.Everything)
+    /// var nearest = unit.FindItemsInCone(eyePos, aimDir, 500, 50, Occlusion.Everything)
     ///     .FirstOrDefault();
     /// </code>
     /// </example>
@@ -273,7 +277,7 @@ public static class VoxelSourceExtensions
     /// <param name="coneRadiusAtDistance">圆锥末端（distance 处）的半径（cm）；起点处为 0，随距离线性扩大。</param>
     /// <param name="occlusion">阻挡档位：哪些实体被返回后扫描即停止（见 remarks）。</param>
     /// <returns>触碰到的 <see cref="Collision.Result{T}"/> 序列（由近及远、按实体去重）；无命中时为空序列。</returns>
-    public static IEnumerable<Collision.Result<T>> FindItemsInView<T>(
+    public static IEnumerable<Collision.Result<T>> FindItemsInCone<T>(
         this IVoxelSource<T> voxelSource,
         Position src,
         Vector3 dir,
@@ -388,13 +392,13 @@ public static class VoxelSourceExtensions
     /// <summary>
     /// 范围内实体（占用格语义）：返回占用格 XZ 落在 [min, max]（含）内的所有实体，
     /// 按实体去重。逐列经 <see cref="VoxelIterator{T}"/> 从 Bound 底扫到顶（惰性 yield，
-    /// 消费前不执行）。与 <see cref="EntitySourceExtensions.GetEntitiesInBound(Bound)"/>
+    /// 消费前不执行）。与 <see cref="EntitySourceExtensions.FindEntitiesInBound(IEntitySource, Bound)"/>
     /// 的"锚点在范围内"语义不同：本方法按占用格判定（拖拽选择等场景）。
     /// </summary>
     /// <example>
     /// <code>
     /// // 选中 XZ 格范围 [0,0]–[3,3] 内的所有家具
-    /// var selected = unit.GetItemsInBound(new Int2(0, 0), new Int2(3, 3));
+    /// var selected = unit.FindItemsInBound(new Int2(0, 0), new Int2(3, 3));
     /// </code>
     /// </example>
     /// <typeparam name="T">体素格值类型。</typeparam>
@@ -402,7 +406,7 @@ public static class VoxelSourceExtensions
     /// <param name="min">范围最小格（含）。</param>
     /// <param name="max">范围最大格（含）。</param>
     /// <returns>占用格在范围内的实体序列（去重）；网格未设置 Bound 时为空序列。</returns>
-    public static IEnumerable<T> GetItemsInBound<T>(
+    public static IEnumerable<T> FindItemsInBound<T>(
         this IVoxelSource<T> voxelSource,
         Int2 min,
         Int2 max) where T : notnull
@@ -488,7 +492,7 @@ public static class VoxelSourceExtensions
     /// </summary>
     /// <remarks>
     /// 用于放置校验：放置前检查新物体的体积与现有空间是否重叠
-    /// （<see cref="UnitLayout.PlaceAt"/> 即以此为前置检查）。
+    /// （<see cref="UnitLayout.Add(Entity)"/> 即以此为前置检查）。
     /// </remarks>
     /// <example>
     /// <code>

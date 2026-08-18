@@ -55,9 +55,9 @@ public class UnitLayoutTests
         var source = new VoxelLayoutSourceEntity();
         unit.Add(source, new Position(new Float3(20, 0, 0)));
 
-        var surface = source.GetComponent<PlacementLayoutSource>()!.Layout;
-        Assert.NotNull(surface);
-        Assert.Contains(surface!, unit.Surfaces);
+        var surface = source.GetComponent<PlacementLayoutSource>()!;
+        Assert.NotNull(surface.Layout);
+        Assert.Contains(surface, unit.Surfaces);
     }
 
     [Fact]
@@ -74,9 +74,13 @@ public class UnitLayoutTests
             Key = new Key("floor");
             Volume = new Box3D { SizeX = 5, SizeY = 1, SizeZ = 5 };
             this.AddProperties(new[] { new BooleanProperty(Property.IsImmutable, true) });
-            var surface = new GridLayout<bool>(new Int2(5, 5), new Int3(0, 1, 0));
+            var surface = new GridLayout<bool>(new Int2(5, 5));
             surface.Fill(true, Int2.Zero, new Int2(5, 5));
-            this.AddComponent(new PlacementLayoutSource { Layout = surface });
+            this.AddComponent(new PlacementLayoutSource
+            {
+                Layout = surface,
+                Transform = new Transform(new Float3(0, 10, 0), Rotation.Up),
+            });
         }
     }
 
@@ -194,7 +198,7 @@ public class UnitLayoutTests
     }
 
     [Fact]
-    public void GetEntitiesInBound_FindsEntitiesInBox()
+    public void FindEntitiesInBound_FindsEntitiesInBox()
     {
         var unit = new UnitLayout();
         unit.Voxels.Bound = Bound.FromCorners(Int3.Zero.ToFloat3(), new Int3(20, 20, 20).ToFloat3());
@@ -203,7 +207,7 @@ public class UnitLayoutTests
         unit.Add(a, new Position(new Float3(10, 0, 10)));
         unit.Add(b, new Position(new Float3(80, 0, 80)));
 
-        var inBox = unit.GetEntitiesInBound(new Int2(0, 0), new Int2(3, 3));
+        var inBox = unit.FindEntitiesInBound(new Int2(0, 0), new Int2(3, 3));
         Assert.Equal(new[] { a }, inBox);
     }
 }

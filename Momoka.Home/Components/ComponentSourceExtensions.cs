@@ -16,8 +16,8 @@ public static class ComponentSourceExtensions
     public static T? GetComponent<T>(this IComponentSource source) where T : Component =>
         source.Components.OfType<T>().FirstOrDefault();
 
-    public static List<T> GetComponents<T>(this IComponentSource source) where T : Component =>
-        source.Components.OfType<T>().ToList();
+    public static IEnumerable<T> GetComponents<T>(this IComponentSource source) where T : Component =>
+        source.Components.OfType<T>();
 
     public static bool TryGetComponent<T>(this IComponentSource source, out T result) where T : Component
     {

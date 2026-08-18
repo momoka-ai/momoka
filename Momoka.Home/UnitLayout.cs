@@ -79,23 +79,24 @@ public sealed class UnitLayout : IEntitySource, IVoxelSource<Entity>
         }
     }
 
-    public AtQuery At(Position pos) => new AtQuery(this, pos.Rescale(10f).AsInt3());
+    /// <summary>按世界位置查询体素格内容（格长随 <see cref="Voxels"/>，与放置 / 删除一致）。</summary>
+    public AtQuery At(Position pos) => new(this, Voxels.GetAsRelative(pos.Absolute()));
 
     /// <summary>
-    /// All placement surfaces of the space: each entity's placement layouts (via
-    /// its <see cref="PlacementLayoutSource"/> components — a floor slab's top
-    /// face, a shelf board…).
+    /// All placement surfaces of the space, with their pose: each entity's
+    /// placement layouts (via its <see cref="PlacementLayoutSource"/> components —
+    /// a floor slab's top face, a shelf board…). Carries <see cref="Transform"/>
+    /// (position + facing), unlike the bare layout grid.
     /// </summary>
-    public IEnumerable<GridLayout<bool>> Surfaces => Entities
-        .SelectMany(e => e.GetComponents<PlacementLayoutSource>())
-        .Select(c => c.Layout);
+    public IEnumerable<PlacementLayoutSource> Surfaces => Entities
+        .SelectMany(e => e.GetComponents<PlacementLayoutSource>());
 
     // ── Entity placement / removal / queries ────────────
 
     /// <summary>
     /// True if placing <paramref name="src"/> at <paramref name="position"/>
     /// (world units, cm) intersects the specific <paramref name="dest"/> entity
-    /// (dest voxels vs src voxels) — 实体对体积判定，委托 <see cref="Volume.Intersects"/>。
+    /// (dest voxels vs src voxels) — 实体对体积判定，委托 <see cref="Momoka.Home.Geometry.Volume.Intersects(Momoka.Home.Primitives.Int3, Momoka.Home.Geometry.Volume, Momoka.Home.Primitives.Int3)"/>。
     /// </summary>
     public bool IsCollided(Entity dest, Entity src, Float3 position)
     {
@@ -112,9 +113,10 @@ public sealed class UnitLayout : IEntitySource, IVoxelSource<Entity>
         throw new NotImplementedException("自动寻位待实现：扫描 Bound 内可放置位置");
 
     /// <summary>
-    /// 将物件按指定位置加入体素空间（世界 cm）：对齐到锚点格、写入全部体素格、
-    /// 加入已放置列表，并登记表面宿主（占用格落在哪个已放置实体的表面格上，
-    /// 多表面重叠取首个）。与现有实体碰撞时返回 false。
+    /// 将物件按指定位置加入体素根空间（世界 cm）。**无附着语义**——宿主（表面）
+    /// 关系不在此推断：根物件（地面 / 墙 / 天花板等）用本方法；需要附着关系的
+    /// 物件用带 host 的重载（编辑器经视角检测确定宿主后显式传入）。
+    /// 与现有实体碰撞时返回 false。
     /// </summary>
     public bool Add(Entity entity, Position position)
     {
@@ -126,29 +128,51 @@ public sealed class UnitLayout : IEntitySource, IVoxelSource<Entity>
         foreach (var cell in entity.Volume.Cells3D())
             Voxels[anchor + cell] = entity;
         Entities.Add(entity);
+        return true;
+    }
 
-        // 登记表面宿主：占用格落在哪个已放置实体的表面格上（多表面重叠取首个）
-        var occupied = entity.Volume.Cells3D().Select(v => anchor + v).ToHashSet();
-        foreach (var other in Entities)
-        {
-            if (other == entity)
-                continue;
-            foreach (var surface in other.GetComponents<PlacementLayoutSource>())
-            {
-                if (surface.Items.Contains(entity))
-                    continue;
-                var layout = surface.Layout;
-                var hits = false;
-                for (var x = 0; x < layout.Size.X && !hits; x++)
-                    for (var z = 0; z < layout.Size.Z && !hits; z++)
-                        if (occupied.Contains(layout.AsAbsolute(new Int2(x, z))))
-                            hits = true;
-                if (!hits)
-                    continue;
-                surface.Items.Add(entity);
-                return true;
-            }
-        }
+    /// <summary>
+    /// 将物件附着到放置表面上：校验物件的期望类别（<see cref="Property.DirectionAlignment"/>，
+    /// 缺省 Any）与接触面（<see cref="Entity.ContactFace"/>，法向须与表面法向相反——
+    /// 贴合）后放置并登记表面宿主（级联回落 / 被依赖检查用）。
+    /// </summary>
+    /// <remarks>
+    /// - <paramref name="source"/> 由调用方（编辑器）提取——经视线探测
+    ///   （<c>FindItemsOnLine</c> / <c>FindItemsInCone</c>）直接命中目标表面，
+    ///   其宿主必已放置，无需在此校验。
+    /// - 接触面必须轴对齐（体素物件 6 向）；表面本身也须轴对齐（斜表面直接拒绝，
+    ///   不依赖贴合校验的几何巧合）。
+    /// - 拒绝"宿主即自身"：<paramref name="entity"/> 已放置（其表面组件可能被再次
+    ///   选中为目标）时返回 false——避免表面自引用导致级联删除异常。
+    /// - 期望类别匹配：Any 恒过；Horizontal 接受 Upside / Downside 两种水平面。
+    /// - 编辑器流程：视线探测找到表面 → 本方法显式附着（position 落点由编辑器保证）。
+    /// </remarks>
+    public bool Add(Entity entity, Position position, PlacementLayoutSource source)
+    {
+        if (!entity.ContactFace.IsAxisAligned || !source.Transform.Rotation.IsAxisAligned)
+            return false;
+        if (Entities.Contains(entity))
+            return false; // 宿主即自身（或重复放置）：已放置物件不可再作目标
+
+        // 期望类别校验：表面朝向类别 ∈ 期望（Any 恒过；Horizontal 接受上下水平面）
+        var actual = source.Transform.Rotation.Alignment;
+        var required = entity.GetValue<DirectionAlignment>(Property.DirectionAlignment);
+        if (required != DirectionAlignment.Any && required != actual
+            && !(required == DirectionAlignment.Horizontal && actual is DirectionAlignment.Upside or DirectionAlignment.Downside))
+            return false;
+        // 贴合校验：表面法向与接触面法向相反
+        if (Float3.Dot(source.Transform.Rotation.Normal, entity.ContactFace.Normal) > -0.999f)
+            return false;
+
+        if (this.IsCollidedVolume(position, entity.Volume) is not null)
+            return false;
+
+        entity.Pos = position;
+        var anchor = Voxels.GetAsRelative(position.Absolute());
+        foreach (var cell in entity.Volume.Cells3D())
+            Voxels[anchor + cell] = entity;
+        Entities.Add(entity);
+        source.Items.Add(entity); // 登记表面宿主
         return true;
     }
 
@@ -159,10 +183,15 @@ public sealed class UnitLayout : IEntitySource, IVoxelSource<Entity>
     public bool Remove(Entity entity) => Remove(entity, cascade: false);
 
     /// <summary>
-    /// 删除物件，<paramref name="cascade"/> 为 true 时级联递归删除其表面上的所有
+    /// 删除物件，<paramref name="cascade"/> 为 true 时级联删除其表面上的所有
     /// 物件（A 上的 B、B 上的 C 一并回落）。物件不存在时返回 false。
     /// 回落 = 清除体素投影 + 移出已放置列表；宿主关系（表面 Items）同步清理。
     /// </summary>
+    /// <remarks>
+    /// 无环不变量：Items 图为森林——<see cref="Add(Entity, Position, PlacementLayoutSource)"/>
+    /// 拒绝已放置实体（<see cref="Entities"/> 全局判断，与层数无关），保证每实体
+    /// 至多一个宿主，故级联递归深度 = 放置链深，不会无限递归。
+    /// </remarks>
     public bool Remove(Entity entity, bool cascade)
     {
         if (!Entities.Contains(entity))
@@ -223,11 +252,10 @@ public sealed class UnitLayout : IEntitySource, IVoxelSource<Entity>
     }
 
     /// <summary>
-    /// <summary>
     /// Returns all entities whose shape intersects the axis-aligned box
     /// <paramref name="min"/>–<paramref name="max"/> (inclusive). Drag-select —
-    /// 占用格语义，委托 <see cref="VoxelSourceExtensions.GetItemsInBound{T}"/>。
+    /// 占用格语义，委托 <see cref="VoxelSourceExtensions.FindItemsInBound{T}"/>。
     /// </summary>
-    public IEnumerable<Entity> GetEntitiesInBound(Int2 min, Int2 max) =>
-        this.GetItemsInBound(min, max);
+    public IEnumerable<Entity> FindEntitiesInBound(Int2 min, Int2 max) =>
+        this.FindItemsInBound(min, max);
 }

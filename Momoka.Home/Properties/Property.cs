@@ -26,6 +26,10 @@ public abstract class Property
     /// <summary>Marks an entity as see-through (glass, open mesh); non-transparent entities stop hitscan lines.</summary>
     public const string IsTransparent = "is_transparent";
 
+    /// <summary>期望放置表面朝向类别（<see cref="DirectionAlignment"/> 枚举值，
+    /// 模板配置；缺省 Any——不限定表面朝向）。</summary>
+    public const string DirectionAlignment = "direction_alignment";
+
     /// <summary>Identity of the property; maps to the JSON "key" field.</summary>
     [JsonProperty("key")]
     public string Name { get; set; } = "";

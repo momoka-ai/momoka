@@ -20,34 +20,34 @@ public interface IEntitySource
 /// </summary>
 public static class EntitySourceExtensions
 {
-    public static IEnumerable<Entity> GetEntitiesAtPoint(this IEntitySource source, Position position) =>
+    public static IEnumerable<Entity> FindEntitiesAtPoint(this IEntitySource source, Position position) =>
         source.Entities.Where(e => e.Pos == position);
 
-    public static IEnumerable<Entity> GetNearbyEntities(this IEntitySource source, Position position, float radius) =>
+    public static IEnumerable<Entity> FindNearbyEntities(this IEntitySource source, Position position, float radius) =>
         source.Entities.Where(e => (e.Pos - position)
             .AsFloat3()
             .Magnitude <= radius);
 
-    public static IEnumerable<Entity> GetNearbyEntities(this IEntitySource source, Position position, float x, float y, float z) =>
+    public static IEnumerable<Entity> FindNearbyEntities(this IEntitySource source, Position position, float x, float y, float z) =>
         source.Entities.Where(e =>
         {
             var d = (e.Pos - position).AsFloat3();
             return Math.Abs(d.X) <= x && Math.Abs(d.Y) <= y && Math.Abs(d.Z) <= z;
         });
 
-    public static IEnumerable<Entity> GetNearbyEntities(this IEntitySource source, Position position, Float3 size) =>
+    public static IEnumerable<Entity> FindNearbyEntities(this IEntitySource source, Position position, Float3 size) =>
         source.Entities.Where(e =>
         {
             var d = (e.Pos - position).AsFloat3();
             return Math.Abs(d.X) <= size.X && Math.Abs(d.Y) <= size.Y && Math.Abs(d.Z) <= size.Z;
         });
 
-    public static IEnumerable<Entity> GetEntitiesInBound(this IEntitySource source, Bound bound) =>
+    public static IEnumerable<Entity> FindEntitiesInBound(this IEntitySource source, Bound bound) =>
         source.Entities.Where(e => bound.Contains(e.Pos.Absolute()));
 
-    public static IEnumerable<Entity> GetEntitiesInBound(this IEntitySource source, Float3 min, Float3 max) =>
-        source.GetEntitiesInBound(Bound.FromCorners(min, max));
+    public static IEnumerable<Entity> FindEntitiesInBound(this IEntitySource source, Float3 min, Float3 max) =>
+        source.FindEntitiesInBound(Bound.FromCorners(min, max));
 
-    public static IEnumerable<Entity> GetEntitiesOfKeyed(this IEntitySource source, Key key) =>
+    public static IEnumerable<Entity> FindEntitiesOfKeyed(this IEntitySource source, Key key) =>
         source.Entities.Where(e => e.Key == key);
 }

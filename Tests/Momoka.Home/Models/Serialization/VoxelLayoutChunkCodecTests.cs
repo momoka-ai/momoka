@@ -156,13 +156,17 @@ public class VoxelLayoutChunkCodecTests
         return entity;
     }
 
-    /// <summary>结构件盒子：顶面放置面（Up，Offset 在 surfaceY）+ is_structural。</summary>
+    /// <summary>结构件盒子：顶面放置面（Up，Transform 位置在 surfaceY）+ is_structural。</summary>
     private static Entity SurfaceBox(string path, int sx, int sy, int sz, Int3 pos, int surfaceY)
     {
         var entity = StructuralBox(path, sx, sy, sz);
-        var surface = new GridLayout<bool>(new Int2(sx, sz), new Int3(pos.X, surfaceY, pos.Z));
+        var surface = new GridLayout<bool>(new Int2(sx, sz));
         surface.Fill(true, Int2.Zero, new Int2(sx, sz));
-        entity.AddComponent(new PlacementLayoutSource { Layout = surface });
+        entity.AddComponent(new PlacementLayoutSource
+        {
+            Layout = surface,
+            Transform = new Transform(new Float3(pos.X * 10, surfaceY * 10, pos.Z * 10), Rotation.Up),
+        });
         return entity;
     }
 

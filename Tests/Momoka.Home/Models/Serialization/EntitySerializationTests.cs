@@ -32,10 +32,15 @@ public class EntitySerializationTests
             new BooleanProperty(Property.IsOpen, false),
             new IntProperty("level", 3),
         });
-        var surface = new GridLayout<bool>(new Int2(2, 2), new Int3(0, 1, 0)) { Direction = Int3.Up };
+        var surface = new GridLayout<bool>(new Int2(2, 2));
         surface[new Int2(0, 0)] = true;
         surface[new Int2(1, 1)] = true;
-        entity.AddComponent(new PlacementLayoutSource { SourceId = "ac-1", Layout = surface });
+        entity.AddComponent(new PlacementLayoutSource
+        {
+            SourceId = "ac-1",
+            Layout = surface,
+            Transform = new Transform(new Float3(0, 10, 0), Rotation.Up),
+        });
         entity.AddComponent(new DataSource(DataSourceType.Temperature) { Value = 24.5f });
         entity.AddComponent(new CommandTarget { Commands = "[\"turn_on\",\"turn_off\"]" });
 
@@ -58,7 +63,7 @@ public class EntitySerializationTests
         Assert.Equal("ac-1", surfaceLoaded.SourceId);
         Assert.NotNull(surfaceLoaded.Layout);
         Assert.Equal(new Int2(2, 2), surfaceLoaded.Layout!.Size);
-        Assert.Equal(Int3.Up, surfaceLoaded.Layout.Direction);
+        Assert.Equal(new Transform(new Float3(0, 10, 0), Rotation.Up), surfaceLoaded.Transform);
         Assert.True(surfaceLoaded.Layout[new Int2(0, 0)]);
         Assert.True(surfaceLoaded.Layout[new Int2(1, 1)]);
         Assert.False(surfaceLoaded.Layout[new Int2(0, 1)]);

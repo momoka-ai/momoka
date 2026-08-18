@@ -11,7 +11,7 @@ namespace Momoka.Home.Tests.Models.Algorithms;
 
 /// <summary>
 /// <see cref="VoxelSourceExtensions"/> 的空间查询调用例：遮挡 / 视线（IsOccluded、
-/// CanSee 三态）、视野内目标（FindItemsInView 射线 + 锥体、Occlusion 各档位）、
+/// CanSee 三态）、视野内目标（FindItemsOnLine 射线 + FindItemsInCone 锥体、Occlusion 各档位）、
 /// 碰撞（点 / 球 / 体积）与寻路（FindPath）。全部以 UnitLayout 为
 /// <see cref="IVoxelSource{T}"/> 宿主，坐标世界 cm、内部对齐 10cm 体素格。
 /// </summary>
@@ -131,7 +131,7 @@ public class VoxelSourceQueryTests
     // ── 视野内目标：射线 ─────────────────────────────────
 
     [Fact]
-    public void FindItemsInView_Ray_ReturnsHitsNearToFar()
+    public void FindItemsOnLine_Ray_ReturnsHitsNearToFar()
     {
         var unit = EmptyUnit();
         var wall = StructuralBox("wall");
@@ -139,7 +139,7 @@ public class VoxelSourceQueryTests
         unit.Voxels[new Int3(1, 0, 0)] = wall;
         unit.Voxels[new Int3(2, 0, 0)] = chair;
 
-        var hits = unit.FindItemsInView(new Position(new Float3(0, 0, 0)), Vector3.UnitX, 100).ToList();
+        var hits = unit.FindItemsOnLine(new Position(new Float3(0, 0, 0)), Vector3.UnitX, 100).ToList();
 
         Assert.Equal(2, hits.Count);
         Assert.Same(wall, hits[0].Hit);  // 近
@@ -149,13 +149,13 @@ public class VoxelSourceQueryTests
     }
 
     [Fact]
-    public void FindItemsInView_Ray_OnlyImmutable_StopsAtWall()
+    public void FindItemsOnLine_Ray_OnlyImmutable_StopsAtWall()
     {
         var unit = EmptyUnit();
         unit.Voxels[new Int3(1, 0, 0)] = StructuralBox("wall");
         unit.Voxels[new Int3(2, 0, 0)] = Box("chair");
 
-        var hits = unit.FindItemsInView(new Position(new Float3(0, 0, 0)), Vector3.UnitX, 100,
+        var hits = unit.FindItemsOnLine(new Position(new Float3(0, 0, 0)), Vector3.UnitX, 100,
             Occlusion.OnlyImmutable).ToList();
 
         Assert.Single(hits);
@@ -163,13 +163,13 @@ public class VoxelSourceQueryTests
     }
 
     [Fact]
-    public void FindItemsInView_Ray_Everything_ReturnsNearestOnly()
+    public void FindItemsOnLine_Ray_Everything_ReturnsNearestOnly()
     {
         var unit = EmptyUnit();
         unit.Voxels[new Int3(1, 0, 0)] = Box("chair");
         unit.Voxels[new Int3(2, 0, 0)] = StructuralBox("wall");
 
-        var hits = unit.FindItemsInView(new Position(new Float3(0, 0, 0)), Vector3.UnitX, 100,
+        var hits = unit.FindItemsOnLine(new Position(new Float3(0, 0, 0)), Vector3.UnitX, 100,
             Occlusion.Everything).ToList();
 
         Assert.Single(hits);
@@ -177,13 +177,13 @@ public class VoxelSourceQueryTests
     }
 
     [Fact]
-    public void FindItemsInView_Ray_OnlyNonTransparent_PassesTransparentThenStops()
+    public void FindItemsOnLine_Ray_OnlyNonTransparent_PassesTransparentThenStops()
     {
         var unit = EmptyUnit();
         unit.Voxels[new Int3(1, 0, 0)] = TransparentBox("glass");
         unit.Voxels[new Int3(2, 0, 0)] = StructuralBox("wall");
 
-        var hits = unit.FindItemsInView(new Position(new Float3(0, 0, 0)), Vector3.UnitX, 100,
+        var hits = unit.FindItemsOnLine(new Position(new Float3(0, 0, 0)), Vector3.UnitX, 100,
             Occlusion.OnlyNonTransparent).ToList();
 
         Assert.Equal(2, hits.Count); // 玻璃穿透、墙阻挡
@@ -192,36 +192,36 @@ public class VoxelSourceQueryTests
     }
 
     [Fact]
-    public void FindItemsInView_Ray_DedupesMultiCellEntities()
+    public void FindItemsOnLine_Ray_DedupesMultiCellEntities()
     {
         var unit = EmptyUnit();
         var sofa = Box("sofa");
         unit.Voxels[new Int3(1, 0, 0)] = sofa;
         unit.Voxels[new Int3(2, 0, 0)] = sofa;
 
-        var hits = unit.FindItemsInView(new Position(new Float3(0, 0, 0)), Vector3.UnitX, 100).ToList();
+        var hits = unit.FindItemsOnLine(new Position(new Float3(0, 0, 0)), Vector3.UnitX, 100).ToList();
 
         Assert.Single(hits);
         Assert.Same(sofa, hits[0].Hit);
     }
 
     [Fact]
-    public void FindItemsInView_Ray_ZeroDirection_ReturnsEmpty()
+    public void FindItemsOnLine_Ray_ZeroDirection_ReturnsEmpty()
     {
-        Assert.Empty(EmptyUnit().FindItemsInView(new Position(new Float3(0, 0, 0)), Vector3.Zero, 100));
+        Assert.Empty(EmptyUnit().FindItemsOnLine(new Position(new Float3(0, 0, 0)), Vector3.Zero, 100));
     }
 
     // ── 视野内目标：锥体 ─────────────────────────────────
 
     [Fact]
-    public void FindItemsInView_Cone_KeepsInCone_AndSortsNearToFar()
+    public void FindItemsInCone_KeepsInCone_AndSortsNearToFar()
     {
         var unit = EmptyUnit();
         unit.Voxels[new Int3(6, 5, 5)] = Box("near");     // 轴上，t=10
         unit.Voxels[new Int3(7, 5, 5)] = Box("far");      // 轴上，t=20
         unit.Voxels[new Int3(7, 5, 8)] = Box("sideways"); // 垂距 30 > 锥内阈值 6
 
-        var hits = unit.FindItemsInView(new Position(new Float3(50, 50, 50)), Vector3.UnitX, 100, coneRadiusAtDistance: 30).ToList();
+        var hits = unit.FindItemsInCone(new Position(new Float3(50, 50, 50)), Vector3.UnitX, 100, coneRadiusAtDistance: 30).ToList();
 
         Assert.Equal(2, hits.Count);
         Assert.Equal("near", hits[0].Hit.Key.Path);
@@ -229,13 +229,13 @@ public class VoxelSourceQueryTests
     }
 
     [Fact]
-    public void FindItemsInView_Cone_OnlyImmutable_SkipsOccludedEntities()
+    public void FindItemsInCone_OnlyImmutable_SkipsOccludedEntities()
     {
         var unit = EmptyUnit();
         unit.Voxels[new Int3(6, 5, 5)] = StructuralBox("wall");
         unit.Voxels[new Int3(7, 5, 5)] = Box("behind");
 
-        var hits = unit.FindItemsInView(new Position(new Float3(50, 50, 50)), Vector3.UnitX, 100,
+        var hits = unit.FindItemsInCone(new Position(new Float3(50, 50, 50)), Vector3.UnitX, 100,
             coneRadiusAtDistance: 30, occlusion: Occlusion.OnlyImmutable).ToList();
 
         Assert.Single(hits); // "behind" 被墙遮挡 → 跳过

@@ -5,12 +5,9 @@ namespace Momoka.Home.Layouts;
 /// <summary>
 /// A 2D planar grid — the 2D counterpart of <see cref="VoxelLayout{T}"/> (3D).
 /// Contiguous storage over a fixed <see cref="Size"/>: a 200×200 plane is a
-/// plain array, no chunking needed. Also the placement surface:
-/// <see cref="Offset"/> and <see cref="Direction"/> position it in the parent
-/// space, <see cref="AsAbsolute"/>/<see cref="AsRelative"/> map between layout
-/// and world cells, and <see cref="IsCollided(Int2)"/>/<see cref="Fill"/> provide the
-/// placement contract — <c>GridLayout&lt;bool&gt;</c> (true = placeable) is what
-/// shelves, desktops and wall faces use.
+/// plain array, no chunking needed. **纯局部格网数据**——不含位置 / 朝向
+/// （表面姿态由宿主 <c>PlacementLayoutSource.Transform</c> 承载，本类型只管
+/// 格网本身：Size + UnitLength + cells 与局部判定）。
 /// </summary>
 public class GridLayout<T> where T : notnull
 {
@@ -19,19 +16,12 @@ public class GridLayout<T> where T : notnull
     /// <summary>Plane dimensions in cells.</summary>
     public Int2 Size { get; }
 
-    /// <summary>Position of the layout plane's origin in the parent space (e.g. level-local coords).</summary>
-    public Int3 Offset { get; set; }
-
-    /// <summary>Normal direction of the surface (which way placed objects face).</summary>
-    public Int3 Direction { get; set; } = Int3.Up;
-
     /// <summary>World length of one grid unit (cm) — this surface's own scale.</summary>
     public float UnitLength { get; set; } = 10f;
 
-    public GridLayout(Int2 size, Int3? offset = null)
+    public GridLayout(Int2 size)
     {
         Size = size;
-        Offset = offset ?? Int3.Zero;
         _cells = new T[size.X * size.Z];
     }
 
@@ -73,32 +63,6 @@ public class GridLayout<T> where T : notnull
         for (var dx = 0; dx < size.X; dx++)
             for (var dz = 0; dz < size.Z; dz++)
                 this[new Int2(from.X + dx, from.Z + dz)] = value;
-    }
-
-    /// <summary>
-    /// Maps a local layout cell to a world cell, based on <see cref="Direction"/>:
-    /// Up/Down → XZ plane; East/West → YZ plane; North/South → XY plane.
-    /// </summary>
-    public Int3 AsAbsolute(Int2 rel)
-    {
-        if (Direction.X != 0) return Offset + new Int3(0, rel.X, rel.Z);
-        if (Direction.Z != 0) return Offset + new Int3(rel.X, rel.Z, 0);
-        return Offset + new Int3(rel.X, 0, rel.Z);
-    }
-
-    /// <summary>
-    /// Inverse of <see cref="AsAbsolute"/>: projects a world cell onto this layout's
-    /// plane, dropping the axis along <see cref="Direction"/>. This is the
-    /// vertical/horizontal transform — a horizontal surface (Up/Down) keeps the
-    /// object's XZ footprint (a 2×3×3 cabinet on the floor → 2×3), a wall
-    /// (East/West) keeps YZ (→ 3×3, height×width), North/South keeps XY.
-    /// </summary>
-    public Int2 AsRelative(Int3 abs)
-    {
-        var rel = abs - Offset;
-        if (Direction.X != 0) return new Int2(rel.Y, rel.Z);
-        if (Direction.Z != 0) return new Int2(rel.X, rel.Y);
-        return new Int2(rel.X, rel.Z);
     }
 
     private bool InBounds(Int2 c) =>

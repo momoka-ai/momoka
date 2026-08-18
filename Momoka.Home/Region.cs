@@ -213,14 +213,14 @@ public sealed class Region
             foreach (var source in entity.GetComponents<PlacementLayoutSource>())
             {
                 var surface = source.Layout;
-                if (surface is null || surface.Direction != Int3.Up)
+                if (surface is null || source.Transform.Rotation != Rotation.Up)
                     continue;
                 for (var z = 0; z < surface.Size.Z; z++)
                     for (var x = 0; x < surface.Size.X; x++)
                     {
                         var rel = new Int2(x, z);
                         if (surface[rel])
-                            yield return surface.AsAbsolute(rel);
+                            yield return source.AsAbsolute(rel);
                     }
             }
         }

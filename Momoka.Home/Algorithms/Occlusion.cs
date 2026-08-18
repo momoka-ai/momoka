@@ -2,7 +2,7 @@ using Momoka.Home.Properties;
 namespace Momoka.Home.Algorithms;
 
 /// <summary>
-/// 视野内目标扫描（<c>FindItemsInView</c>）的阻挡档位：决定哪些实体"阻挡"探测形状。
+/// 视野内目标扫描（<c>FindItemsOnLine</c> / <c>FindItemsInCone</c> / <c>FindItemsInView</c>）的阻挡档位：决定哪些实体"阻挡"探测形状。
 /// 阻挡的实体被返回后扫描即停止；不阻挡的实体被返回并继续穿透。
 /// 判定规则见 <see cref="OcclusionExtensions.Blocks{T}"/>。
 /// </summary>

@@ -78,7 +78,7 @@ public static class Traverse
     /// - 无法惰性早停：包围盒枚举顺序与距离无关，须先全量收集并按距离排序才能
     ///   由近及远返回——调用方只取第一个结果时仍会扫描整个包围盒并排序
     ///   （与 <see cref="OnLine"/> 的惰性 DDA 不同；锥体用于"预估可见"，通常消费全部结果）。
-    /// - 起点格不排除（调用方按需跳过，如 <c>FindItemsInView</c>）。
+    /// - 起点格不排除（调用方按需跳过，如 <c>FindItemsInCone</c>）。
     /// </remarks>
     public static IEnumerable<(Int3 Cell, Float3 Point)> InCone(
         Float3 origin,

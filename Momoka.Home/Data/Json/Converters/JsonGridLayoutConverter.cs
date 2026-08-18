@@ -5,10 +5,10 @@ using Newtonsoft.Json.Linq;
 namespace Momoka.Home.Data.Json.Converters;
 
 /// <summary>
-/// Serializes a <see cref="GridLayout{T}"/> of bools: size, offset, direction
-/// and the cell array (row-major over XZ). Attached via [JsonConverter] on
+/// Serializes a <see cref="GridLayout{T}"/> of bools: size, unit length and
+/// the cell array (row-major over XZ). Attached via [JsonConverter] on
 /// <see cref="Components.PlacementLayoutSource.Layout"/> so nested component
-/// serialization resolves it.
+/// serialization resolves it. 姿态（Transform）随组件成员序列化，不在此。
 /// </summary>
 public class JsonGridLayoutConverter : JsonConverter<GridLayout<bool>>
 {
@@ -23,10 +23,6 @@ public class JsonGridLayoutConverter : JsonConverter<GridLayout<bool>>
         writer.WriteStartObject();
         writer.WritePropertyName("size");
         WriteInt2(writer, value.Size);
-        writer.WritePropertyName("offset");
-        WriteInt3(writer, value.Offset);
-        writer.WritePropertyName("direction");
-        WriteInt3(writer, value.Direction);
         writer.WritePropertyName("unit_length");
         writer.WriteValue(value.UnitLength);
         writer.WritePropertyName("cells");
@@ -42,12 +38,10 @@ public class JsonGridLayoutConverter : JsonConverter<GridLayout<bool>>
     {
         var obj = JObject.Load(reader);
         var size = ReadInt2(obj["size"]);
-        var offset = ReadInt3(obj["offset"]);
-        var direction = ReadInt3(obj["direction"]);
         var unitLength = obj["unit_length"]?.Value<float>() ?? 10f;
         var cells = obj["cells"]!.ToObject<bool[]>();
 
-        var grid = new GridLayout<bool>(size, offset) { Direction = direction, UnitLength = unitLength };
+        var grid = new GridLayout<bool>(size) { UnitLength = unitLength };
         var i = 0;
         for (var z = 0; z < size.Z; z++)
             for (var x = 0; x < size.X; x++)
@@ -63,18 +57,6 @@ public class JsonGridLayoutConverter : JsonConverter<GridLayout<bool>>
         writer.WriteEndArray();
     }
 
-    private static void WriteInt3(JsonWriter writer, Int3 value)
-    {
-        writer.WriteStartArray();
-        writer.WriteValue(value.X);
-        writer.WriteValue(value.Y);
-        writer.WriteValue(value.Z);
-        writer.WriteEndArray();
-    }
-
     private static Int2 ReadInt2(JToken? token) =>
         new(token![0]!.Value<int>(), token![1]!.Value<int>());
-
-    private static Int3 ReadInt3(JToken? token) =>
-        new(token![0]!.Value<int>(), token![1]!.Value<int>(), token![2]!.Value<int>());
 }
