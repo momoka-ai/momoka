@@ -35,12 +35,6 @@ public class Entity : IComponentSource, IPropertySource
     [JsonProperty("volume")]
     public Volume Volume { get; set; } = null!;
 
-    /// <summary>物件的接触面：自己哪个面贴合放置表面（法向须与宿主表面法向相反）。
-    /// 必须轴对齐（体素物件 6 向，见 <see cref="Direction.IsAxisAligned"/>）；
-    /// 缺省 Down（底面接触，普通物件）。</summary>
-    [JsonProperty("contact_face")]
-    public Direction ContactFace { get; set; } = Direction.Down;
-
     [JsonProperty("components")]
     public List<Component> Components { get; } = new();
 

@@ -132,16 +132,17 @@ public sealed class UnitLayout : IEntitySource, IVoxelSource<Entity>
     }
 
     /// <summary>
-    /// 将物件附着到放置表面上：校验物件的期望类别（<see cref="Property.DirectionAlignment"/>，
-    /// 缺省 Any）与接触面（<see cref="Entity.ContactFace"/>，法向须与表面法向相反——
-    /// 贴合）后放置并登记表面宿主（级联回落 / 被依赖检查用）。
+    /// 将物件附着到放置表面上：校验表面轴对齐与物件的期望类别
+    /// （<see cref="Property.DirectionAlignment"/>，缺省 Any）后放置并登记表面宿主
+    /// （级联回落 / 被依赖检查用）。**底面恒贴合建模约定**：物件局部 -Y 恒为接触面
+    /// （建模规范，无需声明），贴合姿态由表面方向推导（渲染端处理），
+    /// 物件的 <see cref="Entity.Transform"/> 旋转表达视觉 / 朝向修正。
     /// </summary>
     /// <remarks>
     /// - <paramref name="source"/> 由调用方（编辑器）提取——经视线探测
     ///   （<c>FindItemsOnLine</c> / <c>FindItemsInCone</c>）直接命中目标表面，
     ///   其宿主必已放置，无需在此校验。
-    /// - 接触面必须轴对齐（体素物件 6 向）；表面本身也须轴对齐（斜表面直接拒绝，
-    ///   不依赖贴合校验的几何巧合）。
+    /// - 表面必须轴对齐（斜表面直接拒绝——体素放置不支持斜姿态）。
     /// - 拒绝"宿主即自身"：<paramref name="entity"/> 已放置（其表面组件可能被再次
     ///   选中为目标）时返回 false——避免表面自引用导致级联删除异常。
     /// - 期望类别匹配：Any 恒过；Horizontal 接受 Upside / Downside 两种水平面。
@@ -149,7 +150,7 @@ public sealed class UnitLayout : IEntitySource, IVoxelSource<Entity>
     /// </remarks>
     public bool Add(Entity entity, Position position, PlacementLayoutSource source)
     {
-        if (!entity.ContactFace.IsAxisAligned || !source.Transform.Rotation.IsAxisAligned)
+        if (!source.Transform.Rotation.IsAxisAligned)
             return false;
         if (Entities.Contains(entity))
             return false; // 宿主即自身（或重复放置）：已放置物件不可再作目标
@@ -159,9 +160,6 @@ public sealed class UnitLayout : IEntitySource, IVoxelSource<Entity>
         var required = entity.GetValue<DirectionAlignment>(Property.DirectionAlignment);
         if (required != DirectionAlignment.Any && required != actual
             && !(required == DirectionAlignment.Horizontal && actual is DirectionAlignment.Upside or DirectionAlignment.Downside))
-            return false;
-        // 贴合校验：表面法向与接触面法向相反
-        if (Float3.Dot(source.Transform.Rotation.Normal, entity.ContactFace.Normal) > -0.999f)
             return false;
 
         if (this.IsCollidedVolume(position, entity.Volume) is not null)

@@ -5,7 +5,7 @@ namespace Momoka.Home.Primitives;
 /// <c>direction_alignment</c> 属性，缺省 <see cref="Any"/>），
 /// 决定物件可被放置到什么朝向的表面上；校验见
 /// <c>UnitLayout.Add(Entity, Position, Entity)</c>。
-/// 与 <see cref="Direction.Alignment"/>（表面朝向的分类）配套使用。
+/// 与 <see cref="Rotation.Alignment"/>（表面朝向的分类）配套使用。
 /// </summary>
 public enum DirectionAlignment
 {
