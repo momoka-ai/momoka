@@ -2,15 +2,17 @@ using Xunit;
 using Momoka.Home.Entities;
 using Momoka.Home.Data.Sqlite;
 using Momoka.Home.Geometry;
+using Momoka.Home.Level;
 using Momoka.Home.Primitives;
+using Momoka.Home.Entities.Components;
+using Momoka.Home.Entities.Properties;
 namespace Momoka.Home.Tests.Models.Serialization;
 
 /// <summary>
-/// SqliteStore round-trips the residence-level data: a single-file database
-/// holding the singleton <c>Residence</c> row (mapped directly onto
-/// <see cref="Residence"/>) and one <c>Entities</c> row per registered entity.
-/// The store holds one open connection for its lifetime; the voxel layout is
-/// not stored yet — only the entity registry.
+/// SqliteStore round-trips the level data: a single-file database (one save per
+/// server) holding the <c>Entities</c>, <c>Chunks</c> and <c>RegionNames</c>
+/// tables. The store holds one open connection for its lifetime; every
+/// operation goes through linq2db's functional API.
 /// </summary>
 public class SqliteStoreTests
 {
@@ -20,16 +22,11 @@ public class SqliteStoreTests
         Volume = new Box3D { SizeX = sx, SizeY = sy, SizeZ = sz },
     };
 
-    private static Residence DemoResidence()
+    /// <summary>服务器形态的 LevelData：隐藏 Home 实体（Type 持久化真相）+ 注册实体 + 放置实体。</summary>
+    private static ServerLevelData DemoLevel()
     {
-        var residence = new Residence
-        {
-            Name = "Demo Home",
-            Address = "1 Sunshine Ave",
-            Type = UnitType.House,
-            Bound = new Bound(new Float3(0, 0, 0), new Float3(100, 300, 100)),
-        };
-        residence.Components.Add(new DataSource(DataSourceType.Temperature) { Value = 24.5f });
+        var server = new ServerLevelData(); // 构造自动创建 Home 实体
+        server.Type = UnitType.House;
 
         var lamp = Box("lamp", 1, 1, 1);
         lamp.Transform = new Transform(new Float3(20, 10, 30), Rotation.Identity);
@@ -39,38 +36,34 @@ public class SqliteStoreTests
         ac.Transform = new Transform(new Float3(40, 20, 50), Rotation.Identity);
         ac.AddComponent(new CommandTarget { Commands = "[\"turn_on\",\"turn_off\"]" });
 
-        residence.Entities.AddRange(new[] { lamp, ac });
-        return residence;
+        server.Entities.AddRange(new[] { lamp, ac });
+        server.Layout.Add(lamp, new Position(new Float3(20, 10, 30))); // 放置 → 体素占格
+        return server;
     }
 
     private static string TempDb() =>
         Path.Combine(Path.GetTempPath(), "momoka_sqlite_" + Guid.NewGuid().ToString("N") + ".db");
 
     [Fact]
-    public void SaveLoad_RoundTripsResidenceAndEntities()
+    public void SaveLoad_RoundTripsEntitiesTypeAndVoxels()
     {
-        var residence = DemoResidence();
+        var level = DemoLevel();
         var dbPath = TempDb();
         try
         {
             using (var store = new SqliteStore(dbPath))
             {
-                store.Save(residence);
+                store.Save(level);
                 Assert.True(File.Exists(dbPath));
 
                 var loaded = store.Load();
                 Assert.NotNull(loaded);
-                Assert.Equal(residence.Name, loaded!.Name);
-                Assert.Equal(residence.Address, loaded.Address);
-                Assert.Equal(residence.Type, loaded.Type);
-                Assert.Equal(residence.Bound, loaded.Bound);
-                Assert.Equal(residence.Components.Count, loaded.Components.Count);
-                Assert.Equal(residence.Entities.Count, loaded.Entities.Count);
+                Assert.Equal(UnitType.House, loaded!.Type); // 从 Home 实体 unit_type 还原
+                Assert.Equal(level.Entities.Count, loaded.Entities.Count);
+                Assert.Single(loaded.Entities, e => e.Key == LevelData.HomeKey); // 隐藏 Home 实体
 
-                var source = Assert.Single(loaded.Components.OfType<DataSource>());
-                Assert.Equal(24.5f, source.Value);
-
-                foreach (var original in residence.Entities)
+                // 注册实体逐字段核对
+                foreach (var original in level.Entities.Where(e => e.Key != LevelData.HomeKey))
                 {
                     var rebuilt = Assert.Single(loaded.Entities, e => e.Id == original.Id);
                     Assert.Equal(original.Key, rebuilt.Key);
@@ -78,9 +71,13 @@ public class SqliteStoreTests
                     Assert.Equal(original.Volume.GetType(), rebuilt.Volume.GetType());
                     Assert.Equal(original.Properties.Count, rebuilt.Properties.Count);
                     Assert.Equal(original.Components.Count, rebuilt.Components.Count);
-                    if (original.Components.Count > 0)
-                        Assert.Equal(original.Components[0].GetType(), rebuilt.Components[0].GetType());
                 }
+
+                // 体素往返：放置实体在网格中（palette 按 Id 解析）
+                var lamp = level.Entities.First(e => e.Key == new Key("lamp"));
+                var placed = loaded.Layout.Voxels[new Int3(2, 1, 3)];
+                Assert.NotNull(placed);
+                Assert.Equal(lamp.Id, placed.Id);
             }
         }
         finally
@@ -90,47 +87,22 @@ public class SqliteStoreTests
     }
 
     [Fact]
-    public void Save_Twice_KeepsSingleResidenceRow()
+    public void Save_Twice_KeepsSingleRows()
     {
-        var residence = DemoResidence();
+        var level = DemoLevel();
         var dbPath = TempDb();
         try
         {
             using (var store = new SqliteStore(dbPath))
             {
-                store.Save(residence);
-                store.Save(residence);
+                store.Save(level);
+                store.Save(level);
 
                 var loaded = store.Load();
                 Assert.NotNull(loaded);
-                Assert.Equal("Demo Home", loaded!.Name);
-                Assert.Equal(residence.Entities.Count, loaded.Entities.Count);
+                Assert.Equal(level.Entities.Count, loaded!.Entities.Count); // 不重复
+                Assert.Equal(level.Type, loaded.Type);
             }
-            Assert.Single(SqliteStore.ListSaves(Path.GetDirectoryName(dbPath)!));
-        }
-        finally
-        {
-            SqliteStore.Delete(dbPath);
-        }
-    }
-
-    [Fact]
-    public void ListSaves_ReturnsMetadataOnly()
-    {
-        var residence = DemoResidence();
-        var root = Path.Combine(Path.GetTempPath(), "momoka_sqlite_saves_" + Guid.NewGuid().ToString("N"));
-        var dbPath = Path.Combine(root, "Demo Home.db");
-        try
-        {
-            using (var store = new SqliteStore(dbPath))
-                store.Save(residence);
-
-            var listed = SqliteStore.ListSaves(root);
-            var save = Assert.Single(listed);
-            Assert.Equal("Demo Home", save.Name);
-            Assert.Equal(UnitType.House, save.Type);
-            Assert.Equal(residence.Bound, save.Bound);
-            Assert.Empty(save.Entities); // metadata only — registry not loaded
         }
         finally
         {
@@ -141,10 +113,10 @@ public class SqliteStoreTests
     [Fact]
     public void Delete_RemovesDatabase()
     {
-        var residence = DemoResidence();
+        var level = DemoLevel();
         var dbPath = TempDb();
         using (var store = new SqliteStore(dbPath))
-            store.Save(residence);
+            store.Save(level);
         Assert.True(File.Exists(dbPath));
 
         SqliteStore.Delete(dbPath);

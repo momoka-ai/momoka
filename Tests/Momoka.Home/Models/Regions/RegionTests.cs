@@ -4,6 +4,8 @@ using Momoka.Home.Entities;
 using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
+using Momoka.Home.Entities.Components;
+using Momoka.Home.Entities.Properties;
 namespace Momoka.Home.Tests.Models.Regions;
 
 /// <summary>

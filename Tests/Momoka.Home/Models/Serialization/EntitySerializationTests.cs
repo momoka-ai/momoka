@@ -5,6 +5,8 @@ using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
 using Momoka.Home.Data.Json;
 using Newtonsoft.Json;
+using Momoka.Home.Entities.Components;
+using Momoka.Home.Entities.Properties;
 namespace Momoka.Home.Tests.Models.Serialization;
 
 /// <summary>

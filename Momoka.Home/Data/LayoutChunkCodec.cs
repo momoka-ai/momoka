@@ -12,29 +12,18 @@ public readonly record struct RegionSpan(int Y0, int Y1, int RegionId);
 /// <summary>A decoded chunk: the voxel chunk plus its region columns.</summary>
 public readonly record struct DecodedChunk(VoxelChunk<Entity> Chunk, IReadOnlyList<ChunkRegionColumn> RegionColumns);
 
-/// <summary>A loaded layout: the voxel grid plus all chunks' region columns.</summary>
-public readonly record struct LoadedLayout(VoxelLayout<Entity> Grid, IReadOnlyList<ChunkRegionColumn> RegionColumns);
-
 /// <summary>
-/// Binary codec for the voxel layer's chunk files: each <c>Layout.{x}.{z}.dat</c>
-/// stores one <see cref="VoxelChunk{T}"/>'s paletted sections — per present
-/// section: the palette (entity <see cref="Entity.Id"/>s), bit width and the raw
-/// packed words. Entity <see cref="Guid"/>s (not list indices) keep chunk files
-/// independent of the entity list's order. Also handles directory-level
-/// save/load of a whole <see cref="VoxelLayout{T}"/> into a <c>Chunks/</c>
-/// folder with per-file atomic writes and stale-file cleanup.
+/// Binary codec for the voxel layer's chunk payloads (stored in the SQLite
+/// <c>Chunks</c> table): each chunk's paletted sections — per present section:
+/// the palette (entity <see cref="Entity.Id"/>s), bit width and the raw packed
+/// words. Entity <see cref="Guid"/>s (not list indices) keep chunk payloads
+/// independent of the entity list's order. Region spans ride along inside the
+/// chunk payload (single source of truth; geometry recomputed on load).
 /// </summary>
 public static class LayoutChunkCodec
 {
-    private const string FilePrefix = "Layout.";
-    private const string FileSuffix = ".dat";
-    private const string ChunkPattern = "Layout.*.dat";
     private static readonly byte[] Magic = { (byte)'M', (byte)'L', (byte)'Y' };
     private const int Version = 1;
-
-    /// <summary>The chunk file name for an XZ chunk index (e.g. <c>Layout.0.0.dat</c>).</summary>
-    public static string FileName(Int2 chunkIndex) =>
-        $"{FilePrefix}{chunkIndex.X}.{chunkIndex.Z}{FileSuffix}";
 
     // ── Single chunk ────────────────────────────────────
 
@@ -173,38 +162,7 @@ public static class LayoutChunkCodec
         return new DecodedChunk(new VoxelChunk<Entity>(index, sections, minSy), regionColumns);
     }
 
-    // ── Whole layout / directory ────────────────────────
-
-    /// <summary>
-    /// Saves every non-empty chunk as <c>Layout.{x}.{z}.dat</c> (atomic per
-    /// file), each carrying its voxel sections and region columns; deletes stale
-    /// chunk files no longer present in the layout. <paramref name="regions"/>
-    /// may be null when no region layer exists yet.
-    /// </summary>
-    public static void Save(VoxelLayout<Entity> layout, ColumnLayout<Region>? regions, string chunksDir)
-    {
-        Directory.CreateDirectory(chunksDir);
-
-        var current = new HashSet<string>();
-        foreach (var chunk in layout.Chunks)
-        {
-            var regionColumns = regions is null ? Array.Empty<ChunkRegionColumn>() : ExtractRegionColumns(chunk, regions);
-            var hasVoxel = !chunk.Sections.All(s => s is null || s.Data.Storage.AllZero());
-            if (!hasVoxel && regionColumns.Count == 0)
-                continue;
-
-            var name = FileName(chunk.Index);
-            current.Add(name);
-            var path = Path.Combine(chunksDir, name);
-            var tmp = path + ".tmp";
-            File.WriteAllBytes(tmp, Encode(chunk, regionColumns));
-            File.Move(tmp, path, overwrite: true);
-        }
-
-        foreach (var file in Directory.EnumerateFiles(chunksDir, ChunkPattern))
-            if (!current.Contains(Path.GetFileName(file)))
-                File.Delete(file);
-    }
+    // ── Region columns ─────────────────────────────────
 
     /// <summary>Extracts the region spans of a chunk's 16×16 footprint from the global region layer.</summary>
     public static IReadOnlyList<ChunkRegionColumn> ExtractRegionColumns(VoxelChunk<Entity> chunk, ColumnLayout<Region> regions)
@@ -247,40 +205,7 @@ public static class LayoutChunkCodec
         return columns;
     }
 
-    /// <summary>
-    /// Loads every chunk file (voxel sections + region columns), resolving palette
-    /// entities from <paramref name="entities"/>. The layout's
-    /// <see cref="VoxelLayout{T}.Bound"/> is not stored in chunk files — the
-    /// caller restores it from level metadata.
-    /// </summary>
-    public static LoadedLayout Load(string chunksDir, IReadOnlyList<Entity> entities)
-    {
-        var chunks = new Dictionary<long, VoxelChunk<Entity>>();
-        var regionColumns = new List<ChunkRegionColumn>();
-        if (Directory.Exists(chunksDir))
-        {
-            var byId = entities.ToDictionary(e => e.Id);
-            foreach (var file in Directory.EnumerateFiles(chunksDir, ChunkPattern))
-            {
-                var index = ParseIndex(Path.GetFileNameWithoutExtension(file));
-                var decoded = Decode(index, File.ReadAllBytes(file), byId);
-                chunks[VoxelLayout<Entity>.ChunkKeyOf(index)] = decoded.Chunk;
-                regionColumns.AddRange(decoded.RegionColumns);
-            }
-        }
-        return new LoadedLayout(new VoxelLayout<Entity>(chunks, Bound.UnsetValue), regionColumns);
-    }
-
     private static Palette<Entity>.Int3ChunkStrategy NewStrategy() => new(
         new Int3(VoxelLayout<Entity>.SectionSize, VoxelLayout<Entity>.SectionSize, VoxelLayout<Entity>.SectionSize),
         initialBits: 4);
-
-    private static Int2 ParseIndex(string nameWithoutExtension)
-    {
-        // "Layout.0.0" → chunk (0, 0)
-        var parts = nameWithoutExtension.Split('.');
-        if (parts.Length != 3 || !int.TryParse(parts[1], out var x) || !int.TryParse(parts[2], out var z))
-            throw new InvalidDataException($"Invalid chunk file name '{nameWithoutExtension}'.");
-        return new Int2(x, z);
-    }
 }

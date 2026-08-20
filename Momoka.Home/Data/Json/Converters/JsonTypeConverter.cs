@@ -44,6 +44,8 @@ public abstract class JsonTypeConverter<TBase> : JsonConverter where TBase : cla
 
     public override object? ReadJson(JsonReader reader, Type objectType, object? existingValue, JsonSerializer serializer)
     {
+        if (reader.TokenType == JsonToken.Null)
+            return null; // 可空引用（如隐藏实体的 Volume = null）
         var obj = JObject.Load(reader);
         return ReadLoadedObject(obj, objectType);
     }

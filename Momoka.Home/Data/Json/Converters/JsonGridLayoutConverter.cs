@@ -7,7 +7,7 @@ namespace Momoka.Home.Data.Json.Converters;
 /// <summary>
 /// Serializes a <see cref="GridLayout{T}"/> of bools: size, unit length and
 /// the cell array (row-major over XZ). Attached via [JsonConverter] on
-/// <see cref="Momoka.Home.Entities.PlacementLayoutSource.Layout"/> so nested component
+/// <see cref="Momoka.Home.Entities.Components.PlacementLayoutSource.Layout"/> so nested component
 /// serialization resolves it. 姿态（Transform）随组件成员序列化，不在此。
 /// </summary>
 public class JsonGridLayoutConverter : JsonConverter<GridLayout<bool>>

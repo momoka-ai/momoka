@@ -2,6 +2,7 @@ using Momoka.Home.Entities;
 using Momoka.Home.Data.Json;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Momoka.Home.Entities.Properties;
 namespace Momoka.Home.Data.Json.Converters;
 
 /// <summary>

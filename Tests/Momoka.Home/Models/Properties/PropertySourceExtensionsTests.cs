@@ -1,5 +1,6 @@
 using Xunit;
 using Momoka.Home.Entities;
+using Momoka.Home.Entities.Properties;
 namespace Momoka.Home.Tests.Models.Properties;
 
 /// <summary>

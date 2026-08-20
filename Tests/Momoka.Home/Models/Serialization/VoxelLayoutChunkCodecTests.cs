@@ -4,13 +4,17 @@ using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
 using Momoka.Home.Primitives;
 using Momoka.Home.Data;
+using Momoka.Home.Data.Sqlite;
+using Momoka.Home.Level;
+using Momoka.Home.Entities.Components;
+using Momoka.Home.Entities.Properties;
 namespace Momoka.Home.Tests.Models.Serialization;
 
 /// <summary>
-/// LayoutChunkCodec persists the voxel layer as per-chunk binary files:
-/// paletted sections (palette of entity ids + packed words) round-trip cell
-/// references exactly — including multi-section, multi-chunk and
-/// negative-coordinate chunks.
+/// LayoutChunkCodec persists the voxel layer as per-chunk binary payloads
+/// (stored in the SQLite <c>Chunks</c> table): paletted sections (palette of
+/// entity ids + packed words) round-trip cell references exactly — including
+/// multi-section, multi-chunk and negative-coordinate chunks.
 /// </summary>
 public class VoxelLayoutChunkCodecTests
 {
@@ -20,104 +24,99 @@ public class VoxelLayoutChunkCodecTests
         Volume = new Box3D { SizeX = sx, SizeY = sy, SizeZ = sz },
     };
 
-    private static string TempDir() =>
-        Path.Combine(Path.GetTempPath(), "momoka_chunks_" + Guid.NewGuid().ToString("N"));
+    private static string TempDb() =>
+        Path.Combine(Path.GetTempPath(), "momoka_chunks_" + Guid.NewGuid().ToString("N") + ".db");
 
     /// <summary>
     /// 一个跨多区块、多 section、含负坐标的场景：
     /// wall 占 chunk(0,0) 的 section 0 和 2；floor 占 chunk(1,1)；pillar 占 chunk(-1,-1)。
     /// </summary>
-    private static (VoxelLayout<Entity> Layout, List<Entity> Entities) Scene()
+    private static LevelData Scene()
     {
-        var layout = new VoxelLayout<Entity>
+        var data = new LevelData
         {
-            Bound = Bound.FromCorners(Int3.Zero.ToFloat3(), new Int3(40, 45, 40).ToFloat3()),
+            Type = UnitType.House,
         };
-        var entities = new List<Entity>();
+        data.Layout.Voxels.Bound = Bound.FromCorners(Int3.Zero.ToFloat3(), new Int3(40, 45, 40).ToFloat3());
 
         var wall = Box("wall", 1, 30, 1);
-        entities.Add(wall);
-        layout[new Int3(0, 0, 0)] = wall;
-        layout[new Int3(0, 1, 0)] = wall;
-        layout[new Int3(0, 32, 0)] = wall; // section 2
+        data.Entities.Add(wall);
+        data.Layout.Voxels[new Int3(0, 0, 0)] = wall;
+        data.Layout.Voxels[new Int3(0, 1, 0)] = wall;
+        data.Layout.Voxels[new Int3(0, 32, 0)] = wall; // section 2
 
         var floor = Box("floor", 2, 1, 2);
-        entities.Add(floor);
-        layout[new Int3(17, 0, 17)] = floor;
-        layout[new Int3(18, 0, 17)] = floor;
-        layout[new Int3(17, 0, 18)] = floor;
-        layout[new Int3(18, 0, 18)] = floor;
+        data.Entities.Add(floor);
+        data.Layout.Voxels[new Int3(17, 0, 17)] = floor;
+        data.Layout.Voxels[new Int3(18, 0, 17)] = floor;
+        data.Layout.Voxels[new Int3(17, 0, 18)] = floor;
+        data.Layout.Voxels[new Int3(18, 0, 18)] = floor;
 
         var pillar = Box("pillar", 1, 1, 1);
-        entities.Add(pillar);
-        layout[new Int3(-1, 0, -1)] = pillar;
+        data.Entities.Add(pillar);
+        data.Layout.Voxels[new Int3(-1, 0, -1)] = pillar;
 
-        return (layout, entities);
+        return data;
     }
 
     [Fact]
     public void SaveLoad_RoundTripsCellsAndEntities()
     {
-        var (scene, entities) = Scene();
-        var dir = TempDir();
+        var scene = Scene();
+        var dbPath = TempDb();
         try
         {
-            LayoutChunkCodec.Save(scene, null, dir);
+            using var store = new SqliteStore(dbPath);
+            store.Save(scene);
 
-            Assert.True(File.Exists(Path.Combine(dir, "Layout.0.0.dat")));
-            Assert.True(File.Exists(Path.Combine(dir, "Layout.1.1.dat")));
-            Assert.True(File.Exists(Path.Combine(dir, "Layout.-1.-1.dat")));
+            var loaded = store.Load()!;
+            var wall = loaded.Entities.First(e => e.Key == new Key("wall"));
+            var floor = loaded.Entities.First(e => e.Key == new Key("floor"));
+            var pillar = loaded.Entities.First(e => e.Key == new Key("pillar"));
 
-            var loaded = LayoutChunkCodec.Load(dir, entities).Grid;
-
-            Assert.Same(entities[0], loaded[new Int3(0, 0, 0)]);   // wall
-            Assert.Same(entities[0], loaded[new Int3(0, 1, 0)]);
-            Assert.Same(entities[0], loaded[new Int3(0, 32, 0)]);  // section 2 还原
-            Assert.Same(entities[1], loaded[new Int3(17, 0, 17)]); // floor
-            Assert.Same(entities[1], loaded[new Int3(18, 0, 18)]);
-            Assert.Same(entities[2], loaded[new Int3(-1, 0, -1)]); // pillar（负坐标 chunk）
-            Assert.Null(loaded[new Int3(0, 2, 0)]);                // wall 上方空洞
-            Assert.Null(loaded[new Int3(5, 5, 5)]);                // 空区域
+            Assert.Same(wall, loaded.Layout.Voxels[new Int3(0, 0, 0)]);   // wall
+            Assert.Same(wall, loaded.Layout.Voxels[new Int3(0, 1, 0)]);
+            Assert.Same(wall, loaded.Layout.Voxels[new Int3(0, 32, 0)]);  // section 2 还原
+            Assert.Same(floor, loaded.Layout.Voxels[new Int3(17, 0, 17)]); // floor
+            Assert.Same(floor, loaded.Layout.Voxels[new Int3(18, 0, 18)]);
+            Assert.Same(pillar, loaded.Layout.Voxels[new Int3(-1, 0, -1)]); // pillar（负坐标 chunk）
+            Assert.Null(loaded.Layout.Voxels[new Int3(0, 2, 0)]);                       // wall 上方空洞
+            Assert.Null(loaded.Layout.Voxels[new Int3(5, 5, 5)]);                       // 空区域
         }
         finally
         {
-            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+            SqliteStore.Delete(dbPath);
         }
     }
 
     [Fact]
-    public void Save_RemovesStaleChunkFiles()
+    public void Save_ReplacesWholesale_EmptyChunksVanish()
     {
-        var (scene, entities) = Scene();
-        var dir = TempDir();
+        var scene = Scene();
+        var dbPath = TempDb();
         try
         {
-            LayoutChunkCodec.Save(scene, null, dir);
-            Assert.True(File.Exists(Path.Combine(dir, "Layout.1.1.dat")));
+            using var store = new SqliteStore(dbPath);
+            store.Save(scene);
 
             // 清空 chunk(1,1) 的唯一数据：floor 的 4 个格
-            scene[new Int3(17, 0, 17)] = default!;
-            scene[new Int3(18, 0, 17)] = default!;
-            scene[new Int3(17, 0, 18)] = default!;
-            scene[new Int3(18, 0, 18)] = default!;
+            scene.Layout.Voxels[new Int3(17, 0, 17)] = default!;
+            scene.Layout.Voxels[new Int3(18, 0, 17)] = default!;
+            scene.Layout.Voxels[new Int3(17, 0, 18)] = default!;
+            scene.Layout.Voxels[new Int3(18, 0, 18)] = default!;
+            store.Save(scene); // 全量替换：空 chunk 不再写行
 
-            LayoutChunkCodec.Save(scene, null, dir);
-
-            Assert.False(File.Exists(Path.Combine(dir, "Layout.1.1.dat"))); // 空 chunk 文件被清理
-            Assert.True(File.Exists(Path.Combine(dir, "Layout.0.0.dat")));
-            Assert.True(File.Exists(Path.Combine(dir, "Layout.-1.-1.dat")));
+            var loaded = store.Load()!;
+            var wall = loaded.Entities.First(e => e.Key == new Key("wall"));
+            var pillar = loaded.Entities.First(e => e.Key == new Key("pillar"));
+            Assert.Null(loaded.Layout.Voxels[new Int3(17, 0, 17)]); // 空 chunk 消失
+            Assert.Same(wall, loaded.Layout.Voxels[new Int3(0, 0, 0)]);   // wall 保留
+            Assert.Same(pillar, loaded.Layout.Voxels[new Int3(-1, 0, -1)]); // pillar 保留
         }
         finally
         {
-            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+            SqliteStore.Delete(dbPath);
         }
-    }
-
-    [Fact]
-    public void Load_MissingDirectory_ReturnsEmptyLayout()
-    {
-        var loaded = LayoutChunkCodec.Load(TempDir(), Array.Empty<Entity>()).Grid;
-        Assert.Null(loaded[new Int3(0, 0, 0)]);
     }
 
     [Fact]
@@ -130,87 +129,54 @@ public class VoxelLayoutChunkCodecTests
     [Fact]
     public void Decode_UnknownPaletteEntity_Throws()
     {
-        var (scene, _) = Scene();
-        var dir = TempDir();
+        var scene = Scene();
+        var dbPath = TempDb();
         try
         {
-            LayoutChunkCodec.Save(scene, null, dir);
-            var bytes = File.ReadAllBytes(Path.Combine(dir, "Layout.0.0.dat"));
+            using var store = new SqliteStore(dbPath);
+            store.Save(scene);
+            var loaded = store.Load()!;
+            var chunk = loaded.Layout.Voxels.Chunks.First(c => c.Index.X == 0 && c.Index.Z == 0);
+            var bytes = LayoutChunkCodec.Encode(chunk);
 
+            // 用未知实体表解码 → palette 解析失败
             Assert.Throws<InvalidDataException>(() =>
                 LayoutChunkCodec.Decode(new Int2(0, 0), bytes, new Dictionary<Guid, Entity>()));
         }
         finally
         {
-            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+            SqliteStore.Delete(dbPath);
         }
-    }
-
-    /// <summary>结构件盒子：is_structural 标记（墙 / 天花板 / 门）。</summary>
-    private static Entity StructuralBox(string path, int sx, int sy, int sz)
-    {
-        var entity = Box(path, sx, sy, sz);
-        entity.AddProperties(new[] { new BooleanProperty(Property.IsImmutable, true) });
-        return entity;
-    }
-
-    /// <summary>结构件盒子：顶面放置面（Up，Transform 位置在 surfaceY）+ is_structural。</summary>
-    private static Entity SurfaceBox(string path, int sx, int sy, int sz, Int3 pos, int surfaceY)
-    {
-        var entity = StructuralBox(path, sx, sy, sz);
-        var surface = new GridLayout<bool>(new Int2(sx, sz));
-        surface.Fill(true, Int2.Zero, new Int2(sx, sz));
-        entity.AddComponent(new PlacementLayoutSource
-        {
-            Layout = surface,
-            Transform = new Transform(new Float3(pos.X * 10, surfaceY * 10, pos.Z * 10), Rotation.Up),
-        });
-        return entity;
-    }
-
-    /// <summary>10×9×30 封闭空间，中墙 (x=5) 分左右两室：左室 x=1..4、右室 x=6..8。</summary>
-    private static UnitLayout TwoRoomScene()
-    {
-        var l = new UnitLayout();
-        l.Add(SurfaceBox("floor", 10, 1, 10, new Int3(0, 0, 0), 1), new Position(new Float3(0, 0, 0)));
-        l.Add(StructuralBox("ceiling", 10, 1, 10), new Position(new Float3(0, 300, 0)));
-        l.Add(StructuralBox("wall", 10, 29, 1), new Position(new Float3(0, 10, 0)));
-        l.Add(StructuralBox("wall", 10, 29, 1), new Position(new Float3(0, 10, 90)));
-        l.Add(StructuralBox("wall", 1, 29, 8), new Position(new Float3(0, 10, 10)));
-        l.Add(StructuralBox("wall", 1, 29, 8), new Position(new Float3(90, 10, 10)));
-        l.Add(StructuralBox("wall", 1, 29, 8), new Position(new Float3(50, 10, 10)));
-        return l;
     }
 
     [Fact]
-    public void SaveLoad_RoundTripsRegionLayer()
+    public void Decode_RegionColumnsRoundTrip()
     {
-        var unit = TwoRoomScene();
-        var regions = Region.BuildLayout(unit);
-        var dir = TempDir();
+        // Region spans 内嵌 chunk 载荷：Encode(chunk, columns) → Decode 还原（几何重算依据）
+        var scene = Scene();
+        var dbPath = TempDb();
         try
         {
-            LayoutChunkCodec.Save(unit.Voxels, regions, dir);
-            var loaded = LayoutChunkCodec.Load(dir, unit.Entities);
-            Assert.NotNull(loaded.Grid);
+            using var store = new SqliteStore(dbPath);
+            store.Save(scene);
+            var loaded = store.Load()!;
+            var chunk = loaded.Layout.Voxels.Chunks.First(c => c.Index.X == 0 && c.Index.Z == 0);
+            var byId = loaded.Entities.ToDictionary(e => e.Id);
 
-            var regionsFile = Path.Combine(dir, "Regions.json");
-            RegionsCodec.Save(regions, regionsFile);
-            var restored = RegionsCodec.Load(loaded.RegionColumns, regionsFile);
+            var columns = new[]
+            {
+                new ChunkRegionColumn(new Int2(0, 0), new[] { new RegionSpan(0, 3, 7) }),
+            };
+            var decoded = LayoutChunkCodec.Decode(Int2.Zero, LayoutChunkCodec.Encode(chunk, columns), byId);
 
-            var left = restored.At(2, 5, 2);
-            var right = restored.At(7, 5, 2);
-            Assert.NotNull(left);
-            Assert.NotNull(right);
-            Assert.NotEqual(left!.Id, right!.Id);
-            Assert.Equal(regions.At(2, 5, 2)!.Id, left.Id);
-            Assert.Equal(regions.At(7, 5, 2)!.Id, right.Id);
-            Assert.Equal(regions.At(2, 5, 2)!.Volume, left.Volume);
-            Assert.Equal(regions.At(2, 5, 2)!.Area, left.Area);
+            var column = Assert.Single(decoded.RegionColumns);
+            Assert.Equal(new Int2(0, 0), column.World);
+            var span = Assert.Single(column.Spans);
+            Assert.Equal(new RegionSpan(0, 3, 7), span);
         }
         finally
         {
-            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+            SqliteStore.Delete(dbPath);
         }
     }
 }
