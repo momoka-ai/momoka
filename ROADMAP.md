@@ -28,7 +28,7 @@
 | Momoka.Stage | 🔴 <5% | 仅目录与占位 README |
 | Momoka.Voice | 🟡 ~20% | HTTP 骨架完成；TTS 引擎未集成 |
 | Momoka.Ai / Core / Sense | 🔴 <10% | 仅程序入口骨架 |
-| 测试 / CI | 🟢 ~80% | 348 个测试全绿；CI = dotnet 构建+测试 / Godot 检查 / Python ruff |
+| 测试 / CI | 🟢 ~80% | 401 个测试全绿；CI = dotnet 构建+测试 / Godot 检查 / Python ruff |
 
 ---
 
@@ -76,12 +76,13 @@
 - [x] 坐标原语：`Int2` / `Int3` / `Float3` / `Key` / `Bound`（`Primitives/`）
 - [x] 属性系统：`Property` 基类 + 6 种子类型（`Boolean` / `Int` / `Float` / `String` / `Literal` / `Enum`）+ `PropertyValueChangedEventArgs`；`TextureProperty` 已删除（并入 `String`）
 - [x] 实体系统（非泛型重构）：`Entity`（Id / Key / Position(Float3) / Volume / 属性 / 组件）+ `EntityTemplate` / `EntityTemplateFactory` 配置管线 + `IEntitySource`；薄壳 `Wall` / `Door` / `Window` / `Appliance` / `Curtain` 已删除，由配置模板实例化
-- [x] 空间根：`UnitLayout`（`sealed`，单一扁平 3D 根，`IEntitySource` + `IVoxelGeometry3D`）+ `Residence`（总容器：Name / Address / Type / Layout / Entities / Surfaces / Components）+ `UnitType` 枚举
+- [x] 空间根：`UnitLayout`（`sealed`，单一扁平 3D 根，`IEntitySource` + `IVoxelGeometry3D`）+ `LevelData`（`Momoka.Home.Level`：类型 + 布局 + 全实体注册表，服务器/客户端共同基类）+ `UnitType` 枚举
+- [x] **Residence → LevelData 重构（2026-08-20）**：`Residence` 删除——名称/地址归云端账号管理（本地仅 Home 实体 address 属性）；`Type`/`Layout`/`Entities` 入 `LevelData`；`ServerLevelData`/`ClientLevelData` 共同继承（服务器权威 / 客户端镜像）；隐藏 **Home 实体**（key=home、无 Volume、生成时创建、无增删渠道）承载地址与类型（unit_type 为 Type 持久化真相）；快照协议删 `ResidenceMeta`，`Type` 直接入 `SnapshotEvent`
 - [x] 体素存储：`VoxelLayout<T>`（Minecraft 式 16³ 区块 + paletted）、`GridLayout<T>`、`Subdivision<T>`（`Face` 面实体支持：`AssignEntity` / `EntityOf`）、`Graph2D`、`Palette` / `PackedBitStorage` / `PalettedContainer(RO)`；`Layouts/` 只剩纯运算 / 数学布局
 - [x] 几何：`Volume` / `Shape` + `IVoxelGeometry2D/3D` + `Box3D` / `Line3D` / `Curve3D` / `Polygon3D` / `Prism3D` / `Conic3D` / `Spherical3D` / `Extruded3D` / `Composite3D` / `Rect2D` / `Polygon2D` / `Circular2D` / `Composite2D`（带 `[JsonTypeName]`）
 - [x] 序列化管线：`JsonTypeNameRegistry` + `JsonTypeConverter` + `JsonGeometryConverter` + `JsonPropertyConverter`；`MideaVerifyTests` 用真实配置验证
 - [x] 组件：`Component` + `IComponentSource` + `CommandTarget` / `DataSource` / `EventSource` / `PlacementLayoutSource`
-- [x] 测试：348 个全绿（Layouts / Regions / Serialization / Shapes / Algorithms / Primitives / Properties / 放置链）
+- [x] 测试：401 个全绿（Layouts / Regions / Serialization / Shapes / Algorithms / Primitives / Properties / 放置链 / Level 编辑与协议）
 - [x] 旧容器清理与迁移：`Home` / `Level` / `Building`、旧 2D `Region`、`IVoxelSpaceRoot`、`PlaneLayout`、`TextureProperty`、`FloorPlanLayout` 已删除；`Region` 迁主命名空间（`Momoka.Home`），`UnitLayout.Regions`（`ColumnLayout<Region>`）取代 `Floors`
 
 待实现（按当前优先级）：
@@ -89,7 +90,7 @@
 - [x] **3D Region 自动生成**：站立格（Up 放置面 + 净高过滤）→ `ColumnLayout` 引擎标 span（阻隔即占用，家具成洞）；`Region.BuildLayout()` + `UnitLayout.RebuildRegions()`（§5.6）；门开关 Portal 与 wall-extension 后续
 - [x] **空间查询层**（`IVoxelSource<T>` 扩展 + 纯算法层）：`Algorithms/` 五类型 `Traverse`（OnLine/InCone/InFrustum）/ `Visibility`（Project/IsInView）/ `Occlusion`（四档阻挡）/ `Collision.Result` / `Pathfinding.AStar`；查询扩展 `CanSee`×3 / `FindItemsInView`×3（射线/圆锥/视锥，严格遮挡）/ `IsCollided`×3 / `IsOccluded` / `GetItemsInBound` / `FindPath`（失败统一 null，无 Reachable）
 - [x] **体素空间负坐标支持**：`VoxelChunk` section 偏移（`_baseSy`，负 Y 可写可读）+ `LayoutChunkCodec` 世界 section Y 编码（旧文件字节兼容）；Bound 三维 ±16384 格全支持
-- [x] **放置 API 重构**：`UnitLayout.Add(entity[, position])` / `Remove(entity)` / `Remove(Position)` / `Find(id|Position)` 取代 `PlaceAt`/`DestroyAt`/`FindEntity`；删除 = 回落"未放置"池（实体保留于 Residence 总目录）且**连带回落表面物件**（实体不能悬空；删除前确认是编辑器 UI 的职责）；`PlacementLayoutSource.Entities` 表面宿主登记（回落同步清理）；实体对碰撞下沉 `Volume.Intersects`；自动寻位 `Add(Entity)` 已实现（Bound 内扫描：不碰撞 + 下方有支撑——地面或 immutable 结构）
+- [x] **放置 API 重构**：`UnitLayout.Add(entity[, position])` / `Remove(entity)` / `Remove(Position)` / `Find(id|Position)` 取代 `PlaceAt`/`DestroyAt`/`FindEntity`；删除 = 回落"未放置"池（实体保留于 LevelData 注册表）且**连带回落表面物件**（实体不能悬空；删除前确认是编辑器 UI 的职责）；`PlacementLayoutSource.Entities` 表面宿主登记（回落同步清理）；实体对碰撞下沉 `Volume.Intersects`；自动寻位 `Add(Entity)` 已实现（Bound 内扫描：不碰撞 + 下方有支撑——地面或 immutable 结构）
 - [x] **表面附着与朝向体系**：`Rotation`（yaw/pitch/roll，内旋 YXZ 与 Godot 一致，零转换映射）/ `Transform`（位置 + 姿态）/ `RotationAlignment`（缺省 `Upside`——未配置物件只可放朝上水平面；`Matches` 匹配规则：精确匹配 + Horizontal 接受上下）/ `PlacementLayoutSource`（Layout + Transform + 运行时登记表）；`Add(entity, pos, source)` 显式附着（编辑器经视线探测提取表面）——斜表面可附着（`Tilted` 期望生效，太阳能板放坡顶），贴合姿态由表面方向推导（渲染端处理），体素占位恒轴对齐
 - [ ] **具体编辑命令**：`PlaceEntityCommand` / `RemoveEntityCommand`（含开口级联）/ `BuildWallCommand` / `PaintTileCommand`（刷材质面），接入 `CommandHistory`；级联删除基础（`Remove(entity, cascade)` + 表面宿主登记）已就绪
 - [ ] **`UnitLayout.Rebuild` 重写（已弃用）**：低层直接写格改为受控通道（事件 / 脏格跟踪），不再事后全量重栅格化；重写后移除
@@ -105,10 +106,10 @@
 - [x] **Palette 策略减法**：`Int2/Int3ChunkStrategy` 等暂留，待稳定后清理未用策略（2026-08-13：删除 `Int3ColumnSpanStrategy` / `Int3DenseStrategy` / `Int2DenseStrategy` 三个零引用策略）
 - [ ] **编辑器撤销/重做**：`EditorCommand` / `CommandHistory` 已删除（未到编辑器阶段），待 Phase 2 前重建
 - [x] **Palette / PalettedContainer / PackedBitStorage 直接序列化**：四个类型各自挂 `[JsonConverter]`，产出 `palette_json + bits + data` 填表载荷，去掉手写字节 codec（2026-08-13 简化落地：`Palette<T>` 挂 `JsonPaletteConverter`（Entity 写 Guid 引用）+ `PackedBitStorage.ToBytes/FromBytes` little-endian BLOB；`LayoutChunkCodec` 退役随 Sqlite 体素层）
-- [x] **Sqlite 存储层 · residence/entities（`Data/Sqlite`）**：`linq2db` + `Microsoft.Data.Sqlite`，单文件存档 `Saves/<Name>.db`；`Residence`（Id + Json 整存）+ `Entities`（Id + Json 每实体一行），PascalCase；`SqliteStore` 持有连接（IDisposable），全函数式 API（`CreateTable` / `InsertOrReplace` / `Insert` / `GetTable`），替代文件夹的 `Residence.json` / `Entities.json`
-- [ ] **Sqlite 存储层 · 体素层**：`regions`（id + name）/ `chunks` + `chunk_sections`（x, z, sy + palette JSON + bits + data BLOB，按 (x,z) 键查询）；一次事务原子写入，替代 `LayoutChunkCodec` / `RegionsCodec` 的文件层
+- [x] **Sqlite 存储层 · 三表合一（`Data/Sqlite`，2026-08-20）**：`linq2db` + `Microsoft.Data.Sqlite`，单文件存档（每服务器唯一，`ListSaves` 删除）；一次事务原子写入 **`Entities`**（Id + Json 每实体一行，含 Home 实体）+ **`Chunks`**（x, z + 整 chunk 载荷——paletted sections + region spans 一体编码，复用 `LayoutChunkCodec.Encode/Decode`）+ **`RegionNames`**（id + name；几何从 chunk spans 重算——单一真相）；`LayoutChunkCodec`/`RegionsCodec` 文件层退役；`LevelData.Type` 经 Home 实体 unit_type 属性持久化
 - [ ] **区块数据压缩**：section words（`ulong[]`）gzip 压缩后存 BLOB（对齐 Minecraft region 文件的 zlib 做法，稀疏区块收益大）
-- [ ] **物业 / 管理方引用层（推迟）**：统一管理多 Unit 的引用式封装（住户 Residence 默认全权，物业另层且不可见住户内容）
+- [ ] **区块数据压缩**：section words（`ulong[]`）gzip 压缩后存 BLOB（对齐 Minecraft region 文件的 zlib 做法，稀疏区块收益大）
+- [ ] **物业 / 管理方引用层（推迟）**：统一管理多 Unit 的引用式封装（住户 Level 默认全权，物业另层且不可见住户内容）
 - [ ] **传播图 `Propagation`（远期 · AI 伴侣阶段，低优先级）**：Region 图上的加权 Dijkstra（节点=房间 Region，边=门户开/关/墙，代价=距离 + 穿墙损耗），一次算完供三类感知：① 灯可见性（同 Region 或开着的门连通 → 可感知，用于自动关用户不可见的灯）② 声音传播（最短路径长度 + 墙衰减 → 按用户位置自动调音量）③ WiFi 信号（log-distance path loss + 穿墙惩罚 → 每房间信号表）。**不依赖体素 LOS**——光/声/无线电能绕弯、是连续衰减而非二值可见；`CanSee`/`Occlusion` 仅留给摄像头视野/投影遮挡等真二值场景。用于光线 / 声音 / 无线信号推断，属 AI 伴侣阶段的感知增强，非初期工程
 - [ ] 补充单元测试覆盖上述功能
 

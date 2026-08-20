@@ -13,7 +13,7 @@
 - **几何体系**：`Volume` / `Shape` + 3D / 2D 一族（`[JsonTypeName]` 注册，snake_case 配置直绑）
 - **3D Region 自动生成**：站立格 → span → 连通 flood-fill 聚合出房间 / 可行走区域（`Region` / `ColumnLayout` 引擎）
 - **空间查询**：视线 / 视野内目标 / 碰撞 / 寻路（`IVoxelSource<T>` + 扩展；`Traverse` / `Visibility` / `Occlusion` / `Pathfinding` 纯几何基础）
-- **持久化**：SQLite 单文件存档（`SqliteStore`，`Residence` + `Entities`）；体素层走 `LayoutChunkCodec` / `RegionsCodec` 文件层
+- **持久化**：SQLite 单文件存档（`SqliteStore`）——三表原子写入：`Entities`（每实体一行，含隐藏 Home 实体）/ `Chunks`（体素块，paletted 编码）/ `RegionNames`（id + name）；体素与 Region 文件层（`LayoutChunkCodec` / `RegionsCodec`）已退役
 - 设备抽象层（HA / GIIC）与安全约束校验为**规划中**，未实现
 
 ## 接口
@@ -28,7 +28,8 @@
 |----------|------|
 | `Momoka.Home` | 根：`UnitLayout` / `Residence` / `Region` / `Agent` / `UnitType` / `Settings` |
 | `Momoka.Home.Primitives` | `Int2` / `Int3` / `Float3` / `Key` / `Bound` / `Position` / `Rotation` / `Transform` / `RotationAlignment` |
-| `Momoka.Home.Entities` | 实体系统：`Entity` / `EntityTemplate` / `EntityTemplateFactory` / `IEntitySource` / `IEntityRelationSource` / `Component` 与行为组件族 / `Property` 与 6 种子类型 |
+| `Momoka.Home.Entities` | 实体系统：`Entity` / `EntityTemplate` / `EntityTemplateFactory` / `IEntitySource` / `IEntityRelationSource` / `.Components`（行为组件族）/ `.Properties`（Property 与 6 种子类型） |
+| `Momoka.Home.Level` | 数据载荷与编辑：`LevelData`（基类）/ `ServerLevelData` / `ClientLevelData` / `EditorSession` / 命令层 / 协议（`Protocol/`） |
 | `Momoka.Home.Geometry` | `Volume` / `Shape` / `IVoxelGeometry2D/3D` 及 3D / 2D 形状族 |
 | `Momoka.Home.Layouts` | `VoxelLayout` / `GridLayout` / `ColumnLayout` / `Palette` 族 / `Graph` / `Subdivision` / `IVoxelSource` |
 | `Momoka.Home.Algorithms` | `Traverse` / `Visibility` / `Occlusion` / `Collision` / `Pathfinding` |
