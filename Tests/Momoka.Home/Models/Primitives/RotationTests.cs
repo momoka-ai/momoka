@@ -75,12 +75,12 @@ public class RotationTests
     }
 
     [Theory]
-    [InlineData(0, 0, 0, DirectionAlignment.Upside)]
-    [InlineData(0, 180, 0, DirectionAlignment.Downside)]
-    [InlineData(0, 90, 0, DirectionAlignment.Vertical)]
-    [InlineData(90, 90, 0, DirectionAlignment.Vertical)]
-    [InlineData(0, 45, 0, DirectionAlignment.Tilted)]
-    public void Alignment_ClassifiesByNormalY(float yaw, float pitch, float roll, DirectionAlignment expected)
+    [InlineData(0, 0, 0, RotationAlignment.Upside)]
+    [InlineData(0, 180, 0, RotationAlignment.Downside)]
+    [InlineData(0, 90, 0, RotationAlignment.Vertical)]
+    [InlineData(90, 90, 0, RotationAlignment.Vertical)]
+    [InlineData(0, 45, 0, RotationAlignment.Tilted)]
+    public void Alignment_ClassifiesByNormalY(float yaw, float pitch, float roll, RotationAlignment expected)
     {
         Assert.Equal(expected, new Rotation(yaw, pitch, roll).Alignment);
     }

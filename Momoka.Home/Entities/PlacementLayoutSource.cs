@@ -4,7 +4,7 @@ using Momoka.Home.Primitives;
 using Momoka.Home.Data.Json;
 using Momoka.Home.Data.Json.Converters;
 using Newtonsoft.Json;
-namespace Momoka.Home.Components;
+namespace Momoka.Home.Entities;
 
 /// <summary>
 /// Capability component: one placement surface an entity provides — a floor
@@ -27,7 +27,7 @@ public class PlacementLayoutSource : Component
     /// 登记 / <c>UnitLayout.Remove</c> 反登记；级联回落与"被依赖"检查依赖此表）。
     /// 运行时登记态——暂不序列化（存档加载后依赖关系由管线后置重建，待实现）。</summary>
     [JsonIgnore]
-    public List<Entity> Items { get; } = new();
+    public List<Entity> Entities { get; } = new();
 
     /// <summary>把局部格映射到世界格（根绝对）：姿态行轴 / 列轴 × 格长 + 位置，取整到格。
     /// Up 面（Identity）下 rel 映射为 Position/UnitLength + (rel.X, 0, rel.Z)。

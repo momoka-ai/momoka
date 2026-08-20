@@ -83,20 +83,20 @@ public readonly record struct Rotation(float Yaw, float Pitch, float Roll)
     public bool IsAxisAligned =>
         Math.Abs(Yaw % 90) < 1e-3f && Math.Abs(Pitch % 90) < 1e-3f && Math.Abs(Roll % 90) < 1e-3f;
 
-    /// <summary>姿态类别：按法向 Y 分量分类（<see cref="DirectionAlignment"/>）——
+    /// <summary>姿态类别：按法向 Y 分量分类（<see cref="RotationAlignment"/>）——
     /// 法向水平 = Vertical、竖直 = Upside/Downside（按符号）、其余 = Tilted。
     /// 用于物件的"期望表面类型"校验。</summary>
     [JsonIgnore]
-    public DirectionAlignment Alignment
+    public RotationAlignment Alignment
     {
         get
         {
             var y = Normal.Y;
             if (Math.Abs(y) < 1e-3f)
-                return DirectionAlignment.Vertical;
+                return RotationAlignment.Vertical;
             if (Math.Abs(Math.Abs(y) - 1) < 1e-3f)
-                return y > 0 ? DirectionAlignment.Upside : DirectionAlignment.Downside;
-            return DirectionAlignment.Tilted;
+                return y > 0 ? RotationAlignment.Upside : RotationAlignment.Downside;
+            return RotationAlignment.Tilted;
         }
     }
 

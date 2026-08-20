@@ -1,5 +1,5 @@
 using Newtonsoft.Json;
-namespace Momoka.Home.Properties;
+namespace Momoka.Home.Entities;
 
 /// <summary>
 /// A property: a named, typed, per-instance value (config-driven). The abstract
@@ -26,9 +26,12 @@ public abstract class Property
     /// <summary>Marks an entity as see-through (glass, open mesh); non-transparent entities stop hitscan lines.</summary>
     public const string IsTransparent = "is_transparent";
 
-    /// <summary>期望放置表面朝向类别（<see cref="DirectionAlignment"/> 枚举值，
+    /// <summary>期望放置表面朝向类别（<see cref="Momoka.Home.Primitives.RotationAlignment"/> 枚举值，
     /// 模板配置；缺省 Any——不限定表面朝向）。</summary>
-    public const string DirectionAlignment = "direction_alignment";
+    public const string RotationAlignment = "rotation_alignment";
+
+    /// <summary>贴图资源 key（重涂 = 设置/清除一个 StringProperty；缺省回落编辑器预设材质）。</summary>
+    public const string Texture = "texture";
 
     /// <summary>Identity of the property; maps to the JSON "key" field.</summary>
     [JsonProperty("key")]

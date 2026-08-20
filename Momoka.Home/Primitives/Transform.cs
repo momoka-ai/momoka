@@ -24,4 +24,6 @@ public readonly record struct Transform(Float3 Position, Rotation Rotation)
     public float Pitch => Rotation.Pitch;
     [JsonIgnore]
     public float Roll => Rotation.Roll;
+    [JsonIgnore]
+    public RotationAlignment RotationAlignment => Rotation.Alignment;
 }
