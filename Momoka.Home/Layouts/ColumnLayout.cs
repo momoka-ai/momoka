@@ -35,4 +35,8 @@ public sealed class ColumnLayout<T> where T : notnull
         for (var y = y0; y < y1; y++)
             _cells[new Int3(x, y, z)] = value;
     }
+
+    /// <summary>写入单个格（不做 span 扩展——增量维护 / 结果映射时逐格拷贝用）。</summary>
+    public void SetCell(int x, int y, int z, T value) =>
+        _cells[new Int3(x, y, z)] = value;
 }

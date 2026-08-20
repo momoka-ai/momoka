@@ -45,8 +45,17 @@ public abstract class JsonTypeConverter<TBase> : JsonConverter where TBase : cla
     public override object? ReadJson(JsonReader reader, Type objectType, object? existingValue, JsonSerializer serializer)
     {
         var obj = JObject.Load(reader);
+        return ReadLoadedObject(obj, objectType);
+    }
+
+    /// <summary>
+    /// 从已载入的 JSON 对象物化目标实例（判别 → 建型 → 填充 → 装载钩子）。
+    /// 供子类在自定义判别（如枚举自描述化）后复用同一填充管线。
+    /// </summary>
+    protected virtual object? ReadLoadedObject(JObject obj, Type declaredType)
+    {
         var kind = obj[Discriminator]?.Value<string>() ?? "";
-        var targetType = ResolveTargetType(kind, objectType);
+        var targetType = ResolveTargetType(kind, declaredType);
 
         var value = CreateInstance(targetType);
         FillMembers(obj, targetType, value);

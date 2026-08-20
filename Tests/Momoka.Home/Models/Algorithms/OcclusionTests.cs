@@ -1,7 +1,6 @@
 using Xunit;
 using Momoka.Home.Algorithms;
 using Momoka.Home.Entities;
-using Momoka.Home.Properties;
 namespace Momoka.Home.Tests.Models.Algorithms;
 
 /// <summary>

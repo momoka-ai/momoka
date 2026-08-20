@@ -1,6 +1,6 @@
 using Xunit;
 using Momoka.Home.Data.Json;
-using Momoka.Home.Properties;
+using Momoka.Home.Entities;
 using Momoka.Home.Data.Json.Converters;
 using Newtonsoft.Json;
 namespace Momoka.Home.Tests.Models.Serialization;

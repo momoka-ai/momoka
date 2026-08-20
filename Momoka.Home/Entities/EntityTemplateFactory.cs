@@ -1,6 +1,6 @@
 using Momoka.Home.Geometry;
 using Momoka.Home.Primitives;
-using Momoka.Home.Properties;
+using Momoka.Home.Entities;
 using Momoka.Home.Data.Json;
 using Momoka.Home.Data.Json.Converters;
 using Newtonsoft.Json;
@@ -24,6 +24,12 @@ public class EntityTemplateFactory
 
     /// <summary>All registered templates.</summary>
     public IEnumerable<EntityTemplate> All => _templates.Values;
+
+    /// <summary>
+    /// 模板目录版本（服务器装载时设置；客户端快照携带，create_entity 请求带
+    /// templateVersion 供"目录过期"校验）。热更新只影响新实例化。
+    /// </summary>
+    public string Version { get; set; } = "1";
 
     // ── Registry ─────────────────────────────────────────
 

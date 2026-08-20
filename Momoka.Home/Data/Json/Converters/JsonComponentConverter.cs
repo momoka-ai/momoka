@@ -1,4 +1,4 @@
-using Momoka.Home.Components;
+using Momoka.Home.Entities;
 using Momoka.Home.Data.Json;
 namespace Momoka.Home.Data.Json.Converters;
 

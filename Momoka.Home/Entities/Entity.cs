@@ -1,8 +1,7 @@
 using Momoka.Home;
-using Momoka.Home.Components;
+using Momoka.Home.Entities;
 using Momoka.Home.Geometry;
 using Momoka.Home.Primitives;
-using Momoka.Home.Properties;
 using Newtonsoft.Json;
 namespace Momoka.Home.Entities;
 

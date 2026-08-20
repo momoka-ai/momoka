@@ -3,7 +3,6 @@ using Momoka.Home;
 using Momoka.Home.Entities;
 using Momoka.Home.Geometry;
 using Momoka.Home.Primitives;
-using Momoka.Home.Properties;
 using Newtonsoft.Json;
 namespace Momoka.Home.Tests.Models.Serialization;
 
