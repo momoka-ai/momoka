@@ -103,24 +103,4 @@ public class ModelJsonRoundTripTests
         Assert.Equal(2, volume.SizeZ);
         Assert.Equal("placement_layout", Assert.Single(back.Components));
     }
-
-    [Fact]
-    public void Envelope_RoundTrips_SnakeCase()
-    {
-        var envelope = new Envelope
-        {
-            Seq = 1,
-            RequestId = "req-1",
-            Type = "place_entity",
-            Payload = null,
-        };
-        var json = JsonConvert.SerializeObject(envelope, Settings.JsonSerialization);
-        Assert.Contains("protocol_version", json);
-        Assert.Contains("payload_format", json);
-        Assert.Contains("request_id", json);
-        var back = JsonConvert.DeserializeObject<Envelope>(json, Settings.JsonSerialization)!;
-        Assert.Equal("place_entity", back.Type);
-        Assert.Equal("req-1", back.RequestId);
-        Assert.Equal(1u, back.Seq);
-    }
 }

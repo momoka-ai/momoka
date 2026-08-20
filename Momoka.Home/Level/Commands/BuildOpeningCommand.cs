@@ -1,3 +1,4 @@
+using Momoka.Home.Level;
 using Momoka.Home.Entities;
 using Momoka.Home.Geometry;
 using Momoka.Home.Primitives;
@@ -6,21 +7,18 @@ using Momoka.Home.Entities.Properties;
 namespace Momoka.Home.Level.Commands;
 
 /// <summary>
-/// 开洞命令（事务）：(1) 墙排洞——墙 Volume 替换为分段体积（Composite3D：
-/// 左段 + 右段 + 过梁，排除洞口盒）；(2) 放置门 / 窗实体（<c>is_open</c>，
-/// 挂宿主墙——级联删除 / Region 连通随 <c>!is_open</c> 判定天然正确）。
-/// Undo = 还原墙原 Volume + 移除开口。洞盒不完整落在墙体内 → 事务整体失败（无残留）。
+/// 开洞命令（事务）：(1) 预检——洞盒完整落在墙体内（VolumePunch 可分段）+ 幅界
+/// 校验 + 开口格仅被墙占用；(2) 墙排洞——墙 Volume 替换为分段体积（Composite3D：
+/// 左段 + 右段 + 过梁，排除洞口盒）；(3) 放置门 / 窗实体（is_open，挂宿主墙——
+/// 级联删除）。validate-then-apply——预检通过后各步骤无失败路径，整体原子。
 /// </summary>
-public sealed class BuildOpeningCommand : CompositeCommand
+public sealed class BuildOpeningCommand : IEditorCommand
 {
     private readonly Guid _wallEntityId;
     private readonly Int3 _openingOrigin;
     private readonly Int3 _openingSize;
     private readonly string _openingKey;
     private readonly bool _isOpen;
-    private bool _built;
-
-    public override string Name => "BuildOpening";
 
     public BuildOpeningCommand(Guid wallEntityId, Int3 openingOrigin, Int3 openingSize, string openingKey, bool isOpen = true)
     {
@@ -31,55 +29,57 @@ public sealed class BuildOpeningCommand : CompositeCommand
         _isOpen = isOpen;
     }
 
-    public override bool Execute(EditorSession session, out ChangeSet changes)
+    public bool Execute(EditorSession session, out ChangeSet changes)
     {
-        // 子命令只在首次执行时构建一次——redo 复用同一开口实体（Id 稳定、逆操作可重放）
-        if (!_built)
-        {
-            if (!BuildChildren(session))
-            {
-                changes = new ChangeSet();
-                return false;
-            }
-            _built = true;
-        }
-        return base.Execute(session, out changes);
-    }
-
-    private bool BuildChildren(EditorSession session)
-    {
-        Children.Clear();
+        changes = new ChangeSet();
         var unit = session.Layout;
         var wall = unit.Find(_wallEntityId);
         if (wall is null || wall.Volume is null)
             return false;
 
         // 洞盒必须完整落在墙体内（含幅界校验）
-        var anchor = unit.Voxels.GetAsRelative(wall.Transform.Position);
-        foreach (var cell in new Box3D { SizeX = _openingSize.X, SizeY = _openingSize.Y, SizeZ = _openingSize.Z }.Cells3D())
+        var openingVolume = new Box3D { SizeX = _openingSize.X, SizeY = _openingSize.Y, SizeZ = _openingSize.Z };
+        foreach (var cell in openingVolume.Cells3D())
         {
             var p = _openingOrigin + cell;
             if (!LayoutHelpers.InWorldExtent(p))
                 return false;
         }
 
-        var punched = VolumePunch.Punch(wall.Volume, anchor, _openingOrigin, _openingSize);
-        if (punched is null || wall.GetComponent<PlacementLayoutSource>() is null)
+        var punched = VolumePunch.Punch(wall.Volume, unit.Voxels.GetAsRelative(wall.Transform.Position), _openingOrigin, _openingSize);
+        var surface = wall.GetComponent<PlacementLayoutSource>();
+        if (punched is null || surface is null)
             return false;
 
-        Children.Add(new SetVolumeCommand(_wallEntityId, punched));
+        // 预检：开口格仅允许被墙占用（排洞后清空——保证放置无碰撞）
+        foreach (var cell in openingVolume.Cells3D())
+        {
+            var occupant = unit.Voxels[_openingOrigin + cell];
+            if (occupant is not null && occupant != wall)
+                return false;
+        }
 
+        // 排洞
+        if (!new SetVolumeCommand(_wallEntityId, punched).Execute(session, out var volumeChanges))
+            return false;
+        changes.Merge(volumeChanges);
+
+        // 开口实体：占洞口格，挂宿主墙
         var opening = new Entity
         {
             Key = new Key(_openingKey),
-            Volume = new Box3D { SizeX = _openingSize.X, SizeY = _openingSize.Y, SizeZ = _openingSize.Z },
+            Volume = openingVolume,
         };
         opening.AddProperty(
             new BooleanProperty(Property.IsImmutable, true),
             new BooleanProperty(Property.IsOpen, _isOpen),
             new EnumProperty<RotationAlignment>(Property.RotationAlignment, RotationAlignment.Vertical));
-        Children.Add(new RegisterEntityCommand(opening));
-        Children.Add(new PlaceEntityCommand(opening.Id, _openingOrigin.ToFloat3() * unit.Voxels.Length, _wallEntityId));
+
+        if (!unit.Add(opening, new Position(_openingOrigin.ToFloat3() * unit.Voxels.Length), surface))
+            return false;
+        session.Data.Entities.Add(opening);
+
+        changes.Added(opening);
         return true;
     }
 }

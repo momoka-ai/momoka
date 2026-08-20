@@ -1,3 +1,4 @@
+using Momoka.Home.Level;
 using Momoka.Home.Entities;
 using Momoka.Home.Geometry;
 using Momoka.Home.Layouts;
@@ -21,44 +22,19 @@ public sealed class WallSegment
 }
 
 /// <summary>
-/// 砌墙命令（事务）：创建不可变墙实体，Volume 由格段生成（直墙 = Box3D，多段 =
-/// Composite3D），并挂一垂直放置面（供开洞 / 挂件宿主登记）。Undo = 移除墙（连带其
-/// 开洞——门/窗挂在其表面）。
+/// 砌墙命令（创建即放置，无暂存态）：校验幅界 → 生成不可变墙实体（直墙 = Box3D，
+/// 多段 = Composite3D）并挂一垂直放置面（供开洞 / 挂件宿主登记）→ 放入空间 →
+/// 登记注册表 → 扩展 Bound。validate-then-apply——预检通过后无失败路径，整体原子。
 /// </summary>
-public sealed class BuildWallCommand : CompositeCommand
+public sealed class BuildWallCommand : IEditorCommand
 {
     private readonly IReadOnlyList<WallSegment> _segments;
-    private bool _built;
-    private Int3 _anchor;
-    private Volume? _volume;
-
-    public override string Name => "BuildWall";
 
     public BuildWallCommand(IEnumerable<WallSegment> segments) => _segments = segments.ToList();
 
-    public override bool Execute(EditorSession session, out ChangeSet changes)
+    public bool Execute(EditorSession session, out ChangeSet changes)
     {
-        // 子命令只在首次执行时构建一次——redo 复用同一实体（Id 稳定、逆操作可重放）
-        if (!_built)
-        {
-            if (!BuildChildren(session))
-            {
-                changes = new ChangeSet();
-                return false;
-            }
-            _built = true;
-        }
-
-        if (!base.Execute(session, out changes))
-            return false;
-
-        LayoutHelpers.ExpandBoundToInclude(session.Layout, _anchor, _volume!);
-        return true;
-    }
-
-    private bool BuildChildren(EditorSession session)
-    {
-        Children.Clear();
+        changes = new ChangeSet();
         if (_segments.Count == 0)
             return false;
 
@@ -78,7 +54,7 @@ public sealed class BuildWallCommand : CompositeCommand
             _segments.Min(s => s.Origin.Y),
             _segments.Min(s => s.Origin.Z));
 
-        _volume = _segments.Count == 1
+        Volume volume = _segments.Count == 1
             ? new Box3D { SizeX = _segments[0].Size.X, SizeY = _segments[0].Size.Y, SizeZ = _segments[0].Size.Z }
             : new Composite3D
             {
@@ -90,15 +66,19 @@ public sealed class BuildWallCommand : CompositeCommand
                     })
                     .ToList(),
             };
-        _anchor = min;
 
-        var wall = new Entity { Key = new Key("wall"), Volume = _volume };
+        var wall = new Entity { Key = new Key("wall"), Volume = volume };
         wall.AddProperty(new BooleanProperty(Property.IsImmutable, true));
         if (BuildWallSurface(_segments[0], unit.Voxels.Length) is { } surface)
             wall.AddComponent(surface);
 
-        Children.Add(new RegisterEntityCommand(wall));
-        Children.Add(new PlaceEntityCommand(wall.Id, min.ToFloat3() * unit.Voxels.Length));
+        // 创建即放置：先入空间（失败无残留），成功后登记注册表
+        if (!unit.Add(wall, new Position(min.ToFloat3() * unit.Voxels.Length)))
+            return false;
+        session.Data.Entities.Add(wall);
+        LayoutHelpers.ExpandBoundToInclude(unit, min, volume);
+
+        changes.Added(wall);
         return true;
     }
 

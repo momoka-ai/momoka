@@ -1,15 +1,14 @@
 using System.Globalization;
+using Momoka.Home.Level;
 using Momoka.Home.Entities;
-using Momoka.Home.Entities.Components;
 using Momoka.Home.Entities.Properties;
 namespace Momoka.Home.Level.Commands;
 
 /// <summary>
 /// 通用属性编辑命令：设置 / 清除一个属性的值（属性不存在 → 失败，语义同
 /// <see cref="PropertySourceExtensions.SetValue"/>）。入值按属性类型强转
-/// （协议 JToken → 盒装值的宽松转换：long→int、double→float 等）。
-/// <c>createIfMissing</c> = 按需补建（重涂 texture 等模板外操作——
-/// 协议 <c>set_texture</c> 路由到本命令）。Undo = 恢复旧值 / 移除补建的属性。
+/// （协议 JSON 标量 → 盒装值的宽松转换：long→int、double→float 等）。
+/// <c>createIfMissing</c> = 按需补建（重涂 texture 等模板外操作）。
 /// </summary>
 public sealed class SetPropertyCommand : IEditorCommand
 {
@@ -17,13 +16,6 @@ public sealed class SetPropertyCommand : IEditorCommand
     private readonly string _propertyName;
     private readonly object? _value;
     private readonly bool _createIfMissing;
-
-    public string Name => "SetProperty";
-    public string? CoalesceKey => null;
-
-    private Entity? _entity;
-    private bool _existedBefore;
-    private object? _oldValue;
 
     public SetPropertyCommand(Guid entityId, string propertyName, object? value, bool createIfMissing = false)
     {
@@ -36,28 +28,26 @@ public sealed class SetPropertyCommand : IEditorCommand
     public bool Execute(EditorSession session, out ChangeSet changes)
     {
         changes = new ChangeSet();
-        _entity = session.Layout.Find(_entityId);
-        if (_entity is null)
+        var entity = session.Layout.Find(_entityId);
+        if (entity is null)
             return false;
 
-        var property = _entity.Properties.FirstOrDefault(p => p.Name == _propertyName);
-        _existedBefore = property is not null;
-        _oldValue = property?.BoxedValue ?? property?.GetUnsetValue();
+        var property = entity.Properties.FirstOrDefault(p => p.Name == _propertyName);
         try
         {
             if (_value is null)
             {
-                _entity.ClearValue(_propertyName);
+                entity.ClearValue(_propertyName);
             }
             else if (property is not null)
             {
-                _entity.SetValue(_propertyName, Coerce(_value, property.ValueType));
+                entity.SetValue(_propertyName, Coerce(_value, property.ValueType));
             }
             else if (_createIfMissing)
             {
                 var created = CreateForValue(_propertyName, _value);
-                _entity.AddProperty(created);
-                _entity.SetValue(_propertyName, Coerce(_value, created.ValueType));
+                entity.AddProperty(created);
+                entity.SetValue(_propertyName, Coerce(_value, created.ValueType));
             }
             else
             {
@@ -69,28 +59,7 @@ public sealed class SetPropertyCommand : IEditorCommand
             return false;
         }
 
-        changes.Modified(_entity);
-        return true;
-    }
-
-    public bool Undo(EditorSession session, out ChangeSet changes)
-    {
-        changes = new ChangeSet();
-        if (_entity is null)
-            return false;
-        if (_existedBefore)
-        {
-            if (_oldValue is null)
-                _entity.ClearValue(_propertyName);
-            else
-                _entity.SetValue(_propertyName, _oldValue);
-        }
-        else if (_entity.Properties.FirstOrDefault(p => p.Name == _propertyName) is { } added)
-        {
-            _entity.Properties.Remove(added);
-        }
-
-        changes.Modified(_entity);
+        changes.Modified(entity);
         return true;
     }
 

@@ -12,7 +12,7 @@ using Momoka.Home.Entities.Components;
 using Momoka.Home.Entities.Properties;
 namespace Momoka.Home.Tests.Models.Level;
 
-/// <summary>服务器侧：请求路由、版本号、编辑 token 互斥、装载校验、三持久化源装载往返。</summary>
+/// <summary>服务器侧：类型化操作、版本号、编辑 token 互斥、装载校验、持久化往返。</summary>
 public class ServerLevelDataTests
 {
     private static ServerLevelData Server()
@@ -40,20 +40,17 @@ public class ServerLevelDataTests
         return server;
     }
 
-    private static Envelope Req(IRequestFrame request) =>
-        Frames.RequestFrame(FrameRegistry.NameOf(request.GetType()), 1, "req-1", request);
-
     private static T Payload<T>(Result result) =>
         JsonConvert.DeserializeObject<T>(result.Payload!.ToString(), Settings.JsonSerialization)!;
 
     [Fact]
-    public void CreateEntity_FromTemplate_ProducesEntityCreated_AndPoolEntry()
+    public void CreateEntity_FromTemplate_RaisesEntityCreated_AndPoolEntry()
     {
         var server = Server();
         var created = 0;
-        server.EntityCreated += (_, _) => created++;
+        server.EntityCreated += _ => created++;
 
-        var result = server.HandleRequest(Req(new CreateEntityRequest { TemplateKey = "momoka:table" }), "c1");
+        var result = server.CreateEntity(new CreateEntityRequest { TemplateKey = "momoka:table" }, "c1");
         Assert.True(result.Ok);
         Assert.Equal(1, created);
 
@@ -68,32 +65,32 @@ public class ServerLevelDataTests
     public void CreateEntity_UnknownTemplate_And_StaleVersion_Fail()
     {
         var server = Server();
-        var unknown = server.HandleRequest(Req(new CreateEntityRequest { TemplateKey = "momoka:sofa" }), "c1");
+        var unknown = server.CreateEntity(new CreateEntityRequest { TemplateKey = "momoka:sofa" }, "c1");
         Assert.False(unknown.Ok);
         Assert.Equal("template_not_found", unknown.ErrorCode);
 
-        var stale = server.HandleRequest(Req(new CreateEntityRequest { TemplateKey = "momoka:table", TemplateVersion = "0" }), "c1");
+        var stale = server.CreateEntity(new CreateEntityRequest { TemplateKey = "momoka:table", TemplateVersion = "0" }, "c1");
         Assert.False(stale.Ok);
         Assert.Equal("stale_template_version", stale.ErrorCode);
     }
 
     [Fact]
-    public void PlaceWashingMachine_OnFloorHost_BroadcastsLayoutChanged()
+    public void Place_OnFloorHost_RaisesLayoutChanged()
     {
         var server = SeededFloorServer();
         var floor = server.Session.Layout.Entities.Single(e => e.Key == new Key("floor"));
-        var events = new List<LayoutChangedEvent>();
-        server.LayoutChanged += (_, e) => events.Add(e.Event);
+        var events = new List<(uint Version, EntityDelta[] Deltas)>();
+        server.LayoutChanged += (version, deltas) => events.Add((version, deltas));
 
-        var created = server.HandleRequest(Req(new CreateEntityRequest { TemplateKey = "momoka:table" }), "c1");
+        var created = server.CreateEntity(new CreateEntityRequest { TemplateKey = "momoka:table" }, "c1");
         var machine = Payload<Entity>(created);
 
-        var result = server.HandleRequest(Req(new PlaceEntityRequest
+        var result = server.PlaceEntity(new PlaceEntityRequest
         {
             EntityId = machine.Id,
             Position = new Float3(0, 10, 0),
             HostId = floor.Id,
-        }), "c1");
+        }, "c1");
 
         Assert.True(result.Ok);
         Assert.Equal(1u, result.Version);
@@ -101,9 +98,9 @@ public class ServerLevelDataTests
         var placedMachine = server.Session.Layout.Find(machine.Id)!;
         Assert.Same(floor.GetComponent<PlacementLayoutSource>(), server.Session.Layout.FindHostEntity(placedMachine));
 
-        var layoutEvent = Assert.Single(events);
-        Assert.Equal(1u, layoutEvent.Version);
-        var delta = Assert.Single(layoutEvent.EntityDelta);
+        var (version, deltas) = Assert.Single(events);
+        Assert.Equal(1u, version);
+        var delta = Assert.Single(deltas);
         Assert.Equal("added", delta.Kind);
         Assert.Equal(machine.Id, delta.EntityId);
         Assert.NotNull(delta.Entity);
@@ -113,69 +110,49 @@ public class ServerLevelDataTests
     public void Place_AlreadyPlaced_And_Collision_Fail()
     {
         var server = SeededFloorServer();
-        var created = server.HandleRequest(Req(new CreateEntityRequest { TemplateKey = "momoka:table" }), "c1");
+        var created = server.CreateEntity(new CreateEntityRequest { TemplateKey = "momoka:table" }, "c1");
         var machine = Payload<Entity>(created);
-        server.HandleRequest(Req(new PlaceEntityRequest { EntityId = machine.Id, Position = new Float3(0, 10, 0) }), "c1");
+        server.PlaceEntity(new PlaceEntityRequest { EntityId = machine.Id, Position = new Float3(0, 10, 0) }, "c1");
 
-        var again = server.HandleRequest(Req(new PlaceEntityRequest { EntityId = machine.Id, Position = new Float3(10, 10, 0) }), "c1");
+        var again = server.PlaceEntity(new PlaceEntityRequest { EntityId = machine.Id, Position = new Float3(10, 10, 0) }, "c1");
         Assert.False(again.Ok);
         Assert.Equal("already_placed", again.ErrorCode);
 
-        var created2 = server.HandleRequest(Req(new CreateEntityRequest { TemplateKey = "momoka:table" }), "c1");
+        var created2 = server.CreateEntity(new CreateEntityRequest { TemplateKey = "momoka:table" }, "c1");
         var other = Payload<Entity>(created2);
-        var collision = server.HandleRequest(Req(new PlaceEntityRequest { EntityId = other.Id, Position = new Float3(0, 10, 0) }), "c1");
+        var collision = server.PlaceEntity(new PlaceEntityRequest { EntityId = other.Id, Position = new Float3(0, 10, 0) }, "c1");
         Assert.False(collision.Ok);
         Assert.Equal("invalid_operation", collision.ErrorCode);
-    }
-
-    [Fact]
-    public void Undo_Redo_RouteThroughServer()
-    {
-        var server = SeededFloorServer();
-        var created = server.HandleRequest(Req(new CreateEntityRequest { TemplateKey = "momoka:table" }), "c1");
-        var machine = Payload<Entity>(created);
-        server.HandleRequest(Req(new PlaceEntityRequest { EntityId = machine.Id, Position = new Float3(0, 10, 0) }), "c1");
-        Assert.Equal(2, server.Session.Layout.Entities.Count);
-
-        var undo = server.HandleRequest(Req(new UndoRequest()), "c1");
-        Assert.True(undo.Ok);
-        Assert.Equal(2u, undo.Version);
-        Assert.DoesNotContain(server.Session.Layout.Entities, e => e.Id == machine.Id);
-
-        var redo = server.HandleRequest(Req(new RedoRequest()), "c1");
-        Assert.True(redo.Ok);
-        Assert.Equal(3u, redo.Version);
-        Assert.Contains(server.Session.Layout.Entities, e => e.Id == machine.Id);
     }
 
     [Fact]
     public void BeginEdit_Mutex_BlocksOtherClients()
     {
         var server = Server();
-        Assert.True(server.HandleRequest(Req(new BeginEditRequest()), "a").Ok);
+        Assert.True(server.BeginEdit("a").Ok);
 
-        var denied = server.HandleRequest(Req(new CreateEntityRequest { TemplateKey = "momoka:table" }), "b");
+        var denied = server.CreateEntity(new CreateEntityRequest { TemplateKey = "momoka:table" }, "b");
         Assert.False(denied.Ok);
         Assert.Equal("no_edit_token", denied.ErrorCode);
 
-        var held = server.HandleRequest(Req(new BeginEditRequest()), "b");
+        var held = server.BeginEdit("b");
         Assert.False(held.Ok);
         Assert.Equal("edit_token_held", held.ErrorCode);
 
-        Assert.True(server.HandleRequest(Req(new CreateEntityRequest { TemplateKey = "momoka:table" }), "a").Ok);
-        Assert.True(server.HandleRequest(Req(new EndEditRequest()), "a").Ok);
-        Assert.True(server.HandleRequest(Req(new CreateEntityRequest { TemplateKey = "momoka:table" }), "b").Ok);
+        Assert.True(server.CreateEntity(new CreateEntityRequest { TemplateKey = "momoka:table" }, "a").Ok);
+        Assert.True(server.EndEdit("a").Ok);
+        Assert.True(server.CreateEntity(new CreateEntityRequest { TemplateKey = "momoka:table" }, "b").Ok);
     }
 
     [Fact]
     public void GetSnapshot_ReturnsFullState()
     {
         var server = SeededFloorServer();
-        var created = server.HandleRequest(Req(new CreateEntityRequest { TemplateKey = "momoka:table" }), "c1");
+        var created = server.CreateEntity(new CreateEntityRequest { TemplateKey = "momoka:table" }, "c1");
         var machine = Payload<Entity>(created);
-        server.HandleRequest(Req(new PlaceEntityRequest { EntityId = machine.Id, Position = new Float3(0, 10, 0) }), "c1");
+        server.PlaceEntity(new PlaceEntityRequest { EntityId = machine.Id, Position = new Float3(0, 10, 0) }, "c1");
 
-        var result = server.HandleRequest(Req(new GetSnapshotRequest()), "c1");
+        var result = server.GetSnapshot();
         Assert.True(result.Ok);
         var snapshot = Payload<SnapshotEvent>(result);
         Assert.Contains(snapshot.Entities, e => e.Id == machine.Id);
@@ -188,17 +165,17 @@ public class ServerLevelDataTests
     public void SetProperty_Value_CoercedToPropertyType()
     {
         var server = SeededFloorServer();
-        var created = server.HandleRequest(Req(new CreateEntityRequest { TemplateKey = "momoka:table" }), "c1");
+        var created = server.CreateEntity(new CreateEntityRequest { TemplateKey = "momoka:table" }, "c1");
         var machine = Payload<Entity>(created);
-        server.HandleRequest(Req(new PlaceEntityRequest { EntityId = machine.Id, Position = new Float3(0, 10, 0) }), "c1");
+        server.PlaceEntity(new PlaceEntityRequest { EntityId = machine.Id, Position = new Float3(0, 10, 0) }, "c1");
 
         // 表缺 is_open 属性 → set_property 失败（语义同 SetValue）
-        var missing = server.HandleRequest(Req(new SetPropertyRequest { EntityId = machine.Id, Name = "is_open", Value = Newtonsoft.Json.Linq.JToken.FromObject(true) }), "c1");
+        var missing = server.SetProperty(new SetPropertyRequest { EntityId = machine.Id, Name = "is_open", Value = Newtonsoft.Json.Linq.JToken.FromObject(true) }, "c1");
         Assert.False(missing.Ok);
 
         // 有属性后按 JSON 原生标量设置
         server.Session.Layout.Find(machine.Id)!.AddProperty(new BooleanProperty(Property.IsOpen, false));
-        var set = server.HandleRequest(Req(new SetPropertyRequest { EntityId = machine.Id, Name = "is_open", Value = Newtonsoft.Json.Linq.JToken.FromObject(true) }), "c1");
+        var set = server.SetProperty(new SetPropertyRequest { EntityId = machine.Id, Name = "is_open", Value = Newtonsoft.Json.Linq.JToken.FromObject(true) }, "c1");
         Assert.True(set.Ok);
         Assert.True(server.Session.Layout.Find(machine.Id)!.GetValue<bool>(Property.IsOpen));
     }
@@ -235,9 +212,9 @@ public class ServerLevelDataTests
             server2.Load(new SqliteStore(db));
             Assert.Equal(UnitType.Condo, server2.Type); // 从 Home 实体还原
 
-            Assert.Equal(1, server2.Entities.Count); // 仅 Home 实体（隐藏档案）
-            Assert.Equal(LevelData.HomeKey, server2.Entities[0].Key);
-            Assert.True(server2.Layout.Entities.Count == 0); // 空存档：无放置
+            var home = Assert.Single(server2.Entities); // 仅 Home 实体（隐藏档案）
+            Assert.Equal(LevelData.HomeKey, home.Key);
+            Assert.Empty(server2.Layout.Entities); // 空存档：无放置
         }
         finally
         {

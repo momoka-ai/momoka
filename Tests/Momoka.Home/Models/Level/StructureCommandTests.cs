@@ -10,8 +10,7 @@ using Momoka.Home.Entities.Components;
 using Momoka.Home.Entities.Properties;
 namespace Momoka.Home.Tests.Models.Level;
 
-/// <summary>结构命令：BuildWall / BuildOpening 的事务性、墙排洞语义与开口占用语义
-/// （碰撞 / Region 连通随 is_open 两态）。</summary>
+/// <summary>结构命令：BuildWall / BuildOpening 的创建即放置语义、墙排洞与开口占用语义。</summary>
 public class StructureCommandTests
 {
     [Fact]
@@ -31,21 +30,6 @@ public class StructureCommandTests
 
         // ChangeSet 含 Added（脏块由客户端本地推导，不在 ChangeSet 上）
         Assert.Equal(EntityChangeKind.Added, Assert.Single(changes!.Changes).Kind);
-    }
-
-    [Fact]
-    public void BuildWall_Undo_RemovesWall()
-    {
-        var session = Scenes.Session();
-        session.Execute(new BuildWallCommand(new[] { new WallSegment(new Int3(0, 1, 0), new Int3(10, 29, 1)) }));
-        var wallId = session.Layout.Entities.Single(e => e.Key == new Key("wall")).Id;
-
-        Assert.True(session.Undo() is not null);
-        Assert.Empty(session.Layout.Entities);
-        Assert.True(session.Layout.Voxels[new Int3(5, 1, 0)] is null);
-
-        Assert.True(session.Redo() is not null);
-        Assert.Contains(session.Layout.Entities, e => e.Id == wallId);
     }
 
     [Fact]
@@ -72,7 +56,7 @@ public class StructureCommandTests
         var huge = new Int3(int.MaxValue / 16, 1, 0);
         Assert.Null(session.Execute(new BuildWallCommand(new[] { new WallSegment(huge, new Int3(1, 1, 1)) })));
         Assert.Empty(session.Layout.Entities);
-        Assert.False(session.History.CanUndo);
+        Assert.Empty(session.Data.Entities); // 无任何残留
     }
 
     [Fact]
@@ -111,21 +95,6 @@ public class StructureCommandTests
     }
 
     [Fact]
-    public void BuildOpening_Undo_RestoresWallAndRemovesDoor()
-    {
-        var (session, midWall) = Scenes.TwoRoomScene();
-        session.Execute(new BuildOpeningCommand(midWall, new Int3(5, 1, 4), new Int3(1, 20, 2), "door", isOpen: true));
-        var doorId = session.Layout.Entities.Single(e => e.Key == new Key("door")).Id;
-
-        Assert.True(session.Undo() is not null);
-        var wall = session.Layout.Find(midWall)!;
-        Assert.IsType<Box3D>(wall.Volume); // 原体积还原
-        Assert.Null(session.Layout.Find(doorId));
-        Assert.DoesNotContain(session.Data.Entities, e => e.Key == new Key("door"));
-        Assert.Same(wall, session.Layout.Voxels[new Int3(5, 10, 4)]); // 洞口格回到墙
-    }
-
-    [Fact]
     public void BuildOpening_InvalidHole_TransactionFailsAtomically()
     {
         var (session, midWall) = Scenes.TwoRoomScene();
@@ -137,7 +106,6 @@ public class StructureCommandTests
 
         Assert.Same(wallVolumeBefore, wall.Volume); // 墙未改
         Assert.DoesNotContain(session.Data.Entities, e => e.Key == new Key("door")); // 开口未落
-        Assert.DoesNotContain(session.History.UndoStack, c => c.Name == "BuildOpening"); // 未推历史
         Assert.True(session.Layout.Voxels[new Int3(7, 10, 4)] is null);
     }
 
@@ -153,12 +121,6 @@ public class StructureCommandTests
         var wall = session.Layout.Find(midWall)!;
         Assert.IsType<Composite3D>(wall.Volume);
         Assert.Null(session.Layout.Voxels[new Int3(5, 10, 4)]);
-
-        // 撤销 → 门恢复（挂回原宿主）
-        Assert.True(session.Undo() is not null);
-        var door = session.Layout.Find(doorId)!;
-        Assert.Same(door, session.Layout.Voxels[new Int3(5, 10, 4)]);
-        Assert.Same(wall.GetComponent<PlacementLayoutSource>(), session.Layout.FindHostEntity(door));
     }
 
     [Fact]

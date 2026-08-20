@@ -15,29 +15,38 @@ namespace Momoka.Home.Level;
 /// <summary>
 /// 权威服务器模型（常驻）：包装 <see cref="EditorSession"/>（命令执行 / 撤销 /
 /// ChangeSet 全在后者）；本类型即权威数据（继承 <see cref="LevelData"/>：
-/// 类型 + 布局 + 全实体注册表），另负责模板工厂、装载校验、请求路由、全局变更
-/// 版本号、请求串行锁、编辑 token、Pub/Sub 事件广播、Sqlite 持久化（Entities +
-/// Voxels + Regions 三源一体）。Home 保持零网络零外部依赖——WS 监听 / fan-out /
-/// 鉴权属宿主（Core/Stage daemon），此处只暴露 <see cref="HandleRequest"/> → Result + 事件。
+/// 类型 + 布局 + 全实体注册表）。负责模板工厂、装载校验、类型化操作入口
+/// （网关 <c>HomeService</c> 直接委托）、全局变更版本号、编辑 token、
+/// 变更事件（网关转发到 <c>IHomeClient</c>）、Sqlite 持久化（Entities + Voxels）。
+/// Home 保持零网络零外部依赖。
 /// </summary>
+/// <remarks>
+/// 并发模型：<c>_gate</c> 把模型操作串行化（模型非线程安全——编辑 token 只保证
+/// 单写者，不隔离读/写竞态）。事件回调（<see cref="LayoutChanged"/> /
+/// <see cref="EntityCreated"/> / <see cref="SaveCompleted"/>）一律在锁外触发——
+/// 锁内只计算结果与事件载荷，避免订阅者（网关广播）拖住全局串行锁。
+/// </remarks>
 public sealed class ServerLevelData : LevelData
 {
     public EditorSession Session { get; }
     public EntityTemplateFactory Templates { get; }
     public string TemplateVersion => Templates.Version;
 
-    /// <summary>全局变更版本号：每次成功布局变更 +1，随 <c>layout_changed</c> 事件广播。</summary>
+    /// <summary>全局变更版本号：每次成功布局变更 +1，随 <see cref="LayoutChanged"/> 广播。</summary>
     public uint Version { get; private set; }
 
-    public event EventHandler<LayoutChangedEventArgs>? LayoutChanged;
-    public event EventHandler<EntityCreatedEventArgs>? EntityCreated;
-    public event EventHandler<SaveCompletedEventArgs>? SaveCompleted;
+    /// <summary>布局变更（版本 + 实体增量；网关 1:1 转发 <c>IHomeClient.LayoutChanged</c>，锁外触发）。</summary>
+    public event Action<uint, EntityDelta[]>? LayoutChanged;
+
+    /// <summary>新实体登记进注册表（网关 1:1 转发 <c>IHomeClient.EntityCreated</c>，锁外触发）。</summary>
+    public event Action<Entity>? EntityCreated;
+
+    /// <summary>持久化完成（网关 1:1 转发 <c>IHomeClient.SaveCompleted</c>，锁外触发）。</summary>
+    public event Action? SaveCompleted;
 
     private readonly object _gate = new();
-    private readonly Dictionary<string, List<ISubscriber>> _subscribers = new();
     private SqliteStore? _store;
     private string? _editorConnectionId;
-    private uint _seq;
 
     public ServerLevelData() : this(new EntityTemplateFactory()) { }
 
@@ -56,36 +65,11 @@ public sealed class ServerLevelData : LevelData
         }
     }
 
-    // ── Pub/Sub（宿主按连接订阅；Home 内事件分发锁外）──────
-
-    public void Subscribe(string topic, ISubscriber subscriber)
-    {
-        lock (_gate)
-        {
-            if (!_subscribers.TryGetValue(topic, out var list))
-                _subscribers[topic] = list = new List<ISubscriber>();
-            list.Add(subscriber);
-        }
-    }
-
-    public void Unsubscribe(string topic, ISubscriber subscriber)
-    {
-        lock (_gate)
-        {
-            if (!_subscribers.TryGetValue(topic, out var list))
-                return;
-            list.Remove(subscriber);
-            if (list.Count == 0)
-                _subscribers.Remove(topic);
-        }
-    }
-
-    // ── 装载 / 持久化（Sqlite 单源：Entities + Voxels + Regions）────────
+    // ── 装载 / 持久化（Sqlite 单源：Entities + Voxels）────────
 
     /// <summary>
     /// 装载：SqliteStore（entities + chunks）→ 放置关系重建 → Type 从 Home 实体
     /// 还原 → Validate（Bound 派生修复）。硬错误 → 拒绝装载（抛异常）。
-    /// Region 层装载暂缓（后期单独定案）。
     /// </summary>
     public void Load(SqliteStore store)
     {
@@ -107,21 +91,27 @@ public sealed class ServerLevelData : LevelData
         }
     }
 
-    /// <summary>持久化：Sqlite 事务（Entities + chunks + region names）。失败返回 false。</summary>
-    public bool Save()
+    /// <summary>
+    /// 持久化：Sqlite 事务（Entities + chunks）。持久化成功（或失败）决定 Result；
+    /// <see cref="SaveCompleted"/> 在锁外触发，订阅者异常不回滚持久化结果。
+    /// </summary>
+    public Result Save()
     {
+        uint version;
         lock (_gate)
         {
             try
             {
                 SaveInternal();
-                return true;
+                version = Version;
             }
             catch
             {
-                return false;
+                return Result.Fail("save_failed");
             }
         }
+        SaveCompleted?.Invoke();
+        return Result.Success(version);
     }
 
     private void SaveInternal()
@@ -137,8 +127,7 @@ public sealed class ServerLevelData : LevelData
     // ── 校验 ────────────────────────────────────────────────
 
     /// <summary>
-    /// 装载校验：硬错误（拒绝装载）与可修复警告（自动修复 + 记录）。
-    /// 每次装载后调用；请求时复验为轻量局部检查（见 HandleRequest 路由）。
+    /// 装载校验：硬错误（拒绝装载）与可修复警告（自动修复 + 记录）。每次装载后调用。
     /// </summary>
     public ValidationReport Validate()
     {
@@ -176,15 +165,6 @@ public sealed class ServerLevelData : LevelData
                         a.Volume.Intersects(anchorA, b.Volume, anchorB))
                         report.HardErrors.Add($"entities '{a.Id}' and '{b.Id}' overlap");
                 }
-
-            try
-            {
-                Region.BuildLayout(layout);
-            }
-            catch (Exception ex)
-            {
-                report.HardErrors.Add($"region build failed: {ex.Message}");
-            }
 
             // 可修复：Bound 与实体占用范围不一致 → 以实体范围重建（派生量，无独立持久化）
             var extent = ComputeEntityExtent(layout);
@@ -234,210 +214,167 @@ public sealed class ServerLevelData : LevelData
             : Bound.UnsetValue;
     }
 
-    // ── 请求处理（锁内路由 + 锁外分发）──────────────────────
+    // ── 类型化操作入口（网关 HomeService 直接委托）────────────
 
-    /// <summary>
-    /// 请求入口：锁内路由（产生 Result 与事件清单），锁外分发事件。
-    /// <paramref name="connectionId"/> 供编辑 token（BeginEdit 后仅其持有者可 mutate）。
-    /// </summary>
-    public Result HandleRequest(Envelope envelope, string connectionId)
+    /// <summary>全量同步：注册表 + 放置列表 + 模板目录 + 全局版本号。</summary>
+    public Result GetSnapshot()
     {
-        IRequestFrame request;
-        try
-        {
-            request = FrameRegistry.CreateRequest(envelope.Type, envelope.Payload);
-        }
-        catch
-        {
-            return Result.Fail("unknown_request");
-        }
-
-        var pending = new List<(IEventFrame Frame, string? RequestId)>();
-        Result result;
         lock (_gate)
         {
-            result = Apply(request, connectionId, pending);
-        }
-
-        if (!result.Ok)
-            pending.Add((new ErrorEvent { RequestId = envelope.RequestId, ErrorCode = result.ErrorCode ?? "error" }, envelope.RequestId));
-
-        foreach (var (frame, requestId) in pending)
-            Dispatch(frame, requestId ?? envelope.RequestId);
-        return result;
-    }
-
-    private Result Apply(IRequestFrame request, string connectionId, List<(IEventFrame, string?)> pending)
-    {
-        switch (request)
-        {
-            case GetSnapshotRequest:
-                return GetSnapshot();
-            case BeginEditRequest:
-                return BeginEdit(connectionId);
-            case EndEditRequest:
-                return EndEdit(connectionId);
-            case SaveRequest:
-                return Save(pending);
-            case CreateEntityRequest create:
-                return CreateEntity(create, connectionId, pending);
-            case UndoRequest:
-                return UndoRedo(s => s.Undo(), "nothing_to_undo", connectionId, pending);
-            case RedoRequest:
-                return UndoRedo(s => s.Redo(), "nothing_to_redo", connectionId, pending);
-            default:
-                return Mutate(request, connectionId, pending);
+            var snapshot = BuildSnapshot();
+            return Result.WithPayload(JToken.FromObject(snapshot, JsonSerializer.Create(Settings.JsonSerialization)));
         }
     }
 
-    private Result Mutate(IRequestFrame request, string connectionId, List<(IEventFrame, string?)> pending)
+    /// <summary>从模板物化实体并登记进注册表（未放置池）。不产出布局变更。</summary>
+    public Result CreateEntity(CreateEntityRequest request, string connectionId) => Handle(connectionId, () =>
     {
-        if (!HasEditToken(connectionId))
-            return Result.Fail("no_edit_token");
-
-        IEditorCommand? command = null;
-        string? notFound = null;
-        switch (request)
-        {
-            case PlaceEntityRequest r:
-                if (Entities.All(e => e.Id != r.EntityId))
-                    notFound = "entity_not_found";
-                else if (Session.Layout.Entities.Any(e => e.Id == r.EntityId))
-                    return Result.Fail("already_placed");
-                else if (r.HostId is { } hostId && Session.Layout.Find(hostId) is null)
-                    return Result.Fail("host_not_found");
-                else
-                    command = new PlaceEntityCommand(r.EntityId, r.Position, r.HostId);
-                break;
-            case RemoveEntityRequest r:
-                if (Session.Layout.Find(r.EntityId) is null)
-                    notFound = "entity_not_found";
-                else
-                    command = new RemoveEntityCommand(r.EntityId);
-                break;
-            case MoveEntityRequest r:
-                if (Session.Layout.Find(r.EntityId) is null)
-                    notFound = "entity_not_found";
-                else if (r.HostId is { } moveHost && Session.Layout.Find(moveHost) is null)
-                    return Result.Fail("host_not_found");
-                else
-                    command = new MoveEntityCommand(r.EntityId, r.Position, r.HostId);
-                break;
-            case RotateEntityRequest r:
-                if (Session.Layout.Find(r.EntityId) is null)
-                    notFound = "entity_not_found";
-                else
-                    command = new RotateEntityCommand(r.EntityId, new Float3(r.YawDelta, r.PitchDelta, r.RollDelta));
-                break;
-            case SetPropertyRequest r:
-                if (Session.Layout.Find(r.EntityId) is null)
-                    notFound = "entity_not_found";
-                else
-                    command = new SetPropertyCommand(r.EntityId, r.Name, r.Value?.ToObject<object>());
-                break;
-            case SetTextureRequest r:
-                if (Session.Layout.Find(r.EntityId) is null)
-                    notFound = "entity_not_found";
-                else
-                    command = new SetPropertyCommand(r.EntityId, Property.Texture, r.TextureKey, createIfMissing: true);
-                break;
-            case BuildWallRequest r:
-                command = new BuildWallCommand(r.Segments);
-                break;
-            case BuildOpeningRequest r:
-                if (Session.Layout.Find(r.WallEntityId) is null)
-                    notFound = "wall_not_found";
-                else
-                    command = new BuildOpeningCommand(r.WallEntityId, r.OpeningOrigin, r.OpeningSize, r.OpeningKey, r.IsOpen);
-                break;
-        }
-
-        if (notFound is not null)
-            return Result.Fail(notFound);
-        if (command is null)
-            return Result.Fail("invalid_operation");
-
-        var changes = Session.Execute(command);
-        if (changes is null)
-            return Result.Fail("invalid_operation");
-
-        Version++;
-        if (changes.Changes.Count > 0)
-            pending.Add((new LayoutChangedEvent { Version = Version, EntityDelta = ToDelta(changes) }, null));
-        return Result.Success(Version);
-    }
-
-    private Result UndoRedo(Func<EditorSession, ChangeSet?> op, string emptyError, string connectionId, List<(IEventFrame, string?)> pending)
-    {
-        if (!HasEditToken(connectionId))
-            return Result.Fail("no_edit_token");
-        var changes = op(Session);
-        if (changes is null)
-            return Result.Fail(emptyError);
-        Version++;
-        if (changes.Changes.Count > 0)
-            pending.Add((new LayoutChangedEvent { Version = Version, EntityDelta = ToDelta(changes) }, null));
-        return Result.Success(Version);
-    }
-
-    private Result CreateEntity(CreateEntityRequest r, string connectionId, List<(IEventFrame, string?)> pending)
-    {
-        if (!HasEditToken(connectionId))
-            return Result.Fail("no_edit_token");
-        var template = Templates.Resolve(r.TemplateKey);
+        var template = Templates.Resolve(request.TemplateKey);
         if (template is null)
-            return Result.Fail("template_not_found");
-        if (r.TemplateVersion is not null && r.TemplateVersion != Templates.Version)
-            return Result.Fail("stale_template_version");
+            return new Outcome(Result.Fail("template_not_found"), null);
+        if (request.TemplateVersion is not null && request.TemplateVersion != Templates.Version)
+            return new Outcome(Result.Fail("stale_template_version"), null);
 
-        var command = new CreateEntityCommand(r.TemplateKey, r.TemplateVersion, Templates);
+        var command = new CreateEntityCommand(request.TemplateKey, request.TemplateVersion, Templates);
         if (Session.Execute(command) is null)
-            return Result.Fail("create_failed");
+            return new Outcome(Result.Fail("create_failed"), null);
         var created = command.CreatedEntity!;
-        pending.Add((new EntityCreatedEvent { Entity = created }, null));
-        return Result.WithPayload(JToken.FromObject(created, JsonSerializer.Create(Settings.JsonSerialization)));
-    }
+        return new Outcome(
+            Result.WithPayload(JToken.FromObject(created, JsonSerializer.Create(Settings.JsonSerialization))),
+            () => EntityCreated?.Invoke(created));
+    });
 
-    private Result GetSnapshot()
+    /// <summary>放置：池 → 空间（根放置或表面附着）。</summary>
+    public Result PlaceEntity(PlaceEntityRequest request, string connectionId) => Handle(connectionId, () =>
     {
-        var snapshot = BuildSnapshot();
-        return Result.WithPayload(JToken.FromObject(snapshot, JsonSerializer.Create(Settings.JsonSerialization)));
-    }
+        if (Entities.All(e => e.Id != request.EntityId))
+            return new Outcome(Result.Fail("entity_not_found"), null);
+        if (Session.Layout.Entities.Any(e => e.Id == request.EntityId))
+            return new Outcome(Result.Fail("already_placed"), null);
+        if (request.HostId is { } hostId && Session.Layout.Find(hostId) is null)
+            return new Outcome(Result.Fail("host_not_found"), null);
+        return Execute(new PlaceEntityCommand(request.EntityId, request.Position, request.HostId));
+    });
 
-    private Result Save(List<(IEventFrame, string?)> pending)
+    /// <summary>删除：空间回落池（级联回落表面物件）。</summary>
+    public Result RemoveEntity(RemoveEntityRequest request, string connectionId) => Handle(connectionId, () =>
     {
-        try
+        if (Session.Layout.Find(request.EntityId) is null)
+            return new Outcome(Result.Fail("entity_not_found"), null);
+        return Execute(new RemoveEntityCommand(request.EntityId));
+    });
+
+    /// <summary>移动：改位置 + 宿主迁移（级联随移）。</summary>
+    public Result MoveEntity(MoveEntityRequest request, string connectionId) => Handle(connectionId, () =>
+    {
+        if (Session.Layout.Find(request.EntityId) is null)
+            return new Outcome(Result.Fail("entity_not_found"), null);
+        if (request.HostId is { } moveHost && Session.Layout.Find(moveHost) is null)
+            return new Outcome(Result.Fail("host_not_found"), null);
+        return Execute(new MoveEntityCommand(request.EntityId, request.Position, request.HostId));
+    });
+
+    /// <summary>旋转：三轴欧拉增量（体素占位不变）。</summary>
+    public Result RotateEntity(RotateEntityRequest request, string connectionId) => Handle(connectionId, () =>
+    {
+        if (Session.Layout.Find(request.EntityId) is null)
+            return new Outcome(Result.Fail("entity_not_found"), null);
+        return Execute(new RotateEntityCommand(request.EntityId, new Float3(request.YawDelta, request.PitchDelta, request.RollDelta)));
+    });
+
+    /// <summary>设置 / 清除属性值（属性不存在 → 失败）。</summary>
+    public Result SetProperty(SetPropertyRequest request, string connectionId) => Handle(connectionId, () =>
+    {
+        if (Session.Layout.Find(request.EntityId) is null)
+            return new Outcome(Result.Fail("entity_not_found"), null);
+        return Execute(new SetPropertyCommand(request.EntityId, request.Name, request.Value?.ToObject<object>()));
+    });
+
+    /// <summary>重涂贴图（Property.Texture，模板外补建）。</summary>
+    public Result SetTexture(SetTextureRequest request, string connectionId) => Handle(connectionId, () =>
+    {
+        if (Session.Layout.Find(request.EntityId) is null)
+            return new Outcome(Result.Fail("entity_not_found"), null);
+        return Execute(new SetPropertyCommand(request.EntityId, Property.Texture, request.TextureKey, createIfMissing: true));
+    });
+
+    /// <summary>砌墙（创建即放置，无暂存态）。</summary>
+    public Result BuildWall(BuildWallRequest request, string connectionId) => Handle(connectionId, () =>
+        Execute(new BuildWallCommand(request.Segments)));
+
+    /// <summary>开洞：墙排洞 + 放置门/窗开口。</summary>
+    public Result BuildOpening(BuildOpeningRequest request, string connectionId) => Handle(connectionId, () =>
+    {
+        if (Session.Layout.Find(request.WallEntityId) is null)
+            return new Outcome(Result.Fail("wall_not_found"), null);
+        return Execute(new BuildOpeningCommand(request.WallEntityId, request.OpeningOrigin, request.OpeningSize, request.OpeningKey, request.IsOpen));
+    });
+
+    /// <summary>获取编辑 token（单写者互斥：仅持有者可 mutate）。</summary>
+    public Result BeginEdit(string connectionId)
+    {
+        lock (_gate)
         {
-            SaveInternal();
-            pending.Add((new SaveCompletedEvent(), null));
+            if (_editorConnectionId is not null && _editorConnectionId != connectionId)
+                return Result.Fail("edit_token_held");
+            _editorConnectionId = connectionId;
             return Result.Success(Version);
         }
-        catch
+    }
+
+    /// <summary>释放编辑 token。</summary>
+    public Result EndEdit(string connectionId)
+    {
+        lock (_gate)
         {
-            return Result.Fail("save_failed");
+            if (_editorConnectionId != connectionId)
+                return Result.Fail("no_edit_token");
+            _editorConnectionId = null;
+            return Result.Success(Version);
         }
-    }
-
-    private Result BeginEdit(string connectionId)
-    {
-        if (_editorConnectionId is not null && _editorConnectionId != connectionId)
-            return Result.Fail("edit_token_held");
-        _editorConnectionId = connectionId;
-        return Result.Success(Version);
-    }
-
-    private Result EndEdit(string connectionId)
-    {
-        if (_editorConnectionId != connectionId)
-            return Result.Fail("no_edit_token");
-        _editorConnectionId = null;
-        return Result.Success(Version);
     }
 
     private bool HasEditToken(string connectionId) =>
         _editorConnectionId is null || _editorConnectionId == connectionId;
 
-    // ── 帧 / 事件 ───────────────────────────────────────────
+    /// <summary>
+    /// 锁内路由：编辑 token 校验 → 锁内执行并收集事件，锁外触发 <see cref="Outcome.Notify"/>。
+    /// </summary>
+    private Result Handle(string connectionId, Func<Outcome> mutate)
+    {
+        Outcome outcome;
+        lock (_gate)
+        {
+            if (!HasEditToken(connectionId))
+                return Result.Fail("no_edit_token");
+            outcome = mutate();
+        }
+        outcome.Notify?.Invoke();
+        return outcome.Result;
+    }
+
+    private Outcome Execute(IEditorCommand command)
+    {
+        var changes = Session.Execute(command);
+        if (changes is null)
+            return new Outcome(Result.Fail("invalid_operation"), null);
+        return Commit(changes);
+    }
+
+    /// <summary>提交：版本 +1 → 组装变更事件（锁内），通知在锁外由 <see cref="Handle"/> 触发。</summary>
+    private Outcome Commit(ChangeSet changes)
+    {
+        var version = ++Version;
+        Action? notify = null;
+        if (changes.Changes.Count > 0)
+        {
+            var deltas = ToDelta(changes);
+            notify = () => LayoutChanged?.Invoke(version, deltas);
+        }
+        return new Outcome(Result.Success(version), notify);
+    }
+
+    // ── 事件载荷 ───────────────────────────────────────────
 
     private static EntityDelta[] ToDelta(ChangeSet changes) => changes.Changes.Select(c => c.Kind switch
     {
@@ -465,34 +402,10 @@ public sealed class ServerLevelData : LevelData
             Version = Version,
         };
     }
-
-    private void Dispatch(IEventFrame frame, string? requestId)
-    {
-        var envelope = Frames.EventFrame(FrameRegistry.NameOf(frame.GetType()), _seq++, requestId, frame);
-        var topic = Topics.Of(frame);
-        List<ISubscriber>? subscribers;
-        lock (_gate)
-        {
-            _subscribers.TryGetValue(topic, out subscribers);
-        }
-        if (subscribers is not null)
-            foreach (var subscriber in subscribers.ToList())
-                subscriber.OnFrame(envelope);
-
-        switch (frame)
-        {
-            case LayoutChangedEvent layoutChanged:
-                LayoutChanged?.Invoke(this, new LayoutChangedEventArgs(layoutChanged));
-                break;
-            case EntityCreatedEvent created:
-                EntityCreated?.Invoke(this, new EntityCreatedEventArgs(created));
-                break;
-            case SaveCompletedEvent saved:
-                SaveCompleted?.Invoke(this, new SaveCompletedEventArgs(saved));
-                break;
-        }
-    }
 }
+
+/// <summary>锁内执行的结果 + 锁外通知（事件触发延迟到 <see cref="ServerLevelData"/> 的锁释放后）。</summary>
+internal readonly record struct Outcome(Result Result, Action? Notify);
 
 /// <summary>装载校验报告：硬错误（拒绝装载）与可修复警告（自动修复 + 记录）。</summary>
 public sealed class ValidationReport

@@ -9,4 +9,12 @@
     <AnalysisMode>Recommended</AnalysisMode>
   </PropertyGroup>
 
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Momoka.Home\Momoka.Home.csproj" />
+  </ItemGroup>
+
 </Project>

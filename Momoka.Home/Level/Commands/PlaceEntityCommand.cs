@@ -1,26 +1,15 @@
+using Momoka.Home.Level;
 using Momoka.Home.Entities;
 using Momoka.Home.Primitives;
 using Momoka.Home.Entities.Components;
-using Momoka.Home.Entities.Properties;
 namespace Momoka.Home.Level.Commands;
 
-/// <summary>
-/// 放置命令：从"未放置池"（<see cref="LevelData.Entities"/>）按 EntityId 取出实体，
-/// 根放置（无 HostId）或表面附着（HostId + 期望类别校验，复用
-/// <c>UnitLayout.Add(entity, position, source)</c>）。Undo = Remove（非级联即无
-/// 附着物）+ 回池（实体仍留在 LevelData.Entities）。
-/// </summary>
+/// <summary>放置：池 → 空间（根放置或表面附着）。</summary>
 public sealed class PlaceEntityCommand : IEditorCommand
 {
     private readonly Guid _entityId;
     private readonly Float3 _position;
     private readonly Guid? _hostId;
-
-    public string Name => "Place";
-    public string? CoalesceKey => null;
-
-    private Entity? _entity;
-    private PlacementLayoutSource? _host;
 
     public PlaceEntityCommand(Guid entityId, Float3 position, Guid? hostId = null)
     {
@@ -33,11 +22,11 @@ public sealed class PlaceEntityCommand : IEditorCommand
     {
         changes = new ChangeSet();
         var unit = session.Layout;
-        _entity = session.Data.Entities.FirstOrDefault(e => e.Id == _entityId);
-        if (_entity is null)
+        var entity = session.Data.Entities.FirstOrDefault(e => e.Id == _entityId);
+        if (entity is null)
             return false;
-        if (unit.Entities.Contains(_entity))
-            return false; // 已放置（宿主即自身 / 重复放置）
+        if (unit.Entities.Contains(entity))
+            return false;
 
         if (_hostId is { } hostId)
         {
@@ -45,26 +34,15 @@ public sealed class PlaceEntityCommand : IEditorCommand
             var source = host?.GetComponent<PlacementLayoutSource>();
             if (host is null || source is null)
                 return false;
-            _host = source;
-            if (!unit.Add(_entity, new Position(_position), source))
+            if (!unit.Add(entity, new Position(_position), source))
                 return false;
         }
-        else
+        else if (!unit.Add(entity, new Position(_position)))
         {
-            if (!unit.Add(_entity, new Position(_position)))
-                return false;
+            return false;
         }
 
-        changes.Added(_entity);
-        return true;
-    }
-
-    public bool Undo(EditorSession session, out ChangeSet changes)
-    {
-        changes = new ChangeSet();
-        if (_entity is null || !session.Layout.Remove(_entity))
-            return false;
-        changes.Removed(_entity);
+        changes.Added(entity);
         return true;
     }
 }
