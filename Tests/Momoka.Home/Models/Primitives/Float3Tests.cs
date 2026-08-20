@@ -35,10 +35,13 @@ public class Float3Tests
     {
         Assert.True(new Float3(1, 2, 3) < new Float3(2, 3, 4));
         Assert.False(new Float3(1, 2, 3) < new Float3(1, 3, 4)); // X 相等 → 非严格小于
-        Assert.True(new Float3(1, 2, 3) <= new Float3(1, 3, 4));
+        Assert.False(new Float3(2, 2, 3) < new Float3(1, 2, 3)); // X 更大 → 非小于
+        Assert.True(new Float3(1, 2, 3) <= new Float3(1, 3, 4)); // X 相等也可
         Assert.True(new Float3(2, 3, 4) > new Float3(1, 2, 3));
-        Assert.True(new Float3(1, 3, 4) >= new Float3(1, 2, 3));
-        Assert.False(new Float3(1, 2, 3) > new Float3(1, 2, 3)); // 相等 → 非大于
+        Assert.False(new Float3(1, 3, 3) > new Float3(1, 2, 3)); // 仅 Y 大 → 非大于
+        Assert.False(new Float3(1, 2, 4) > new Float3(1, 2, 3)); // 仅 Z 大 → 非大于
+        Assert.True(new Float3(1, 3, 4) >= new Float3(1, 2, 3)); // Y 大即可
+        Assert.True(new Float3(1, 2, 4) >= new Float3(1, 2, 3)); // 仅 Z 大也可
     }
 
     [Fact]

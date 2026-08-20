@@ -84,10 +84,10 @@ public class KeyTests
     [Fact]
     public void ComparisonOperators_FollowCompareTo()
     {
-        Assert.True(new Key("a", "x") < new Key("b", "x"));
-        Assert.True(new Key("a", "x") <= new Key("a", "x"));
-        Assert.True(new Key("b", "x") > new Key("a", "x"));
-        Assert.True(new Key("a", "x") >= new Key("a", "x"));
+        Assert.True(new Key("a", "x") < new Key("b", "x"));   // ns 序
+        Assert.True(new Key("a", "x") <= new Key("a", "y"));  // 同 ns，path 序
+        Assert.True(new Key("b", "x") > new Key("a", "x"));   // ns 反序
+        Assert.True(new Key("a", "y") >= new Key("a", "x"));  // 同 ns，path 反序
     }
 
     [Fact]
