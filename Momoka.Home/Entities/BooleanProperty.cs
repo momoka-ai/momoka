@@ -1,7 +1,7 @@
 using Momoka.Home;
 using Momoka.Home.Primitives;
 using Momoka.Home.Data.Json;
-namespace Momoka.Home.Properties;
+namespace Momoka.Home.Entities;
 
 [JsonTypeName("boolean")]
 public class BooleanProperty : Property<bool>

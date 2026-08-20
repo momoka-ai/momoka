@@ -1,5 +1,5 @@
 using Momoka.Home.Data.Json;
-namespace Momoka.Home.Components;
+namespace Momoka.Home.Entities;
 
 /// <summary>A command target: the set of commands the device accepts.</summary>
 [JsonTypeName("command_target")]

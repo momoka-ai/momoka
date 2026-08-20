@@ -1,4 +1,4 @@
-namespace Momoka.Home.Components;
+namespace Momoka.Home.Entities;
 
 /// <summary>
 /// Query and mutation helpers for <see cref="IComponentSource"/> — implemented

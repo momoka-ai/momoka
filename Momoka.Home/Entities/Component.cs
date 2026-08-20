@@ -1,4 +1,4 @@
-namespace Momoka.Home.Components;
+namespace Momoka.Home.Entities;
 
 /// <summary>
 /// A behavior component attached to an <see cref="IComponentSource"/> — a pure,

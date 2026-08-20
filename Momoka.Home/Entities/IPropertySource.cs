@@ -1,4 +1,4 @@
-namespace Momoka.Home.Properties;
+namespace Momoka.Home.Entities;
 
 /// <summary>
 /// Capability of an object to hold per-instance properties (name → typed

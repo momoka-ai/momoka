@@ -1,7 +1,7 @@
 using Momoka.Home.Data.Json;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
-namespace Momoka.Home.Components;
+namespace Momoka.Home.Entities;
 
 [JsonConverter(typeof(StringEnumConverter))]
 public enum EventType

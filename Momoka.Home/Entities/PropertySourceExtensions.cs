@@ -1,4 +1,4 @@
-namespace Momoka.Home.Properties;
+namespace Momoka.Home.Entities;
 
 /// <summary>
 /// Property-table helpers for <see cref="IPropertySource"/> — name-first:

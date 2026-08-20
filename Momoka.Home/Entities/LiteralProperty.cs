@@ -1,6 +1,6 @@
 using Momoka.Home.Data.Json;
 using Newtonsoft.Json;
-namespace Momoka.Home.Properties;
+namespace Momoka.Home.Entities;
 
 /// <summary>
 /// A string property with a CLOSED set of valid values (config "literals"):
