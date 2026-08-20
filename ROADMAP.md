@@ -23,18 +23,18 @@
 
 | 模块 | 完成度 | 说明 |
 |------|--------|------|
-| Momoka.Home | 🟡 ~65% | 空间模型 / 属性 / 序列化 / 空间查询 / 放置与附着体系完成；编辑命令 / 设备层 / 安全层未实现 |
+| Momoka.Home | 🟡 ~70% | 空间模型 / 属性 / 序列化 / 空间查询 / 放置与附着 / 编辑命令层完成；GraphLine3D 墙体图模型、设备层 / 安全层未实现 |
 | Momoka.Ui | 🔴 <10% | 仅 GDExtension 入口骨架 |
 | Momoka.Stage | 🔴 <5% | 仅目录与占位 README |
 | Momoka.Voice | 🟡 ~20% | HTTP 骨架完成；TTS 引擎未集成 |
 | Momoka.Ai / Core / Sense | 🔴 <10% | 仅程序入口骨架 |
-| 测试 / CI | 🟢 ~80% | 401 个测试全绿；CI = dotnet 构建+测试 / Godot 检查 / Python ruff |
+| 测试 / CI | 🟢 ~80% | 383 个测试全绿；CI = dotnet 构建+测试 / Godot 检查 / Python ruff |
 
 ---
 
 ## 架构决策（2026-08）
 
-> 系统拓扑与模块通信的既定决策，落地时参照。**当前只做 Home 模块，暂不写 Core 相关代码。**
+> 系统拓扑与模块通信的既定决策，落地时参照。**当前主做 Home 模块；Core 仅建了 SignalR 网关存根（`HomeService`/`IHomeClient`），宿主待 Phase 5。**
 
 - **Momoka.Core = 插件宿主**：通过 `AssemblyLoadContext` 加载模块（每次启动加载 / 运行期热插拔），反射发现 `IMomokaModule`
 - **Core 只认识通用自描述契约** `IMomokaModule`（能力表 / 事件 / 依赖 / 生命周期）；**不内置任何模块能力契约**
@@ -48,9 +48,14 @@
 - **Core 零业务状态**：只维护「服务注册表 + 事件订阅表」两张表，数据全在模块内
 - **Security 内嵌 Core**：危险命令（燃气/门锁/高压）拦截逻辑与 Core 强耦合，不作为可裁剪插件
 - **Agentic 独立模块**：LLM 推理/意图/工具调用/记忆独立于 Core（或并入 Momoka.Ai）；Core 不依赖 LLM
-- **Ui = 唯一远程边界**：Godot/C++ 无法进程内引用 .NET，经 WebSocket/MessagePack 连 Core 的 Ui 网关（网关本身也按模块注册）
+- **Ui = 唯一远程边界**：Godot C# .NET 客户端经 **SignalR**（强类型 `Hub<IHomeClient>`）连 Core 的 Ui 网关（网关本身也按模块注册）；客户端调用端强类型安全用自写门面（`nameof` 对齐 Hub 方法名）
 - **Sense 数据不属 Home**：心率/体温/心情等用户状态仅供 LLM 推理决策，不写入 Home 孪生模型
 - **Home = 纯模型库**：零外部依赖、零网络，作为模块由 Core 托管
+- **互操作 = SignalR（2026-08-20 定案）**：强类型 `Hub<IHomeClient>`（方式一：单 Hub + 组合客户端契约 + 服务端操作服务类）；**不手写传输中间件**——`Envelope` / `FrameRegistry` / 帧事件 / `ISubscriber` 已全部删除；跨语言非目标（C# 主语言，Ui = Godot C# .NET）
+- **C# 主语言（2026-08-20 定案）**：Godot C# .NET 版可用——GDExtension（C++）插件与 C# 共存；Live2D 用自写 Cubism GDExtension 胶水（Phase 4），不阻塞选型
+- **撤销 = 客户端本地（2026-08-20 定案）**：历史归客户端（记录操作参数 + 重发逆操作请求，逐个回滚、无合并），服务器不记录不重放；`CommandHistory` / `CoalescedCommand` 已删除
+- **命令层 → 模型操作（方向）**：叶子命令（validate-then-apply）是模型操作的中间形态；GraphLine3D 落地时溶解为 `LevelData` / `UnitLayout` 方法（如 `BuildWall → SetVolume`）
+- **Home 并发模型**：`_gate` 操作级串行化（模型非线程安全；编辑 token 保证单写者，锁隔离读写竞态）+ 变更事件一律锁外触发（网关转发 `IHomeClient`）
 
 ---
 
@@ -82,17 +87,21 @@
 - [x] 几何：`Volume` / `Shape` + `IVoxelGeometry2D/3D` + `Box3D` / `Line3D` / `Curve3D` / `Polygon3D` / `Prism3D` / `Conic3D` / `Spherical3D` / `Extruded3D` / `Composite3D` / `Rect2D` / `Polygon2D` / `Circular2D` / `Composite2D`（带 `[JsonTypeName]`）
 - [x] 序列化管线：`JsonTypeNameRegistry` + `JsonTypeConverter` + `JsonGeometryConverter` + `JsonPropertyConverter`；`MideaVerifyTests` 用真实配置验证
 - [x] 组件：`Component` + `IComponentSource` + `CommandTarget` / `DataSource` / `EventSource` / `PlacementLayoutSource`
-- [x] 测试：401 个全绿（Layouts / Regions / Serialization / Shapes / Algorithms / Primitives / Properties / 放置链 / Level 编辑与协议）
+- [x] 测试：383 个全绿（Layouts / Serialization / Shapes / Algorithms / Primitives / Properties / 放置链 / Level 编辑操作与 DTO 往返）
 - [x] 旧容器清理与迁移：`Home` / `Level` / `Building`、旧 2D `Region`、`IVoxelSpaceRoot`、`PlaneLayout`、`TextureProperty`、`FloorPlanLayout` 已删除；`Region` 迁主命名空间（`Momoka.Home`），`UnitLayout.Regions`（`ColumnLayout<Region>`）取代 `Floors`
+- [x] **Level 命名空间 + 传输层移除（2026-08-20）**：`Editing` → `Level`（含 `Commands`/`Protocol`）；手工 C/S 中间件全删——`Envelope`/`Frames`/`FrameRegistry`/`FrameTypeAttribute`/`ISubscriber`/`Topics`/帧事件/`PubSub`；`Protocol/` 只剩纯 DTO（Requests / Result / EntityDelta / SnapshotEvent）；`ServerLevelData` 从 `HandleRequest` 通用路由改为 **12 个类型化操作** + Action 式变更事件（`LayoutChanged` / `EntityCreated` / `SaveCompleted`，锁外触发）；`Core/Gateway` 建 `HomeService`（Hub）+ `IHomeClient`（契约）存根
+- [x] **命令层收敛（2026-08-20）**：删除 `CommandHistory` / `CoalescedCommand` / `ICompositeCommand` / `CompositeCommand` / `RegisterEntityCommand` / `UndoRedoCommand`；`IEditorCommand` 单方法（`Execute` → ChangeSet）；9 个叶子命令只留正向 validate-then-apply；`BuildWall` / `BuildOpening` 改单命令 **create-即-place**（无暂存态）；`EditorSession` 收敛为薄执行器（无 History / Undo / Redo）；撤销归客户端本地
 
 待实现（按当前优先级）：
+
+- [ ] **GraphLine3D 墙体图模型（最高优先级）**：连续墙体 = 一个实体，`Volume` 复用现有 `Graph3D<Int3>` 做 `GraphLine3D`（节点 + 边 → 墙段盒并集）；**新增墙 = 图加节点 + 边 → `SetVolume`**（BuildWall 直接变成 SetVolume，无需新命令）；异形墙（L/U/C/T）天然连通路径；整墙移动 = MoveEntity；撤销 = 恢复旧 Volume。连带事项：① Graph 序列化（Edges 往返 + 节点重建）② 图墙排洞方案（`VolumePunch` 只支持 Box3D/Composite3D，需改造或改"开口占用格 + 墙体积洞格集合"）③ 挂载面（整墙网络外立面）④ `LayoutHelpers` 随命令消失（`InWorldExtent` → `UnitLayout`；Bound 扩展 → `UnitLayout.Add` 自动维护）
 
 - [x] **3D Region 自动生成**：站立格（Up 放置面 + 净高过滤）→ `ColumnLayout` 引擎标 span（阻隔即占用，家具成洞）；`Region.BuildLayout()` + `UnitLayout.RebuildRegions()`（§5.6）；门开关 Portal 与 wall-extension 后续
 - [x] **空间查询层**（`IVoxelSource<T>` 扩展 + 纯算法层）：`Algorithms/` 五类型 `Traverse`（OnLine/InCone/InFrustum）/ `Visibility`（Project/IsInView）/ `Occlusion`（四档阻挡）/ `Collision.Result` / `Pathfinding.AStar`；查询扩展 `CanSee`×3 / `FindItemsInView`×3（射线/圆锥/视锥，严格遮挡）/ `IsCollided`×3 / `IsOccluded` / `GetItemsInBound` / `FindPath`（失败统一 null，无 Reachable）
 - [x] **体素空间负坐标支持**：`VoxelChunk` section 偏移（`_baseSy`，负 Y 可写可读）+ `LayoutChunkCodec` 世界 section Y 编码（旧文件字节兼容）；Bound 三维 ±16384 格全支持
 - [x] **放置 API 重构**：`UnitLayout.Add(entity[, position])` / `Remove(entity)` / `Remove(Position)` / `Find(id|Position)` 取代 `PlaceAt`/`DestroyAt`/`FindEntity`；删除 = 回落"未放置"池（实体保留于 LevelData 注册表）且**连带回落表面物件**（实体不能悬空；删除前确认是编辑器 UI 的职责）；`PlacementLayoutSource.Entities` 表面宿主登记（回落同步清理）；实体对碰撞下沉 `Volume.Intersects`；自动寻位 `Add(Entity)` 已实现（Bound 内扫描：不碰撞 + 下方有支撑——地面或 immutable 结构）
 - [x] **表面附着与朝向体系**：`Rotation`（yaw/pitch/roll，内旋 YXZ 与 Godot 一致，零转换映射）/ `Transform`（位置 + 姿态）/ `RotationAlignment`（缺省 `Upside`——未配置物件只可放朝上水平面；`Matches` 匹配规则：精确匹配 + Horizontal 接受上下）/ `PlacementLayoutSource`（Layout + Transform + 运行时登记表）；`Add(entity, pos, source)` 显式附着（编辑器经视线探测提取表面）——斜表面可附着（`Tilted` 期望生效，太阳能板放坡顶），贴合姿态由表面方向推导（渲染端处理），体素占位恒轴对齐
-- [ ] **具体编辑命令**：`PlaceEntityCommand` / `RemoveEntityCommand`（含开口级联）/ `BuildWallCommand` / `PaintTileCommand`（刷材质面），接入 `CommandHistory`；级联删除基础（`Remove(entity, cascade)` + 表面宿主登记）已就绪
+- [x] **具体编辑命令**：`Place` / `Remove`（含开口级联）/ `Move` / `Rotate` / `SetProperty`（含贴图，createIfMissing）/ `BuildWall` / `BuildOpening` 叶子命令，validate-then-apply、无历史（撤销归客户端本地）；级联删除基础（`Remove(entity, cascade)` + 表面宿主登记）已就绪
 - [ ] **`UnitLayout.Rebuild` 重写（已弃用）**：低层直接写格改为受控通道（事件 / 脏格跟踪），不再事后全量重栅格化；重写后移除
 - [ ] **门洞/Portal 连通性**：门开度属性 → Region 连通性重算（Home 侧空间语义）；**渲染归 Momoka.Ui**（Z-Index + 剖分，Home 不做）
 - [ ] **参数化 `Shape` 体系**：屋顶 = 实体模板（`key=rooftop`）+ 现有 Shape 族（`Extruded3D` 坡面 / `Conic3D` 锥顶 / `Composite3D` 组合），Pitch/Overhang 即截面顶点参数——无需新类型体系，模板配置示例即可；网格生成归 Momoka.Ui
@@ -104,10 +113,9 @@
 - [x] **墙体开口宿主 + 级联删除**：门窗 / 吊灯挂载到墙 / 天花板实体；删除宿主 → 连带回落表面物件。**实现**：不引入实体树——`PlacementLayoutSource.Entities` 登记"摆在表面上的物件"，`Add` 拒绝已放置实体（宿主即自身 / 重复放置）保证 Items 恒为森林（无环不变量），`Remove(entity)` 递归回落依赖链；编辑命令层入口（`PlaceEntityCommand` 等）随命令层实现
 - [ ] **多形态设备（低优先级）**：`DeviceShell` + 具象形态（静态网格占用 ↔ 移动连续位置），`Activate` / `Deactivate` 生命周期，身份贯穿形态切换（如扫地机器人）
 - [x] **Palette 策略减法**：`Int2/Int3ChunkStrategy` 等暂留，待稳定后清理未用策略（2026-08-13：删除 `Int3ColumnSpanStrategy` / `Int3DenseStrategy` / `Int2DenseStrategy` 三个零引用策略）
-- [ ] **编辑器撤销/重做**：`EditorCommand` / `CommandHistory` 已删除（未到编辑器阶段），待 Phase 2 前重建
+- [x] **撤销/重做定案**：**客户端本地历史**（记录操作参数 + 重发逆操作请求，服务器不记录不重放、逐个回滚无合并）；Phase 2 Ui 实现客户端侧
 - [x] **Palette / PalettedContainer / PackedBitStorage 直接序列化**：四个类型各自挂 `[JsonConverter]`，产出 `palette_json + bits + data` 填表载荷，去掉手写字节 codec（2026-08-13 简化落地：`Palette<T>` 挂 `JsonPaletteConverter`（Entity 写 Guid 引用）+ `PackedBitStorage.ToBytes/FromBytes` little-endian BLOB；`LayoutChunkCodec` 退役随 Sqlite 体素层）
 - [x] **Sqlite 存储层 · 三表合一（`Data/Sqlite`，2026-08-20）**：`linq2db` + `Microsoft.Data.Sqlite`，单文件存档（每服务器唯一，`ListSaves` 删除）；一次事务原子写入 **`Entities`**（Id + Json 每实体一行，含 Home 实体）+ **`Chunks`**（x, z + 整 chunk 载荷——paletted sections + region spans 一体编码，复用 `LayoutChunkCodec.Encode/Decode`）+ **`RegionNames`**（id + name；几何从 chunk spans 重算——单一真相）；`LayoutChunkCodec`/`RegionsCodec` 文件层退役；`LevelData.Type` 经 Home 实体 unit_type 属性持久化
-- [ ] **区块数据压缩**：section words（`ulong[]`）gzip 压缩后存 BLOB（对齐 Minecraft region 文件的 zlib 做法，稀疏区块收益大）
 - [ ] **区块数据压缩**：section words（`ulong[]`）gzip 压缩后存 BLOB（对齐 Minecraft region 文件的 zlib 做法，稀疏区块收益大）
 - [ ] **物业 / 管理方引用层（推迟）**：统一管理多 Unit 的引用式封装（住户 Level 默认全权，物业另层且不可见住户内容）
 - [ ] **传播图 `Propagation`（远期 · AI 伴侣阶段，低优先级）**：Region 图上的加权 Dijkstra（节点=房间 Region，边=门户开/关/墙，代价=距离 + 穿墙损耗），一次算完供三类感知：① 灯可见性（同 Region 或开着的门连通 → 可感知，用于自动关用户不可见的灯）② 声音传播（最短路径长度 + 墙衰减 → 按用户位置自动调音量）③ WiFi 信号（log-distance path loss + 穿墙惩罚 → 每房间信号表）。**不依赖体素 LOS**——光/声/无线电能绕弯、是连续衰减而非二值可见；`CanSee`/`Occlusion` 仅留给摄像头视野/投影遮挡等真二值场景。用于光线 / 声音 / 无线信号推断，属 AI 伴侣阶段的感知增强，非初期工程
@@ -122,7 +130,7 @@
 - [ ] 场景编辑交互：家具放置 / 选中 / 拖拽 / 旋转、材质编辑、撤销重做
 - [ ] 2D UI 叠加层：设备控制面板、设置、调试 HUD
 - [ ] 设备状态展示与控制（消费 Momoka.Home 数据）
-- [ ] 与主机建立 WebSocket + MessagePack 通信
+- [ ] 与主机建立 SignalR 通信（Godot C# .NET 客户端，`Microsoft.AspNetCore.SignalR.Client`；`HomeService` Hub + `IHomeClient` 契约已定案）
 
 ## Phase 3 — Momoka.Stage 平台适配（未开始）
 
@@ -137,7 +145,7 @@
 - [ ] 情感状态机：情感参数输出 → 终端 Live2D
 - [ ] 对话安全过滤（L0–L2：脏话 / 角色一致性 / 情感边界）
 - [ ] TTS 协调：HTTP 调用 Momoka.Voice
-- [ ] 与终端建立 WebSocket + MessagePack 通信
+- [ ] 与终端建立 SignalR 通信（Godot C# .NET 客户端）
 - [ ] 终端侧配套（Momoka.Ui）：Live2D 渲染（Cubism → GDExtension）、情绪参数 → 动画映射、VAD、ASR（whisper.cpp）、摄像头 / 人脸检测（ONNX）、音频 I/O（miniaudio）
 
 ## Phase 5 — Momoka.Core 中枢 / 插件宿主（未开始 · 在 Home 完成后实施）
@@ -147,7 +155,7 @@
 - [ ] `IMomokaModule` 契约 + `ModuleHost`：`AssemblyLoadContext` 加载模块 DLL，反射发现，生命周期管理（启动 / 停止 / 热插拔）
 - [ ] 共享 Contracts 层：能力接口（`IHomeService` / `IAgenticService` / ...）+ 消息 DTO + 事件类型
 - [ ] 服务注册表 + 事件订阅表（内存发布 / 订阅，本地函数调用）
-- [ ] Ui 网关：WebSocket / MessagePack 远程边界，按模块注册
+- [ ] Ui 网关：**SignalR**（`HomeService : Hub<IHomeClient>`，按模块注册；`HomeService` / `IHomeClient` 存根已建在 `Momoka.Core/Gateway`），函数实现 + 宿主接线（`AddSignalR` + `MapHub`）待 Phase 5
 - [ ] Security 内嵌：危险命令拦截（规则评估）
 - [ ] 会话 / 身份 / 鉴权：Ui 连接鉴权、用户会话
 - [ ] Agentic 模块（或并入 Ai）：意图识别（Ollama）、快慢通道、Agent 推理循环、工具集成（MCP 风格）、知识记忆（LiteDB）
