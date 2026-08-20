@@ -23,12 +23,12 @@
 
 | 模块 | 完成度 | 说明 |
 |------|--------|------|
-| Momoka.Home | 🟡 ~60% | 空间模型 / 属性 / 序列化核心完成；设备层 / 安全层未实现 |
+| Momoka.Home | 🟡 ~65% | 空间模型 / 属性 / 序列化 / 空间查询 / 放置与附着体系完成；编辑命令 / 设备层 / 安全层未实现 |
 | Momoka.Ui | 🔴 <10% | 仅 GDExtension 入口骨架 |
 | Momoka.Stage | 🔴 <5% | 仅目录与占位 README |
 | Momoka.Voice | 🟡 ~20% | HTTP 骨架完成；TTS 引擎未集成 |
 | Momoka.Ai / Core / Sense | 🔴 <10% | 仅程序入口骨架 |
-| 测试 / CI | 🟢 ~75% | 305 个测试全绿；CI = dotnet 构建+测试 / Godot 检查 / Python ruff |
+| 测试 / CI | 🟢 ~80% | 348 个测试全绿；CI = dotnet 构建+测试 / Godot 检查 / Python ruff |
 
 ---
 
@@ -81,7 +81,7 @@
 - [x] 几何：`Volume` / `Shape` + `IVoxelGeometry2D/3D` + `Box3D` / `Line3D` / `Curve3D` / `Polygon3D` / `Prism3D` / `Conic3D` / `Spherical3D` / `Extruded3D` / `Composite3D` / `Rect2D` / `Polygon2D` / `Circular2D` / `Composite2D`（带 `[JsonTypeName]`）
 - [x] 序列化管线：`JsonTypeNameRegistry` + `JsonTypeConverter` + `JsonGeometryConverter` + `JsonPropertyConverter`；`MideaVerifyTests` 用真实配置验证
 - [x] 组件：`Component` + `IComponentSource` + `CommandTarget` / `DataSource` / `EventSource` / `PlacementLayoutSource`
-- [x] 测试：305 个全绿（Layouts / Regions / Serialization / Shapes / Algorithms / Primitives / Properties）
+- [x] 测试：348 个全绿（Layouts / Regions / Serialization / Shapes / Algorithms / Primitives / Properties / 放置链）
 - [x] 旧容器清理与迁移：`Home` / `Level` / `Building`、旧 2D `Region`、`IVoxelSpaceRoot`、`PlaneLayout`、`TextureProperty`、`FloorPlanLayout` 已删除；`Region` 迁主命名空间（`Momoka.Home`），`UnitLayout.Regions`（`ColumnLayout<Region>`）取代 `Floors`
 
 待实现（按当前优先级）：
@@ -89,8 +89,10 @@
 - [x] **3D Region 自动生成**：站立格（Up 放置面 + 净高过滤）→ `ColumnLayout` 引擎标 span（阻隔即占用，家具成洞）；`Region.BuildLayout()` + `UnitLayout.RebuildRegions()`（§5.6）；门开关 Portal 与 wall-extension 后续
 - [x] **空间查询层**（`IVoxelSource<T>` 扩展 + 纯算法层）：`Algorithms/` 五类型 `Traverse`（OnLine/InCone/InFrustum）/ `Visibility`（Project/IsInView）/ `Occlusion`（四档阻挡）/ `Collision.Result` / `Pathfinding.AStar`；查询扩展 `CanSee`×3 / `FindItemsInView`×3（射线/圆锥/视锥，严格遮挡）/ `IsCollided`×3 / `IsOccluded` / `GetItemsInBound` / `FindPath`（失败统一 null，无 Reachable）
 - [x] **体素空间负坐标支持**：`VoxelChunk` section 偏移（`_baseSy`，负 Y 可写可读）+ `LayoutChunkCodec` 世界 section Y 编码（旧文件字节兼容）；Bound 三维 ±16384 格全支持
-- [x] **放置 API 重构**：`UnitLayout.Add(entity[, position])` / `Remove(entity[, cascade])` / `Remove(Position)` / `Find(id|Position)` 取代 `PlaceAt`/`DestroyAt`/`FindEntity`；删除 = 回落"未放置"池（实体保留于 Residence 总目录）；`PlacementLayoutSource.Items` 表面宿主登记（级联回落 + 被依赖检查）；实体对碰撞下沉 `Volume.Intersects`；自动寻位 `Add(Entity)` 存根待实现
-- [ ] **具体编辑命令**：`PlaceEntityCommand` / `RemoveEntityCommand`（含开口级联）/ `BuildWallCommand` / `PaintTileCommand`（刷材质面），接入 `CommandHistory`；级联删除按"表面宿主 Items + 回落池"设计实现
+- [x] **放置 API 重构**：`UnitLayout.Add(entity[, position])` / `Remove(entity)` / `Remove(Position)` / `Find(id|Position)` 取代 `PlaceAt`/`DestroyAt`/`FindEntity`；删除 = 回落"未放置"池（实体保留于 Residence 总目录）且**连带回落表面物件**（实体不能悬空；删除前确认是编辑器 UI 的职责）；`PlacementLayoutSource.Entities` 表面宿主登记（回落同步清理）；实体对碰撞下沉 `Volume.Intersects`；自动寻位 `Add(Entity)` 已实现（Bound 内扫描：不碰撞 + 下方有支撑——地面或 immutable 结构）
+- [x] **表面附着与朝向体系**：`Rotation`（yaw/pitch/roll，内旋 YXZ 与 Godot 一致，零转换映射）/ `Transform`（位置 + 姿态）/ `RotationAlignment`（缺省 `Upside`——未配置物件只可放朝上水平面；`Matches` 匹配规则：精确匹配 + Horizontal 接受上下）/ `PlacementLayoutSource`（Layout + Transform + 运行时登记表）；`Add(entity, pos, source)` 显式附着（编辑器经视线探测提取表面）——斜表面可附着（`Tilted` 期望生效，太阳能板放坡顶），贴合姿态由表面方向推导（渲染端处理），体素占位恒轴对齐
+- [ ] **具体编辑命令**：`PlaceEntityCommand` / `RemoveEntityCommand`（含开口级联）/ `BuildWallCommand` / `PaintTileCommand`（刷材质面），接入 `CommandHistory`；级联删除基础（`Remove(entity, cascade)` + 表面宿主登记）已就绪
+- [ ] **`UnitLayout.Rebuild` 重写（已弃用）**：低层直接写格改为受控通道（事件 / 脏格跟踪），不再事后全量重栅格化；重写后移除
 - [ ] **门洞/Portal 连通性**：门开度属性 → Region 连通性重算（Home 侧空间语义）；**渲染归 Momoka.Ui**（Z-Index + 剖分，Home 不做）
 - [ ] **参数化 `Shape` 体系**：屋顶 = 实体模板（`key=rooftop`）+ 现有 Shape 族（`Extruded3D` 坡面 / `Conic3D` 锥顶 / `Composite3D` 组合），Pitch/Overhang 即截面顶点参数——无需新类型体系，模板配置示例即可；网格生成归 Momoka.Ui
 - [ ] **设备抽象层 `Providers`**：`IDeviceProvider` + `ProviderRegistry` + HomeAssistant 实现、GIIC 协议桥接
@@ -98,7 +100,7 @@
 - [ ] **安全约束 `Security`（L3–L4）**：Blackboard + 规则评估，拦截燃气 / 门锁 / 高压等危险操作
 - [ ] **DSL 安全规则**：复杂约束的表达式解析
 - [ ] **Build 管线**：视频流 → 3D 重建 → 网格（消费结构化户型数据）
-- [ ] **墙体开口宿主 + 级联删除**：门窗 / 吊灯挂载到墙 / 天花板实体（`Entity` 父子层级）；删除墙 → 级联删除。**设计已定**：不引入实体树——`PlacementLayoutSource.Items` 登记"摆在表面上的物件"，删除 = 回落未放置池（Residence 保留实体），`Remove(entity, cascade: true)` 递归回落依赖链（随编辑命令层实现）
+- [x] **墙体开口宿主 + 级联删除**：门窗 / 吊灯挂载到墙 / 天花板实体；删除宿主 → 连带回落表面物件。**实现**：不引入实体树——`PlacementLayoutSource.Entities` 登记"摆在表面上的物件"，`Add` 拒绝已放置实体（宿主即自身 / 重复放置）保证 Items 恒为森林（无环不变量），`Remove(entity)` 递归回落依赖链；编辑命令层入口（`PlaceEntityCommand` 等）随命令层实现
 - [ ] **多形态设备（低优先级）**：`DeviceShell` + 具象形态（静态网格占用 ↔ 移动连续位置），`Activate` / `Deactivate` 生命周期，身份贯穿形态切换（如扫地机器人）
 - [x] **Palette 策略减法**：`Int2/Int3ChunkStrategy` 等暂留，待稳定后清理未用策略（2026-08-13：删除 `Int3ColumnSpanStrategy` / `Int3DenseStrategy` / `Int2DenseStrategy` 三个零引用策略）
 - [ ] **编辑器撤销/重做**：`EditorCommand` / `CommandHistory` 已删除（未到编辑器阶段），待 Phase 2 前重建
