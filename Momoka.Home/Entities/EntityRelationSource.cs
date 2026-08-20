@@ -1,4 +1,5 @@
 using Momoka.Home.Entities;
+using Momoka.Home.Entities.Components;
 namespace Momoka.Home.Entities;
 
 /// <summary>

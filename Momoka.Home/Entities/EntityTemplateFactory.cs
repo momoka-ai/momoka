@@ -4,6 +4,7 @@ using Momoka.Home.Entities;
 using Momoka.Home.Data.Json;
 using Momoka.Home.Data.Json.Converters;
 using Newtonsoft.Json;
+using Momoka.Home.Entities.Properties;
 namespace Momoka.Home.Entities;
 
 /// <summary>

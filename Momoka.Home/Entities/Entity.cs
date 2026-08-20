@@ -3,6 +3,8 @@ using Momoka.Home.Entities;
 using Momoka.Home.Geometry;
 using Momoka.Home.Primitives;
 using Newtonsoft.Json;
+using Momoka.Home.Entities.Components;
+using Momoka.Home.Entities.Properties;
 namespace Momoka.Home.Entities;
 
 /// <summary>
