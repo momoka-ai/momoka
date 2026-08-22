@@ -5,27 +5,28 @@ using Newtonsoft.Json.Serialization;
 namespace Momoka.Home.Data.Json.Converters;
 
 /// <summary>
-/// Shared engine for registry-driven polymorphic converters: reads the JSON
-/// discriminator ("kind"/"type"), resolves the concrete type via
-/// <see cref="JsonTypeNameRegistry"/>, then binds members directly with snake_case
-/// naming — no per-kind codecs or manual writers. The top-level object is never
-/// re-entered into the serializer (CreateInstance + member iteration), so nested
-/// polymorphic members recurse safely down the tree.
+/// Shared engine for registry-driven polymorphic converters: writes a
+/// <c>{ "kind": …, "data": { …成员… } }</c> envelope and delegates the members to
+/// stock Json.NET (<c>data</c> uses a converter-less internal serializer with
+/// snake_case + the grid converter, so member serialization honors property-level
+/// [JsonConverter] and the registered converters). Reading resolves the concrete
+/// type via <see cref="JsonTypeNameRegistry"/> and materializes <c>data</c> with
+/// stock Json.NET — no manual member iteration.
 /// </summary>
 public abstract class JsonTypeConverter<TBase> : JsonConverter where TBase : class
 {
-    private readonly JsonSerializer _serializer;
+    private readonly JsonSerializer _plain;
 
     protected JsonTypeConverter()
     {
-        _serializer = JsonSerializer.Create(new JsonSerializerSettings
+        _plain = JsonSerializer.Create(new JsonSerializerSettings
         {
             ContractResolver = new DefaultContractResolver { NamingStrategy = new SnakeCaseNamingStrategy() },
-            Converters = { this, new JsonGridLayoutConverter() }
+            Converters = { new JsonGridLayoutConverter() }
         });
     }
 
-    /// <summary>JSON discriminator key ("kind" for geometry, "type" for properties).</summary>
+    /// <summary>JSON discriminator key ("kind" for geometry/components, "type" for properties).</summary>
     protected abstract string Discriminator { get; }
 
     /// <summary>Resolves the concrete type for a discriminator value (registry family).</summary>
@@ -50,18 +51,25 @@ public abstract class JsonTypeConverter<TBase> : JsonConverter where TBase : cla
         return ReadLoadedObject(obj, objectType);
     }
 
-    /// <summary>
-    /// 从已载入的 JSON 对象物化目标实例（判别 → 建型 → 填充 → 装载钩子）。
-    /// 供子类在自定义判别（如枚举自描述化）后复用同一填充管线。
-    /// </summary>
+    /// <summary>从已载入的 JSON 对象物化目标实例（判别 → data 委托 stock Json.NET → 装载钩子）。</summary>
     protected virtual object? ReadLoadedObject(JObject obj, Type declaredType)
     {
         var kind = obj[Discriminator]?.Value<string>() ?? "";
         var targetType = ResolveTargetType(kind, declaredType);
+        if (obj["data"] is not JToken data)
+            throw new JsonSerializationException($"{declaredType.Name} '{kind}' is missing the 'data' member.");
 
-        var value = CreateInstance(targetType);
-        FillMembers(obj, targetType, value);
-        OnLoaded(value);
+        object? value;
+        try
+        {
+            value = data.ToObject(targetType, _plain);
+        }
+        catch (JsonSerializationException ex) when (ex.InnerException is ArgumentException)
+        {
+            // A value setter's validation error surfaces as-is, not wrapped.
+            throw ex.InnerException;
+        }
+        OnLoaded(value!);
         return value;
     }
 
@@ -76,77 +84,8 @@ public abstract class JsonTypeConverter<TBase> : JsonConverter where TBase : cla
         writer.WriteStartObject();
         writer.WritePropertyName(Discriminator);
         writer.WriteValue(NameOf(value.GetType()));
-
-        if (_serializer.ContractResolver.ResolveContract(value.GetType()) is JsonObjectContract contract)
-        {
-            foreach (var property in contract.Properties)
-            {
-                if (!property.Readable || property.Ignored)
-                    continue;
-                if (property.ShouldSerialize is not null && !property.ShouldSerialize(value))
-                    continue;
-                var propertyValue = property.ValueProvider!.GetValue(value);
-                if (propertyValue is null && property.NullValueHandling == NullValueHandling.Ignore)
-                    continue;
-                writer.WritePropertyName(property.PropertyName!);
-                if (property.Converter is { } converter)
-                    converter.WriteJson(writer, propertyValue, _serializer);
-                else
-                    _serializer.Serialize(writer, propertyValue, property.PropertyType);
-            }
-        }
-
+        writer.WritePropertyName("data");
+        _plain.Serialize(writer, value, value.GetType());
         writer.WriteEndObject();
-    }
-
-    private void FillMembers(JObject obj, Type targetType, object value)
-    {
-        if (_serializer.ContractResolver.ResolveContract(targetType) is not JsonObjectContract contract)
-            return;
-
-        foreach (var property in contract.Properties)
-        {
-            if (property.Ignored)
-                continue;
-            // 只读属性仅在带属性级转换器时处理（转换器原地改写 existingValue，见下）
-            if (!property.Writable && property.Converter is null)
-                continue;
-            if (obj[property.PropertyName!] is not JToken token)
-                continue;
-            try
-            {
-                if (property.Converter is { } converter)
-                {
-                    // 属性级 [JsonConverter]：读回走转换器；existingValue 取自当前值
-                    // （只读属性无 setter，转换器须原地改写该实例）。
-                    var existingValue = property.ValueProvider!.GetValue(value);
-                    object? result;
-                    using (var reader = token.CreateReader())
-                        result = converter.ReadJson(reader, property.PropertyType!, existingValue, _serializer);
-                    if (property.Writable)
-                        property.ValueProvider.SetValue(value, result);
-                }
-                else
-                {
-                    property.ValueProvider!.SetValue(value, token.ToObject(property.PropertyType, _serializer));
-                }
-            }
-            catch (JsonSerializationException ex) when (ex.InnerException is ArgumentException)
-            {
-                // A value setter's validation error surfaces as-is, not wrapped.
-                throw ex.InnerException;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Builds the target instance via its parameterless ctor (falling back to the
-    /// longest ctor) — members are then populated by the fill loop.
-    /// </summary>
-    private object CreateInstance(Type type)
-    {
-        var ctor = type.GetConstructor(Type.EmptyTypes)
-            ?? type.GetConstructors().OrderByDescending(c => c.GetParameters().Length).First();
-        return ctor.Invoke(null)!;
     }
 }

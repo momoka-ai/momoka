@@ -18,11 +18,11 @@ public class SerializationPipelineTests
 
     private const string AcConfigJson = """
     {
-        "shape": { "kind": "box", "size_x": 1, "size_y": 2, "size_z": 1 },
+        "shape": { "kind": "box", "data": { "size_x": 1, "size_y": 2, "size_z": 1 } },
         "properties": [
-            { "key": "ai_mode", "type": "literals", "values": ["disabled", "skyscreen_mode", "no_direct_wind_mode", "fast_cooling_mode"], "value": "disabled" },
-            { "key": "clean_mode", "type": "boolean" },
-            { "key": "texture", "type": "string", "value": "texture.midea.air_conditioner.ac_1523" }
+            { "type": "literals", "data": { "key": "ai_mode", "values": ["disabled", "skyscreen_mode", "no_direct_wind_mode", "fast_cooling_mode"], "value": "disabled" } },
+            { "type": "boolean", "data": { "key": "clean_mode" } },
+            { "type": "string", "data": { "key": "texture", "value": "texture.midea.air_conditioner.ac_1523" } }
         ]
     }
     """;
@@ -30,9 +30,9 @@ public class SerializationPipelineTests
     private const string AcWithExtendsConfigJson = """
     {
         "extends": [ "entity.appliance.air_conditioner" ],
-        "shape": { "kind": "box", "size_x": 1, "size_y": 2, "size_z": 1 },
+        "shape": { "kind": "box", "data": { "size_x": 1, "size_y": 2, "size_z": 1 } },
         "properties": [
-            { "key": "ai_mode", "type": "literals", "values": ["disabled", "skyscreen_mode", "no_direct_wind_mode", "fast_cooling_mode"], "value": "disabled" }
+            { "type": "literals", "data": { "key": "ai_mode", "values": ["disabled", "skyscreen_mode", "no_direct_wind_mode", "fast_cooling_mode"], "value": "disabled" } }
         ]
     }
     """;
@@ -112,7 +112,7 @@ public class SerializationPipelineTests
         var path = WriteTempConfig("brand", "thing.json", """
         {
             "extends": [ "a", "b" ],
-            "properties": [ { "key": "level", "type": "int", "value": 3 } ]
+            "properties": [ { "type": "int", "data": { "key": "level", "value": 3 } } ]
         }
         """);
         var entity = factory.Load(path);
@@ -139,7 +139,7 @@ public class SerializationPipelineTests
         var factory = new EntityTemplateFactory();
         var path = WriteTempConfig("brand", "series.json", """
         {
-            "properties": [ { "key": "series", "type": "string", "value": "AC-1" } ]
+            "properties": [ { "type": "string", "data": { "key": "series", "value": "AC-1" } } ]
         }
         """);
 
@@ -183,7 +183,7 @@ public class SerializationPipelineTests
     public void EntityTemplate_Volume_DeserializesViaMemberConverter()
     {
         // [JsonConverter] on EntityTemplate.Volume works without any registered settings.
-        var template = JsonConvert.DeserializeObject<EntityTemplate>("""{ "shape": { "kind": "box", "size_x": 1, "size_y": 2, "size_z": 3 } }""");
+        var template = JsonConvert.DeserializeObject<EntityTemplate>("""{ "shape": { "kind": "box", "data": { "size_x": 1, "size_y": 2, "size_z": 3 } } }""");
         var box = Assert.IsType<Box>(template!.Volume);
         Assert.Equal(1, box.SizeX);
         Assert.Equal(2, box.SizeY);

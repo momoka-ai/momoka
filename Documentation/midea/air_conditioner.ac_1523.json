@@ -1,21 +1,50 @@
 {
-    "extends": [ "entity.appliance.air_conditioner" ],
+    "extends": [
+        "entity.appliance.air_conditioner"
+    ],
     "shape": {
         "kind": "box",
-        "size_x": 1,
-        "size_y": 2,
-        "size_z": 1
+        "data": {
+            "size_x": 1,
+            "size_y": 2,
+            "size_z": 1
+        }
     },
     "properties": [
         {
-            "key": "ai_mode",
             "type": "literals",
-            "values": [ "disabled", "skyscreen_mode", "no_direct_wind_mode", "fast_cooling_mode" ],
-            "value": "disabled"
+            "data": {
+                "key": "ai_mode",
+                "values": [
+                    "disabled",
+                    "skyscreen_mode",
+                    "no_direct_wind_mode",
+                    "fast_cooling_mode"
+                ],
+                "value": "disabled"
+            }
         },
-        { "key": "clean_mode", "type": "boolean" },
-        { "key": "display", "type": "boolean" },
-        { "key": "texture", "type": "string", "value": "texture.midea.air_conditioner.ac_1523" }
+        {
+            "type": "boolean",
+            "data": {
+                "key": "clean_mode"
+            }
+        },
+        {
+            "type": "boolean",
+            "data": {
+                "key": "display"
+            }
+        },
+        {
+            "type": "string",
+            "data": {
+                "key": "texture",
+                "value": "texture.midea.air_conditioner.ac_1523"
+            }
+        }
     ],
-    "components": [ "controllable" ]
+    "components": [
+        "controllable"
+    ]
 }

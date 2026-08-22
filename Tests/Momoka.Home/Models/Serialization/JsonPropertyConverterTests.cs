@@ -80,14 +80,14 @@ public class JsonPropertyConverterTests
     [Fact]
     public void Literal_ConfigWithInvalidValue_Throws()
     {
-        var json = """{ "key": "mode", "type": "literals", "values": ["a", "b"], "value": "c" }""";
+        var json = """{ "type": "literals", "data": { "key": "mode", "values": ["a", "b"], "value": "c" } }""";
         Assert.Throws<ArgumentException>(() => JsonConvert.DeserializeObject<Property>(json, Settings));
     }
 
     [Fact]
     public void Boolean_DeserializesFromConfigJson()
     {
-        var prop = JsonConvert.DeserializeObject<BooleanProperty>("""{ "key": "clean_mode", "type": "boolean", "value": true }""", Settings);
+        var prop = JsonConvert.DeserializeObject<BooleanProperty>("""{ "type": "boolean", "data": { "key": "clean_mode", "value": true } }""", Settings);
         Assert.Equal("clean_mode", prop!.Name);
         Assert.True(prop.Value);
     }

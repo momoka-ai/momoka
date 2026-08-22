@@ -53,7 +53,7 @@ public class ChildrenSourceTests
         group.Children.Add(wall);
 
         var json = JsonConvert.SerializeObject(container, Settings.JsonSerialization);
-        var children = (JArray)JObject.Parse(json)["components"]![0]!["children"]!;
+        var children = (JArray)JObject.Parse(json)["components"]![0]!["data"]!["children"]!;
         Assert.Equal(new[] { wall.Id.ToString() }, children.Select(t => t.Value<string>()));
 
         var back = JsonConvert.DeserializeObject<Entity>(json, Settings.JsonSerialization)!;

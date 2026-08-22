@@ -1,5 +1,7 @@
 using Momoka.Home.Primitives;
 using Momoka.Home.Data.Json;
+using Momoka.Home.Data.Json.Converters;
+using Newtonsoft.Json;
 namespace Momoka.Home.Levels.Volumes;
 
 /// <summary>
@@ -29,6 +31,7 @@ public class Composite : Volume
 /// <summary>A child volume of a <see cref="Composite"/> at a local offset.</summary>
 public class CompositeChild
 {
+    [JsonConverter(typeof(JsonGeometryConverter))]
     public Volume Shape { get; set; } = null!;
     public Int3 Offset { get; set; }
 }

@@ -3,6 +3,7 @@ using Momoka.Home.Levels.Entities;
 using Momoka.Home.Levels.Volumes;
 using Momoka.Home.Primitives;
 using Newtonsoft.Json;
+using Momoka.Home.Data.Json.Converters;
 using Momoka.Home.Levels.Entities.Components;
 using Momoka.Home.Levels.Entities.Properties;
 namespace Momoka.Home.Levels.Entities;
@@ -34,6 +35,7 @@ public class Entity : IComponentSource, IPropertySource
 
     /// <summary>Body geometry: which voxel cells this entity occupies (null for pure markers).</summary>
     [JsonProperty("volume")]
+    [JsonConverter(typeof(JsonGeometryConverter))]
     public Volume Volume { get; set; } = null!;
 
     [JsonProperty("components")]

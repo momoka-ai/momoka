@@ -8,10 +8,8 @@ namespace Momoka.Home.Data.Json.Converters;
 /// <summary>
 /// Serializes a <see cref="Property"/> via <see cref="JsonTypeConverter{T}"/>: the
 /// "type" discriminator is declared by <see cref="JsonTypeNameAttribute"/> and
-/// resolved through <see cref="JsonTypeNameRegistry"/>; "key"/"value"/"values"
-/// bind directly with snake_case naming — no per-kind logic. The typed
-/// <see cref="Property{T}.Value"/> converts "value" straight to the concrete CLR
-/// type (never a JToken).
+/// resolved through <see cref="JsonTypeNameRegistry"/>; members live in the
+/// "data" envelope, bound by stock Json.NET — no per-kind logic.
 /// </summary>
 /// <remarks>
 /// <see cref="EnumProperty{T}"/> 是唯一泛型属性子类——注册表只收封闭类型，无法从
@@ -41,6 +39,8 @@ public class JsonPropertyConverter : JsonTypeConverter<Property>
             writer.WriteStartObject();
             writer.WritePropertyName("type");
             writer.WriteValue("enum");
+            writer.WritePropertyName("data");
+            writer.WriteStartObject();
             writer.WritePropertyName("value_type");
             writer.WriteValue(property.ValueType.AssemblyQualifiedName);
             writer.WritePropertyName("key");
@@ -51,6 +51,7 @@ public class JsonPropertyConverter : JsonTypeConverter<Property>
                 serializer.Serialize(writer, boxed);
             }
             writer.WriteEndObject();
+            writer.WriteEndObject();
             return;
         }
         base.WriteJson(writer, value, serializer);
@@ -59,9 +60,10 @@ public class JsonPropertyConverter : JsonTypeConverter<Property>
     public override object? ReadJson(JsonReader reader, Type objectType, object? existingValue, JsonSerializer serializer)
     {
         var obj = JObject.Load(reader);
+        var data = obj["data"] as JObject;
         if (obj["type"]?.Value<string>() == "enum")
         {
-            var valueTypeName = obj["value_type"]?.Value<string>()
+            var valueTypeName = data?["value_type"]?.Value<string>()
                 ?? throw new JsonSerializationException("Enum property missing 'value_type'.");
             var enumType = Type.GetType(valueTypeName)
                 ?? throw new JsonSerializationException($"Unknown enum type '{valueTypeName}'.");
@@ -70,10 +72,10 @@ public class JsonPropertyConverter : JsonTypeConverter<Property>
                 ?? throw new JsonSerializationException($"No enum property constructor for '{valueTypeName}'.");
 
             object? defaultValue = Activator.CreateInstance(enumType);
-            if (obj["value"] is JToken valueToken && valueToken.Type != JTokenType.Null)
+            if (data?["value"] is JToken valueToken && valueToken.Type != JTokenType.Null)
                 defaultValue = valueToken.ToObject(enumType, serializer);
 
-            return (Property)ctor.Invoke(new[] { obj["key"]?.Value<string>() ?? "", defaultValue, "" })!;
+            return (Property)ctor.Invoke(new[] { data?["key"]?.Value<string>() ?? "", defaultValue, "" })!;
         }
         return ReadLoadedObject(obj, objectType);
     }

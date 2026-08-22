@@ -1,6 +1,8 @@
 using Momoka.Home.Levels.Entities;
 using Momoka.Home.Levels.Volumes;
 using Momoka.Home.Levels.Entities.Properties;
+using Momoka.Home.Data.Json.Converters;
+using Newtonsoft.Json;
 namespace Momoka.Home.Runtime.Protocol;
 
 /// <summary>
@@ -23,6 +25,7 @@ public sealed class SnapshotEvent
 public sealed class TemplateCatalogEntry
 {
     public string Key { get; set; } = "";
+    [JsonConverter(typeof(JsonGeometryConverter))]
     public Volume? Volume { get; set; }
     public List<Property> Properties { get; set; } = new();
     public List<string> Components { get; set; } = new();

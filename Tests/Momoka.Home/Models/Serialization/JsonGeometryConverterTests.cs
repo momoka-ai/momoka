@@ -163,10 +163,10 @@ public class JsonGeometryConverterTests
     }
 
     [Fact]
-    public void Box_SerializesToFlatKindJson()
+    public void Box_SerializesToKindDataJson()
     {
         var json = JsonConvert.SerializeObject(new Box { SizeX = 1, SizeY = 2, SizeZ = 3 }, Settings);
-        Assert.Equal("""{"kind":"box","size_x":1,"size_y":2,"size_z":3}""", json);
+        Assert.Equal("""{"kind":"box","data":{"size_x":1,"size_y":2,"size_z":3}}""", json);
     }
 
     [Fact]
