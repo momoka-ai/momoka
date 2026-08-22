@@ -157,11 +157,3 @@ public class Graph2D<TEntity> : Graph<TEntity, Int2> where TEntity : class
         return angle < 0 ? angle + 2 * Math.PI : angle;
     }
 }
-
-/// <summary>
-/// 3D graph for networks spanning a volume (pipes, wiring, conduit runs).
-/// No exterior boundary ring — enclosing a volume is not expressible as a ring.
-/// </summary>
-public class Graph3D<TEntity> : Graph<TEntity, Int3> where TEntity : class
-{
-}
