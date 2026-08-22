@@ -1,15 +1,17 @@
+using Momoka.Home.Runtime;
 using Newtonsoft.Json;
 using Xunit;
+using Momoka.Home.Data;
 using Momoka.Home;
-using Momoka.Home.Entities;
+using Momoka.Home.Levels.Entities;
 using Momoka.Home.Data.Sqlite;
-using Momoka.Home.Level;
-using Momoka.Home.Level.Commands;
-using Momoka.Home.Level.Protocol;
-using Momoka.Home.Geometry;
+using Momoka.Home.Levels;
+using Momoka.Home.Levels.Commands;
+using Momoka.Home.Runtime.Protocol;
+using Momoka.Home.Levels.Volumes;
 using Momoka.Home.Primitives;
-using Momoka.Home.Entities.Components;
-using Momoka.Home.Entities.Properties;
+using Momoka.Home.Levels.Entities.Components;
+using Momoka.Home.Levels.Entities.Properties;
 namespace Momoka.Home.Tests.Models.Level;
 
 /// <summary>服务器侧：类型化操作、版本号、编辑 token 互斥、装载校验、持久化往返。</summary>
@@ -204,13 +206,13 @@ public class ServerLevelDataTests
         {
             // 存档生成：ServerLevelData 构造自动创建 Home 实体；Type 经 store.Save 同步到 Home 实体
             var server = new ServerLevelData();
-            server.Type = UnitType.Condo;
+            server.Type = LevelType.Condo;
             using (var store = new SqliteStore(db))
                 store.Save(server);
 
             var server2 = new ServerLevelData();
             server2.Load(new SqliteStore(db));
-            Assert.Equal(UnitType.Condo, server2.Type); // 从 Home 实体还原
+            Assert.Equal(LevelType.Condo, server2.Type); // 从 Home 实体还原
 
             var home = Assert.Single(server2.Entities); // 仅 Home 实体（隐藏档案）
             Assert.Equal(LevelData.HomeKey, home.Key);

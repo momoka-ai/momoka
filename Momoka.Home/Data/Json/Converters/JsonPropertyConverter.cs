@@ -1,8 +1,8 @@
-using Momoka.Home.Entities;
+using Momoka.Home.Levels.Entities;
 using Momoka.Home.Data.Json;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Momoka.Home.Entities.Properties;
+using Momoka.Home.Levels.Entities.Properties;
 namespace Momoka.Home.Data.Json.Converters;
 
 /// <summary>

@@ -1,11 +1,12 @@
+using Momoka.Home.Runtime;
 using Xunit;
-using Momoka.Home.Entities;
+using Momoka.Home.Levels.Entities;
 using Momoka.Home.Data.Sqlite;
-using Momoka.Home.Geometry;
-using Momoka.Home.Level;
+using Momoka.Home.Levels.Volumes;
+using Momoka.Home.Levels;
 using Momoka.Home.Primitives;
-using Momoka.Home.Entities.Components;
-using Momoka.Home.Entities.Properties;
+using Momoka.Home.Levels.Entities.Components;
+using Momoka.Home.Levels.Entities.Properties;
 namespace Momoka.Home.Tests.Models.Serialization;
 
 /// <summary>
@@ -26,7 +27,7 @@ public class SqliteStoreTests
     private static ServerLevelData DemoLevel()
     {
         var server = new ServerLevelData(); // 构造自动创建 Home 实体
-        server.Type = UnitType.House;
+        server.Type = LevelType.House;
 
         var lamp = Box("lamp", 1, 1, 1);
         lamp.Transform = new Transform(new Float3(20, 10, 30), Rotation.Identity);
@@ -58,7 +59,7 @@ public class SqliteStoreTests
 
                 var loaded = store.Load();
                 Assert.NotNull(loaded);
-                Assert.Equal(UnitType.House, loaded!.Type); // 从 Home 实体 unit_type 还原
+                Assert.Equal(LevelType.House, loaded!.Type); // 从 Home 实体 unit_type 还原
                 Assert.Equal(level.Entities.Count, loaded.Entities.Count);
                 Assert.Single(loaded.Entities, e => e.Key == LevelData.HomeKey); // 隐藏 Home 实体
 

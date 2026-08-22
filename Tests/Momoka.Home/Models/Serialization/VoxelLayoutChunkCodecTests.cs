@@ -1,13 +1,13 @@
 using Xunit;
-using Momoka.Home.Entities;
-using Momoka.Home.Geometry;
-using Momoka.Home.Layouts;
+using Momoka.Home.Levels.Entities;
+using Momoka.Home.Levels.Volumes;
+using Momoka.Home.Levels.Layouts;
 using Momoka.Home.Primitives;
 using Momoka.Home.Data;
 using Momoka.Home.Data.Sqlite;
-using Momoka.Home.Level;
-using Momoka.Home.Entities.Components;
-using Momoka.Home.Entities.Properties;
+using Momoka.Home.Levels;
+using Momoka.Home.Levels.Entities.Components;
+using Momoka.Home.Levels.Entities.Properties;
 namespace Momoka.Home.Tests.Models.Serialization;
 
 /// <summary>
@@ -35,7 +35,7 @@ public class VoxelLayoutChunkCodecTests
     {
         var data = new LevelData
         {
-            Type = UnitType.House,
+            Type = LevelType.House,
         };
         data.Layout.Voxels.Bound = Bound.FromCorners(Int3.Zero.ToFloat3(), new Int3(40, 45, 40).ToFloat3());
 

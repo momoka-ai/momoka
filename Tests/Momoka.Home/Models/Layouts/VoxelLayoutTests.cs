@@ -1,14 +1,14 @@
 using Xunit;
-using Momoka.Home.Entities;
-using Momoka.Home.Geometry;
-using Momoka.Home.Layouts;
+using Momoka.Home.Levels.Entities;
+using Momoka.Home.Levels.Volumes;
+using Momoka.Home.Levels.Layouts;
 using Momoka.Home.Primitives;
 namespace Momoka.Home.Tests.Models.Layouts;
 
 /// <summary>
 /// VoxelLayout&lt;T&gt; is a pure chunked 3D grid: the indexer reads/writes
 /// values, Select maps them into a new grid, Clear resets storage. No entity or
-/// placement semantics — those live on UnitLayout (see UnitLayoutTests).
+/// placement semantics — those live on LevelLayout (see UnitLayoutTests).
 /// </summary>
 public class VoxelLayoutTests
 {

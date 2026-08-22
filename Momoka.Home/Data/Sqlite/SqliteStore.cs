@@ -2,10 +2,10 @@ using LinqToDB;
 using LinqToDB.Data;
 using LinqToDB.DataProvider.SQLite;
 using LinqToDB.Mapping;
-using Momoka.Home.Entities;
-using Momoka.Home.Entities.Properties;
-using Momoka.Home.Layouts;
-using Momoka.Home.Level;
+using Momoka.Home.Levels.Entities;
+using Momoka.Home.Levels.Entities.Properties;
+using Momoka.Home.Levels.Layouts;
+using Momoka.Home.Levels;
 using Momoka.Home.Primitives;
 using Newtonsoft.Json;
 namespace Momoka.Home.Data.Sqlite;
@@ -86,7 +86,7 @@ public sealed class SqliteStore : IDisposable
 
         // LevelData.Type 的持久化真相 = Home 实体 unit_type 属性（SQLite 无 LevelData 行）
         if (data.Entities.FirstOrDefault(e => e.Key == LevelData.HomeKey) is { } home)
-            home.SetValue(Property.UnitType, data.Type);
+            home.SetValue(Property.LevelType, data.Type);
 
         // Entities — one row per registered entity (incl. the hidden Home entity).
         _db.GetTable<EntityRow>().Delete();
@@ -142,7 +142,7 @@ public sealed class SqliteStore : IDisposable
 
         // Type 从 Home 实体还原（持久化真相）
         if (data.Entities.FirstOrDefault(e => e.Key == LevelData.HomeKey) is { } home)
-            data.Type = home.GetValue<UnitType>(Property.UnitType);
+            data.Type = home.GetValue<LevelType>(Property.LevelType);
 
         var byId = data.Entities.ToDictionary(e => e.Id);
         var chunks = new Dictionary<long, VoxelChunk<Entity>>();

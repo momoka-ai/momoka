@@ -1,5 +1,5 @@
-using Momoka.Home.Entities;
-using Momoka.Home.Level.Protocol;
+using Momoka.Home.Levels.Entities;
+using Momoka.Home.Runtime.Protocol;
 namespace Momoka.Core.Gateway;
 
 /// <summary>

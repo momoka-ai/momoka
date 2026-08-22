@@ -1,6 +1,6 @@
-using Momoka.Home.Entities;
+using Momoka.Home.Levels.Entities;
 using Momoka.Home.Data.Json;
-using Momoka.Home.Entities.Components;
+using Momoka.Home.Levels.Entities.Components;
 namespace Momoka.Home.Data.Json.Converters;
 
 /// <summary>

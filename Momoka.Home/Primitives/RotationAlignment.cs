@@ -6,7 +6,7 @@ namespace Momoka.Home.Primitives;
 /// 物件只可放到朝上的水平表面，符合物理学直觉），
 /// 决定物件可被放置到什么朝向的表面上；校验见
 /// <see cref="RotationAlignmentExtensions.Matches(RotationAlignment, RotationAlignment)"/> 与
-/// <c>UnitLayout.Add(Entity, Position, PlacementLayoutSource)</c>。
+/// <c>LevelLayout.Add(Entity, Position, PlacementLayoutSource)</c>。
 /// 与 <see cref="Rotation.Alignment"/>（表面朝向的分类）配套使用。
 /// </summary>
 /// <remarks>
@@ -35,7 +35,7 @@ public enum RotationAlignment
 /// </summary>
 public static class RotationAlignmentExtensions
 {
-    /// <summary>期望类别是否接受实际表面类别（<c>UnitLayout.Add</c> 放置校验使用）。</summary>
+    /// <summary>期望类别是否接受实际表面类别（<c>LevelLayout.Add</c> 放置校验使用）。</summary>
     public static bool Matches(this RotationAlignment required, RotationAlignment actual) =>
         required == actual
         || (required == RotationAlignment.Horizontal && actual is RotationAlignment.Upside or RotationAlignment.Downside);

@@ -1,19 +1,19 @@
 using System.Numerics;
 using Xunit;
 using Momoka.Home;
-using Momoka.Home.Algorithms;
-using Momoka.Home.Entities;
-using Momoka.Home.Layouts;
-using Momoka.Home.Geometry;
+using Momoka.Home.Levels;
+using Momoka.Home.Levels.Entities;
+using Momoka.Home.Levels.Layouts;
+using Momoka.Home.Levels.Volumes;
 using Momoka.Home.Primitives;
-using Momoka.Home.Entities.Components;
-using Momoka.Home.Entities.Properties;
+using Momoka.Home.Levels.Entities.Components;
+using Momoka.Home.Levels.Entities.Properties;
 namespace Momoka.Home.Tests.Models.Algorithms;
 
 /// <summary>
 /// <see cref="VoxelSourceExtensions"/> 的空间查询调用例：遮挡 / 视线（IsOccluded、
 /// CanSee 三态）、视野内目标（FindItemsOnLine 射线 + FindItemsInCone 锥体、Occlusion 各档位）、
-/// 碰撞（点 / 球 / 体积）与寻路（FindPath）。全部以 UnitLayout 为
+/// 碰撞（点 / 球 / 体积）与寻路（FindPath）。全部以 LevelLayout 为
 /// <see cref="IVoxelSource{T}"/> 宿主，坐标世界 cm、内部对齐 10cm 体素格。
 /// </summary>
 public class VoxelSourceQueryTests
@@ -35,12 +35,12 @@ public class VoxelSourceQueryTests
     }
 
     /// <summary>空网格，无 Bound（视线 / 命中 / 碰撞不需要）。</summary>
-    private static UnitLayout EmptyUnit() => new();
+    private static LevelLayout EmptyUnit() => new();
 
     /// <summary>20×20×20 格 Bound + y=0 的结构地板（x,z ∈ [0,9]）——寻路场景。</summary>
-    private static UnitLayout FlooredUnit()
+    private static LevelLayout FlooredUnit()
     {
-        var unit = new UnitLayout();
+        var unit = new LevelLayout();
         unit.Voxels.Bound = Bound.FromCorners(Int3.Zero.ToFloat3(), new Int3(200, 200, 200).ToFloat3());
         var floor = StructuralBox("floor");
         for (var x = 0; x <= 9; x++)
@@ -336,7 +336,7 @@ public class VoxelSourceQueryTests
     [Fact]
     public void FindPath_NoBound_ReturnsNull()
     {
-        Assert.Null(new UnitLayout().FindPath(
+        Assert.Null(new LevelLayout().FindPath(
             new Position(new Float3(0, 0, 0)), new Position(new Float3(50, 0, 50)), Human));
     }
 
@@ -385,7 +385,7 @@ public class VoxelSourceQueryTests
     [Fact]
     public void FindPath_ClimbWithinLimit_CrossesStep()
     {
-        var unit = new UnitLayout();
+        var unit = new LevelLayout();
         unit.Voxels.Bound = Bound.FromCorners(Int3.Zero.ToFloat3(), new Int3(200, 200, 200).ToFloat3());
         var floor = StructuralBox("floor");
         var platform = StructuralBox("platform");
@@ -409,7 +409,7 @@ public class VoxelSourceQueryTests
     [Fact]
     public void FindPath_ClimbBeyondLimit_Unreachable()
     {
-        var unit = new UnitLayout();
+        var unit = new LevelLayout();
         unit.Voxels.Bound = Bound.FromCorners(Int3.Zero.ToFloat3(), new Int3(200, 200, 200).ToFloat3());
         var floor = StructuralBox("floor");
         var platform = StructuralBox("platform");

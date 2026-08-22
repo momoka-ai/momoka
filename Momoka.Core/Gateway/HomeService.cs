@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
-using Momoka.Home.Level.Protocol;
+using Momoka.Home.Runtime.Protocol;
 namespace Momoka.Core.Gateway;
 
 /// <summary>

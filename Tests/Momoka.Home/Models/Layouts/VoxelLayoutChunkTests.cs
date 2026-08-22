@@ -1,7 +1,7 @@
 using Xunit;
-using Momoka.Home.Entities;
-using Momoka.Home.Geometry;
-using Momoka.Home.Layouts;
+using Momoka.Home.Levels.Entities;
+using Momoka.Home.Levels.Volumes;
+using Momoka.Home.Levels.Layouts;
 using Momoka.Home.Primitives;
 namespace Momoka.Home.Tests.Models.Layouts;
 
@@ -9,7 +9,7 @@ namespace Momoka.Home.Tests.Models.Layouts;
 /// Checks the generic chunked voxel storage (VoxelLayout&lt;T&gt; /
 /// VoxelChunk&lt;T&gt; / VoxelChunkSection&lt;T&gt;): Minecraft-style XZ chunks
 /// with lazy 16×16×16 sections over the height axis and packed-long chunk keys.
-/// Entity placement lives on UnitLayout (tested in UnitLayoutTests).
+/// Entity placement lives on LevelLayout (tested in UnitLayoutTests).
 /// </summary>
 public class VoxelLayoutChunkTests
 {

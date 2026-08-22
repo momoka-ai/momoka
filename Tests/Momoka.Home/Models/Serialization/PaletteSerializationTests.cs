@@ -1,6 +1,8 @@
 using Xunit;
-using Momoka.Home.Entities;
-using Momoka.Home.Layouts;
+using Momoka.Home.Levels.Entities;
+using Momoka.Home.Data;
+using Momoka.Home.Levels;
+using Momoka.Home.Levels.Layouts;
 using Momoka.Home.Primitives;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;

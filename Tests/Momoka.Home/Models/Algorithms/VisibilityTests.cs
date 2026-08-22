@@ -1,5 +1,5 @@
 using Xunit;
-using Momoka.Home.Algorithms;
+using Momoka.Home.Levels;
 using Momoka.Home.Primitives;
 namespace Momoka.Home.Tests.Models.Algorithms;
 

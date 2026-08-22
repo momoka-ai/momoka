@@ -1,11 +1,12 @@
 using Xunit;
 using Momoka.Home;
-using Momoka.Home.Entities;
-using Momoka.Home.Geometry;
-using Momoka.Home.Layouts;
+using Momoka.Home.Levels;
+using Momoka.Home.Levels.Entities;
+using Momoka.Home.Levels.Volumes;
+using Momoka.Home.Levels.Layouts;
 using Momoka.Home.Primitives;
-using Momoka.Home.Entities.Components;
-using Momoka.Home.Entities.Properties;
+using Momoka.Home.Levels.Entities.Components;
+using Momoka.Home.Levels.Entities.Properties;
 namespace Momoka.Home.Tests.Models.Regions;
 
 /// <summary>
@@ -48,9 +49,9 @@ public class RegionTests
     /// 10×9×30 封闭空间；中墙 (x=5, 全高) 分左右两室。墙体错位角接避免重叠。
     /// 左室 x=1..4、右室 x=6..8，z=1..8，span [1,30)。
     /// </summary>
-    private static UnitLayout TwoRoomScene()
+    private static LevelLayout TwoRoomScene()
     {
-        var l = new UnitLayout();
+        var l = new LevelLayout();
         l.Add(SurfaceBox("floor", 10, 1, 10, new Int3(0, 0, 0), 1), new Position(new Float3(0, 0, 0)));
         l.Add(StructuralBox("ceiling", 10, 1, 10), new Position(new Float3(0, 300, 0)));
         l.Add(StructuralBox("wall", 10, 29, 1), new Position(new Float3(0, 10, 0))); // 北 z=0
@@ -91,7 +92,7 @@ public class RegionTests
     public void BuildLayout_MergesThroughDoorway()
     {
         // 中墙留门洞 z=4：两段 [1..3] 与 [5..8]
-        var l = new UnitLayout();
+        var l = new LevelLayout();
         l.Add(SurfaceBox("floor", 10, 1, 10, new Int3(0, 0, 0), 1), new Position(new Float3(0, 0, 0)));
         l.Add(StructuralBox("ceiling", 10, 1, 10), new Position(new Float3(0, 300, 0)));
         l.Add(StructuralBox("wall", 10, 29, 1), new Position(new Float3(0, 10, 0)));
@@ -115,7 +116,7 @@ public class RegionTests
     public void BuildLayout_AgentClimbHeightControlsConnectivity()
     {
         // 相邻两列：A span [1,20)，B span [21,40)，间距 1
-        var l = new UnitLayout();
+        var l = new LevelLayout();
         l.Add(SurfaceBox("floor", 1, 1, 1, new Int3(0, 0, 0), 1), new Position(new Float3(0, 0, 0)));   // A 地板面 y=1
         l.Add(StructuralBox("ceiling", 1, 1, 1), new Position(new Float3(0, 200, 0)));                 // A 天花 y=20
         l.Add(StructuralBox("base", 1, 20, 1), new Position(new Float3(10, 0, 0)));                    // B 基座 y=0..19
@@ -132,7 +133,7 @@ public class RegionTests
     [Fact]
     public void BuildLayout_NonStructuralFurniture_DoesNotBlock()
     {
-        var l = new UnitLayout();
+        var l = new LevelLayout();
         l.Add(SurfaceBox("floor", 5, 1, 5, new Int3(0, 0, 0), 1), new Position(new Float3(0, 0, 0)));
         l.Add(StructuralBox("ceiling", 5, 1, 5), new Position(new Float3(0, 300, 0)));
         l.Add(StructuralBox("wall", 5, 29, 1), new Position(new Float3(0, 10, 0))); // 北 z=0
@@ -152,7 +153,7 @@ public class RegionTests
     [Fact]
     public void BuildLayout_StructuralColumn_MakesHole()
     {
-        var l = new UnitLayout();
+        var l = new LevelLayout();
         l.Add(SurfaceBox("floor", 5, 1, 5, new Int3(0, 0, 0), 1), new Position(new Float3(0, 0, 0)));
         l.Add(StructuralBox("ceiling", 5, 1, 5), new Position(new Float3(0, 300, 0)));
         l.Add(StructuralBox("wall", 5, 29, 1), new Position(new Float3(0, 10, 0))); // 北 z=0
@@ -173,7 +174,7 @@ public class RegionTests
     public void BuildLayout_NonStructuralSurface_DoesNotSeedRegions()
     {
         // 地板（structural）+ 一张非 structural 的桌子（有 Up 顶面 y=8）
-        var l = new UnitLayout();
+        var l = new LevelLayout();
         l.Add(SurfaceBox("floor", 5, 1, 5, new Int3(0, 0, 0), 1), new Position(new Float3(0, 0, 0)));
         l.Add(StructuralBox("ceiling", 5, 1, 5), new Position(new Float3(0, 300, 0)));
         var table = Box("table", 3, 1, 3);
@@ -198,7 +199,7 @@ public class RegionTests
     public void BuildLayout_DoorClosed_Splits_Open_Merges()
     {
         // 中墙留门洞 z=4：两段 [1..3] 与 [5..8]，门实体填洞
-        var l = new UnitLayout();
+        var l = new LevelLayout();
         l.Add(SurfaceBox("floor", 10, 1, 10, new Int3(0, 0, 0), 1), new Position(new Float3(0, 0, 0)));
         l.Add(StructuralBox("ceiling", 10, 1, 10), new Position(new Float3(0, 300, 0)));
         l.Add(StructuralBox("wall", 10, 29, 1), new Position(new Float3(0, 10, 0)));
@@ -227,7 +228,7 @@ public class RegionTests
     [Fact]
     public void BuildLayout_EmptyLayout_HasNoRegions()
     {
-        var map = Region.BuildLayout(new UnitLayout());
+        var map = Region.BuildLayout(new LevelLayout());
         Assert.Null(map.At(0, 0, 0));
         Assert.Empty(map.Cells());
     }

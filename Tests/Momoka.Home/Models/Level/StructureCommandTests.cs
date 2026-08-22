@@ -1,13 +1,13 @@
 using Xunit;
 using Momoka.Home;
-using Momoka.Home.Entities;
-using Momoka.Home.Level;
-using Momoka.Home.Level.Commands;
-using Momoka.Home.Geometry;
-using Momoka.Home.Layouts;
+using Momoka.Home.Levels.Entities;
+using Momoka.Home.Levels;
+using Momoka.Home.Levels.Commands;
+using Momoka.Home.Levels.Volumes;
+using Momoka.Home.Levels.Layouts;
 using Momoka.Home.Primitives;
-using Momoka.Home.Entities.Components;
-using Momoka.Home.Entities.Properties;
+using Momoka.Home.Levels.Entities.Components;
+using Momoka.Home.Levels.Entities.Properties;
 namespace Momoka.Home.Tests.Models.Level;
 
 /// <summary>结构命令：BuildWall / BuildOpening 的创建即放置语义、墙排洞与开口占用语义。</summary>

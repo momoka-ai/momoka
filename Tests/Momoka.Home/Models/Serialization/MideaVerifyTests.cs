@@ -1,9 +1,9 @@
 using Xunit;
-using Momoka.Home.Entities;
-using Momoka.Home.Geometry;
+using Momoka.Home.Levels.Entities;
+using Momoka.Home.Levels.Volumes;
 using Momoka.Home.Primitives;
-using Momoka.Home.Entities.Components;
-using Momoka.Home.Entities.Properties;
+using Momoka.Home.Levels.Entities.Components;
+using Momoka.Home.Levels.Entities.Properties;
 namespace Momoka.Home.Tests.Models.Serialization;
 
 public class MideaVerifyTests

@@ -1,9 +1,9 @@
 using Xunit;
-using Momoka.Home.Level;
-using Momoka.Home.Level.Commands;
+using Momoka.Home.Levels;
+using Momoka.Home.Levels.Commands;
 using Momoka.Home.Primitives;
-using Momoka.Home.Entities.Components;
-using Momoka.Home.Entities.Properties;
+using Momoka.Home.Levels.Entities.Components;
+using Momoka.Home.Levels.Entities.Properties;
 namespace Momoka.Home.Tests.Models.Level;
 
 /// <summary>基础命令：Place / Remove / Move / Rotate / SetProperty 的正向语义与 ChangeSet 组装。</summary>
