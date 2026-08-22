@@ -93,7 +93,7 @@ public class ChildrenSourceTests
         Assert.True(layout.Add(mug, new Position(new Float3(0, 10, 0)), surface));
 
         Assert.Contains(mug, surface.Children);
-        Assert.Contains(mug.Id, surface.ChildrenIds);
+        Assert.Contains(mug.Id, surface.Children.Select(c => c.Id));
         Assert.Same(surface, layout.FindHostEntity(mug));
     }
 

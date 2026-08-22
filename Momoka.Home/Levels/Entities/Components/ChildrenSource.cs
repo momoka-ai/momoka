@@ -1,4 +1,5 @@
 using Momoka.Home.Data.Json;
+using Momoka.Home.Data.Json.Converters;
 using Momoka.Home.Levels.Entities;
 using Newtonsoft.Json;
 namespace Momoka.Home.Levels.Entities.Components;
@@ -11,27 +12,9 @@ namespace Momoka.Home.Levels.Entities.Components;
 [JsonTypeName("children")]
 public class ChildrenSource : Component
 {
-    /// <summary>子实体（内存真相，直接引用；级联 / 随移 / 反向索引走本表）。</summary>
-    [JsonIgnore]
+    /// <summary>子实体（内存真相，直接引用；级联 / 随移 / 反向索引走本表）。
+    /// 序列化由 <see cref="JsonEntityIdListConverter"/> 处理——只写 Id 不内嵌实体载荷；
+    /// 读回为 id-stub，装载时由 <c>LevelLayout.RestorePlacementFromGrid</c> 按 Id 重链。</summary>
+    [JsonConverter(typeof(JsonEntityIdListConverter))]
     public List<Entity> Children { get; } = new();
-
-    /// <summary>
-    /// 持久化成员 Id——**派生自 <see cref="Children"/>（单一真相源）**：序列化只写 Id，
-    /// 不内嵌实体载荷（避免 <c>Entity → Components → Children → Entity</c> 循环）。
-    /// 反序列化时 setter 以 Id 物化临时占位实体（stub），装载时由
-    /// <c>LevelLayout.RestorePlacementFromGrid</c> 按 Id 重链为注册表真实实体。
-    /// </summary>
-    [JsonProperty("children")]
-    public List<Guid> ChildrenIds
-    {
-        get => Children.Select(c => c.Id).ToList();
-        set
-        {
-            Children.Clear();
-            if (value is null)
-                return;
-            foreach (var id in value)
-                Children.Add(new Entity { Id = id }); // 反序列化 id-stub——装载时重链
-        }
-    }
 }

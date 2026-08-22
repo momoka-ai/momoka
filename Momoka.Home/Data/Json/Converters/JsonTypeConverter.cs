@@ -89,7 +89,10 @@ public abstract class JsonTypeConverter<TBase> : JsonConverter where TBase : cla
                 if (propertyValue is null && property.NullValueHandling == NullValueHandling.Ignore)
                     continue;
                 writer.WritePropertyName(property.PropertyName!);
-                _serializer.Serialize(writer, propertyValue, property.PropertyType);
+                if (property.Converter is { } converter)
+                    converter.WriteJson(writer, propertyValue, _serializer);
+                else
+                    _serializer.Serialize(writer, propertyValue, property.PropertyType);
             }
         }
 
@@ -103,13 +106,30 @@ public abstract class JsonTypeConverter<TBase> : JsonConverter where TBase : cla
 
         foreach (var property in contract.Properties)
         {
-            if (!property.Writable || property.Ignored)
+            if (property.Ignored)
+                continue;
+            // 只读属性仅在带属性级转换器时处理（转换器原地改写 existingValue，见下）
+            if (!property.Writable && property.Converter is null)
                 continue;
             if (obj[property.PropertyName!] is not JToken token)
                 continue;
             try
             {
-                property.ValueProvider!.SetValue(value, token.ToObject(property.PropertyType, _serializer));
+                if (property.Converter is { } converter)
+                {
+                    // 属性级 [JsonConverter]：读回走转换器；existingValue 取自当前值
+                    // （只读属性无 setter，转换器须原地改写该实例）。
+                    var existingValue = property.ValueProvider!.GetValue(value);
+                    object? result;
+                    using (var reader = token.CreateReader())
+                        result = converter.ReadJson(reader, property.PropertyType!, existingValue, _serializer);
+                    if (property.Writable)
+                        property.ValueProvider.SetValue(value, result);
+                }
+                else
+                {
+                    property.ValueProvider!.SetValue(value, token.ToObject(property.PropertyType, _serializer));
+                }
             }
             catch (JsonSerializationException ex) when (ex.InnerException is ArgumentException)
             {
