@@ -124,12 +124,14 @@ public sealed class ClientLevelData : LevelData, IVoxelSource<Entity>
         return dirty.ToList();
     }
 
-    /// <summary>实体列表 → 占用网格重建（从空图逐个放置）。</summary>
+    /// <summary>实体列表 → 占用网格重建（从空图逐个放置；无体积的 marker 实体不占格）。</summary>
     public void RebuildGrid()
     {
         var grid = new VoxelLayout<Entity>();
         foreach (var entity in Placed)
         {
+            if (entity.Volume is null)
+                continue;
             var anchor = grid.GetAsRelative(entity.Transform.Position);
             foreach (var cell in entity.Volume.GetVoxelSet())
                 grid[anchor + cell] = entity;
@@ -139,6 +141,8 @@ public sealed class ClientLevelData : LevelData, IVoxelSource<Entity>
 
     private void WriteCells(Entity entity)
     {
+        if (entity.Volume is null)
+            return;
         var anchor = Grid.GetAsRelative(entity.Transform.Position);
         foreach (var cell in entity.Volume.GetVoxelSet())
             Grid[anchor + cell] = entity;
@@ -146,6 +150,8 @@ public sealed class ClientLevelData : LevelData, IVoxelSource<Entity>
 
     private void ClearCells(Entity entity)
     {
+        if (entity.Volume is null)
+            return;
         var anchor = Grid.GetAsRelative(entity.Transform.Position);
         foreach (var cell in entity.Volume.GetVoxelSet())
         {

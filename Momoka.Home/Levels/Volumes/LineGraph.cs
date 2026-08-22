@@ -11,6 +11,12 @@ namespace Momoka.Home.Levels.Volumes;
 /// 以及未来的区域连通 / 图遍历。所有坐标相对宿主锚点（实体 Transform.Position，
 /// 即体积的局部原点）。新增墙 = 图加节点 + 边 → <c>SetVolume</c>。
 /// </summary>
+/// <remarks>
+/// 已弃用：墙体架构转向"墙系统容器（<c>ChildrenSource</c>）+ 独立墙段实体"
+/// （每段自带高度 / 纹理 / 拆除粒度；容器承载系统身份）。共享 <see cref="Height"/>
+/// 无法表达矮墙等异质段；图语义上移容器组件。本类型暂留，勿用于新代码。
+/// </remarks>
+[Obsolete("墙体架构已转向 ChildrenSource 容器 + 独立墙段实体；LineGraph 暂留待退役。")]
 [JsonTypeName("line_graph")]
 public class LineGraph : Composite
 {

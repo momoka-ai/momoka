@@ -83,7 +83,7 @@ public sealed class ServerLevelData : LevelData
             // 保持 EditorSession.Data 与自身（继承的 LevelData）同一实例
             ReplaceWith(data);
             Session.Adopt(this);
-            Session.Layout.RestorePlacementFromGrid();
+            Session.Layout.RestorePlacementFromGrid(Entities);
 
             var report = Validate();
             if (!report.IsValid)

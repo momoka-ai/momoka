@@ -218,7 +218,7 @@ public class UnitLayoutTests
 
         var mug = Box("mug", 1, 1, 1);
         Assert.True(unit.Add(mug, new Position(new Float3(0, 10, 0)), source));
-        Assert.Same(mug, Assert.Single(source.Entities)); // 表面宿主登记
+        Assert.Same(mug, Assert.Single(source.Children)); // 表面宿主登记
         Assert.True(unit.Voxels[new Int3(0, 1, 0)] is not null); // 体素投影
     }
 
@@ -253,7 +253,7 @@ public class UnitLayoutTests
         var panel = Box("solar", 1, 1, 1); // 期望 Tilted（太阳能板）
         panel.AddProperties(new[] { new EnumProperty<RotationAlignment>(Property.RotationAlignment, RotationAlignment.Tilted) });
         Assert.True(unit.Add(panel, new Position(new Float3(0, 10, 0)), source));
-        Assert.Same(panel, Assert.Single(source.Entities));
+        Assert.Same(panel, Assert.Single(source.Children));
     }
 
     [Fact]
@@ -320,8 +320,8 @@ public class UnitLayoutTests
 
         Assert.True(unit.Remove(floor));
         Assert.Empty(unit.Entities); // 链上全部回落
-        Assert.Empty(floorSurface.Entities);
-        Assert.Empty(mug.GetComponent<PlacementLayoutSource>()!.Entities);
+        Assert.Empty(floorSurface.Children);
+        Assert.Empty(mug.GetComponent<PlacementLayoutSource>()!.Children);
         Assert.True(unit.Voxels[new Int3(0, 0, 0)] is null);
         Assert.True(unit.Voxels[new Int3(0, 2, 0)] is null);
     }
@@ -338,7 +338,7 @@ public class UnitLayoutTests
 
         Assert.True(unit.Remove(floor));
         Assert.Empty(unit.Entities); // 宿主 + 表面物件全部回落
-        Assert.Empty(source.Entities);
+        Assert.Empty(source.Children);
         Assert.True(unit.Voxels[new Int3(0, 1, 0)] is null);
     }
 
@@ -353,7 +353,7 @@ public class UnitLayoutTests
         unit.Add(mug, new Position(new Float3(0, 10, 0)), source);
 
         Assert.True(unit.Remove(mug));
-        Assert.Empty(source.Entities); // 反登记：宿主表面不再引用
+        Assert.Empty(source.Children); // 反登记：宿主表面不再引用
         Assert.True(unit.Voxels[new Int3(0, 1, 0)] is null);
         Assert.Contains(floor, unit.Entities); // 宿主保留
     }

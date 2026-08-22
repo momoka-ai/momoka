@@ -34,7 +34,7 @@ public class CommandTests
         var mug = Scenes.Box("mug", 1, 1, 1);
         session.Data.Entities.Add(mug);
         Assert.True(session.Execute(new PlaceEntityCommand(mug.Id, new Float3(0, 10, 0), floorId)) is not null);
-        Assert.Same(mug, Assert.Single(floorSurface.Entities));
+        Assert.Same(mug, Assert.Single(floorSurface.Children));
 
         // 删除地板 → 连带回落杯子（两者回到池，实体保留在注册表）
         var changes = session.Execute(new RemoveEntityCommand(floorId));
@@ -60,7 +60,7 @@ public class CommandTests
         session.Execute(new MoveEntityCommand(floorId, new Float3(30, 0, 0)));
         Assert.Equal(new Float3(30, 0, 0), floor.Transform.Position);
         Assert.Equal(new Float3(30, 10, 0), mug.Transform.Position);
-        Assert.Same(mug, Assert.Single(floorSurface.Entities));
+        Assert.Same(mug, Assert.Single(floorSurface.Children));
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public class CommandTests
         // 移到根（无宿主）
         session.Execute(new MoveEntityCommand(mug.Id, new Float3(50, 0, 50)));
         Assert.Null(session.Layout.FindHostEntity(mug));
-        Assert.Empty(floorSurface.Entities);
+        Assert.Empty(floorSurface.Children);
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+#pragma warning disable CS0618 // LineGraph 已弃用（暂留），测试保留覆盖
 using Newtonsoft.Json;
 using Xunit;
 using Momoka.Home.Data;

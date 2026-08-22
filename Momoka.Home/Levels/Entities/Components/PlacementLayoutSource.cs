@@ -12,9 +12,10 @@ namespace Momoka.Home.Levels.Entities.Components;
 /// objects with several surfaces (bookshelves, stairs). Config-driven.
 /// 表面 = 纯局部格网（<see cref="Layout"/>）+ 姿态（<see cref="Transform"/>，
 /// 位置 + 朝向）；<see cref="AsAbsolute"/> 把局部格映射到世界格。
+/// 继承 <see cref="ChildrenSource"/>——表面上的物件即子实体（<c>Children</c>）。
 /// </summary>
 [JsonTypeName("placement_layout")]
-public class PlacementLayoutSource : Component
+public class PlacementLayoutSource : ChildrenSource
 {
     /// <summary>放置表面格网（局部坐标，纯数据——位置 / 朝向见 <see cref="Transform"/>）。
     /// 语义上携带本组件即必提供表面，故恒非空（JSON 缺省 / 旧数据时取默认空网格）。</summary>
@@ -22,12 +23,6 @@ public class PlacementLayoutSource : Component
 
     /// <summary>表面姿态：位置（世界 cm）+ 朝向。缺省 Identity（原点朝上）。</summary>
     public Transform Transform { get; set; } = Transform.Identity;
-
-    /// <summary>放置在本表面上的物件（表面宿主登记，由 <c>LevelLayout.Add</c>
-    /// 登记 / <c>LevelLayout.Remove</c> 反登记；级联回落与"被依赖"检查依赖此表）。
-    /// 运行时登记态——暂不序列化（存档加载后依赖关系由管线后置重建，待实现）。</summary>
-    [JsonIgnore]
-    public List<Entity> Entities { get; } = new();
 
     /// <summary>把局部格映射到世界格（根绝对）：姿态行轴 / 列轴 × 格长 + 位置，取整到格。
     /// Up 面（Identity）下 rel 映射为 Position/UnitLength + (rel.X, 0, rel.Z)。

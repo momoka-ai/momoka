@@ -22,10 +22,11 @@ public sealed class LevelLayout : IEntitySource, IVoxelSource<Entity>, IEntityRe
     public VoxelLayout<Region> Regions { get; set; }
     public List<Entity> Entities { get; init; }
 
-    /// <summary>宿主表面反向索引（子 → 父表面）。与 <see cref="PlacementLayoutSource.Entities"/>
-    /// 同步维护（同生共死，均只在 Add / Remove 内修改）；森林不变量保证每实体至多一项。
-    /// 运行时登记态——不序列化（存档加载后与表面 Items 一并重建，待实现）。</summary>
-    private readonly Dictionary<Entity, PlacementLayoutSource> _hostOf = new();
+    /// <summary>容器反向索引（子 → 容器组件；表面挂载与组挂载共用）。与
+    /// <see cref="ChildrenSource.Children"/> 同步维护（同生共死，均只在 Add / Remove /
+    /// Move / 装载重链内修改）；森林不变量保证每实体至多一项。
+    /// 运行时登记态——不序列化（存档加载后由 <see cref="RestorePlacementFromGrid"/> 重链）。</summary>
+    private readonly Dictionary<Entity, ChildrenSource> _containerOf = new();
 
     public LevelLayout()
     {
@@ -175,45 +176,45 @@ public sealed class LevelLayout : IEntitySource, IVoxelSource<Entity>, IEntityRe
 
         if (!Add(entity, position)) // 碰撞检查 + 放置 + 登记（无附着语义共用）
             return false;
-        source.Entities.Add(entity); // 登记表面宿主
-        _hostOf[entity] = source; // 反向索引（子 → 父表面）
+        source.AddChild(entity); // 登记表面宿主（同步持久化 Id 表）
+        _containerOf[entity] = source; // 反向索引（子 → 容器）
         return true;
     }
 
-    /// <summary>物件的宿主表面（其附着所在表面）；根物件（无宿主）返回 null。</summary>
+    /// <summary>物件的容器组件（其附着所在表面或所属组）；根物件（无容器）返回 null。</summary>
     public PlacementLayoutSource? FindHostEntity(Entity entity) =>
-        _hostOf.GetValueOrDefault(entity);
+        _containerOf.GetValueOrDefault(entity) as PlacementLayoutSource;
 
     /// <summary>
     /// 将物件从体素空间删除（回落"未放置"池，物件本体保留在 Residence 总目录）。
-    /// **连带回落其表面上的所有物件**（A 上的 B、B 上的 C 一并）——实体不能悬空，
-    /// 移除宿主即回落其上的物件。物件不存在时返回 false。
-    /// 回落 = 清除体素投影 + 移出已放置列表；宿主关系（表面 Entities）同步清理。
+    /// **连带回落其容器上的所有物件**（表面物件与组成员一概递归——实体不能悬空，
+    /// 移除宿主即回落其上的物件）。物件不存在时返回 false。
+    /// 回落 = 清除体素投影 + 移出已放置列表；容器关系（Children / 反向索引）同步清理。
     /// </summary>
     /// <remarks>
-    /// - 语义单一：无"拒绝删除"保护模式——删除前的确认（表面是否有物件）是
-    ///   编辑器会话的 UI 决策（检查 <c>PlacementLayoutSource.Entities</c>），库层不拒绝。
-    /// - 无环不变量：Items 图为森林——<see cref="Add(Entity, Position, PlacementLayoutSource)"/>
+    /// - 语义单一：无"拒绝删除"保护模式——删除前的确认（容器是否有物件）是
+    ///   编辑器会话的 UI 决策（检查 <c>ChildrenSource.Children</c>），库层不拒绝。
+    /// - 无环不变量：容器图为森林——<see cref="Add(Entity, Position, PlacementLayoutSource)"/>
     ///   拒绝已放置实体（<see cref="Entities"/> 全局判断，与层数无关），保证每实体
-    ///   至多一个宿主，故级联递归深度 = 放置链深，不会无限递归。
+    ///   至多一个容器，故级联递归深度 = 挂载链深，不会无限递归。
     /// </remarks>
     public bool Remove(Entity entity)
     {
         if (!Entities.Contains(entity))
             return false;
 
-        // 级联：表面上的物件递归回落（先快照，避免遍历中修改）
-        foreach (var item in entity.GetComponents<PlacementLayoutSource>().SelectMany(s => s.Entities).ToList())
+        // 级联：容器上的子实体递归回落（先快照，避免遍历中修改）——覆盖表面挂载与组挂载
+        foreach (var item in entity.GetComponents<ChildrenSource>().SelectMany(s => s.Children).ToList())
             Remove(item);
-        foreach (var s in entity.GetComponents<PlacementLayoutSource>())
-            s.Entities.Clear();
+        foreach (var s in entity.GetComponents<ChildrenSource>())
+            s.ClearChildren();
 
-        // 反登记：从宿主表面移除自己（O(1)——森林不变量保证每实体至多一个宿主，
+        // 反登记：从容器中移除自己（O(1)——森林不变量保证每实体至多一个容器，
         // 反向索引直达，无需全量扫描）
-        if (_hostOf.TryGetValue(entity, out var host))
+        if (_containerOf.TryGetValue(entity, out var container))
         {
-            host.Entities.Remove(entity);
-            _hostOf.Remove(entity);
+            container.RemoveChild(entity);
+            _containerOf.Remove(entity);
         }
 
         Entities.Remove(entity);
@@ -240,64 +241,41 @@ public sealed class LevelLayout : IEntitySource, IVoxelSource<Entity>, IEntityRe
 
     /// <summary>
     /// 装载恢复（服务端装载路径用）：体素网格是"已放置"的持久化真相，
-    /// 实体列表与宿主登记是运行期登记态（未序列化）——从网格重建：
-    /// ① 收集网格中出现的实体去重为已放置列表（按 Id 排序，确定性）；② 清空既有登记态；
-    /// ③ 按空间覆盖推断宿主（实体锚点被某已放置实体的表面格覆盖 → 挂宿主）。
+    /// 实体列表与容器登记是运行期登记态（未序列化）——从网格 + 持久化成员 Id 重建：
+    /// ① 收集网格中出现的实体去重为已放置列表（按 Id 排序，确定性）；
+    /// ② 清空既有容器登记态；③ 按各 <see cref="ChildrenSource.ChildrenIds"/> 重链子实体
+    /// （表面挂载与组挂载统一走本路径——几何推导已移除，成员关系由 Id 持久化）。
     /// </summary>
-    public void RestorePlacementFromGrid()
+    public void RestorePlacementFromGrid(IReadOnlyList<Entity> registry)
     {
         var placed = new HashSet<Entity>();
         foreach (var chunk in Voxels.Chunks)
             foreach (var cell in chunk.Cells())
                 placed.Add(cell.Value);
 
-        foreach (var entity in Entities)
-            foreach (var s in entity.GetComponents<PlacementLayoutSource>())
-                s.Entities.Clear();
-        _hostOf.Clear();
+        // 运行时子表全部清空（持久化 ChildrenIds 保留，作为重链来源）
+        foreach (var entity in registry)
+            foreach (var s in entity.GetComponents<ChildrenSource>())
+                s.Children.Clear();
+        _containerOf.Clear();
         Entities.Clear();
 
         Entities.AddRange(placed.OrderBy(e => e.Id));
 
-        foreach (var entity in Entities)
-        {
-            var anchor = Voxels.GetAsRelative(entity.Transform.Position);
-            foreach (var other in Entities)
-            {
-                if (other == entity)
-                    continue;
-                foreach (var source in other.GetComponents<PlacementLayoutSource>())
-                {
-                    if (source.Layout is null || source.Layout.Size.X <= 0)
-                        continue;
-                    if (SurfaceCovers(source, anchor))
+        // 按持久化成员 Id 重链（表层/组层统一）
+        var byId = registry.ToDictionary(e => e.Id);
+        foreach (var entity in registry)
+            foreach (var s in entity.GetComponents<ChildrenSource>())
+                foreach (var id in s.ChildrenIds.ToList())
+                    if (byId.TryGetValue(id, out var child) && child != entity)
                     {
-                        source.Entities.Add(entity);
-                        _hostOf[entity] = source;
-                        goto next;
+                        s.Children.Add(child);
+                        _containerOf[child] = s;
                     }
-                }
-            }
-            next:;
-        }
-    }
-
-    /// <summary>表面格网中是否有格映射到 <paramref name="anchor"/>（世界格）。</summary>
-    private static bool SurfaceCovers(PlacementLayoutSource source, Int3 anchor)
-    {
-        var size = source.Layout.Size;
-        for (var z = 0; z < size.Z; z++)
-            for (var x = 0; x < size.X; x++)
-            {
-                var rel = new Int2(x, z);
-                if (source.Layout[rel] && source.AsAbsolute(rel) == anchor)
-                    return true;
-            }
-        return false;
     }
 
     /// <summary>
-    /// 目标实体及其表面上物件的传递闭包（级联回落集，含目标）——移除目标前的
+    /// 目标实体及其子实体的传递闭包（级联回落集，含目标）——移除目标前的
     /// 完整影响面，供命令级撤销快照与变更通知使用。顺序 = <see cref="Remove(Entity)"/>
     /// 的递归移除顺序（子先于父、目标最后）。
     /// </summary>
@@ -306,7 +284,7 @@ public sealed class LevelLayout : IEntitySource, IVoxelSource<Entity>, IEntityRe
         var result = new List<Entity>();
         void Collect(Entity e)
         {
-            foreach (var item in e.GetComponents<PlacementLayoutSource>().SelectMany(s => s.Entities).ToList())
+            foreach (var item in e.GetComponents<ChildrenSource>().SelectMany(s => s.Children).ToList())
             {
                 Collect(item);
                 result.Add(item);
@@ -391,18 +369,18 @@ public sealed class LevelLayout : IEntitySource, IVoxelSource<Entity>, IEntityRe
 
         if (host is not null)
         {
-            if (_hostOf.TryGetValue(entity, out var oldHost))
+            if (_containerOf.TryGetValue(entity, out var oldContainer))
             {
-                oldHost.Entities.Remove(entity);
-                _hostOf.Remove(entity);
+                oldContainer.RemoveChild(entity);
+                _containerOf.Remove(entity);
             }
-            host.Entities.Add(entity);
-            _hostOf[entity] = host;
+            host.AddChild(entity);
+            _containerOf[entity] = host;
         }
-        else if (_hostOf.TryGetValue(entity, out var oldHost))
+        else if (_containerOf.TryGetValue(entity, out var oldContainer))
         {
-            oldHost.Entities.Remove(entity);
-            _hostOf.Remove(entity);
+            oldContainer.RemoveChild(entity);
+            _containerOf.Remove(entity);
         }
         return true;
     }
