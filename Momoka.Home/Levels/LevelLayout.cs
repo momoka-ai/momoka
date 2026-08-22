@@ -176,7 +176,7 @@ public sealed class LevelLayout : IEntitySource, IVoxelSource<Entity>, IEntityRe
 
         if (!Add(entity, position)) // 碰撞检查 + 放置 + 登记（无附着语义共用）
             return false;
-        source.AddChild(entity); // 登记表面宿主（同步持久化 Id 表）
+        source.Children.Add(entity); // 登记表面宿主（单一真相源：Children）
         _containerOf[entity] = source; // 反向索引（子 → 容器）
         return true;
     }
@@ -207,13 +207,13 @@ public sealed class LevelLayout : IEntitySource, IVoxelSource<Entity>, IEntityRe
         foreach (var item in entity.GetComponents<ChildrenSource>().SelectMany(s => s.Children).ToList())
             Remove(item);
         foreach (var s in entity.GetComponents<ChildrenSource>())
-            s.ClearChildren();
+            s.Children.Clear();
 
         // 反登记：从容器中移除自己（O(1)——森林不变量保证每实体至多一个容器，
         // 反向索引直达，无需全量扫描）
         if (_containerOf.TryGetValue(entity, out var container))
         {
-            container.RemoveChild(entity);
+            container.Children.Remove(entity);
             _containerOf.Remove(entity);
         }
 
@@ -243,8 +243,8 @@ public sealed class LevelLayout : IEntitySource, IVoxelSource<Entity>, IEntityRe
     /// 装载恢复（服务端装载路径用）：体素网格是"已放置"的持久化真相，
     /// 实体列表与容器登记是运行期登记态（未序列化）——从网格 + 持久化成员 Id 重建：
     /// ① 收集网格中出现的实体去重为已放置列表（按 Id 排序，确定性）；
-    /// ② 清空既有容器登记态；③ 按各 <see cref="ChildrenSource.ChildrenIds"/> 重链子实体
-    /// （表面挂载与组挂载统一走本路径——几何推导已移除，成员关系由 Id 持久化）。
+    /// ② 清空既有容器登记态；③ 按各容器的成员 Id 重链子实体——反序列化后的
+    /// id-stub 即成员 Id 的载体（表面挂载与组挂载统一走本路径，几何推导已移除）。
     /// </summary>
     public void RestorePlacementFromGrid(IReadOnlyList<Entity> registry)
     {
@@ -253,25 +253,24 @@ public sealed class LevelLayout : IEntitySource, IVoxelSource<Entity>, IEntityRe
             foreach (var cell in chunk.Cells())
                 placed.Add(cell.Value);
 
-        // 运行时子表全部清空（持久化 ChildrenIds 保留，作为重链来源）
-        foreach (var entity in registry)
-            foreach (var s in entity.GetComponents<ChildrenSource>())
-                s.Children.Clear();
         _containerOf.Clear();
         Entities.Clear();
 
         Entities.AddRange(placed.OrderBy(e => e.Id));
 
-        // 按持久化成员 Id 重链（表层/组层统一）
         var byId = registry.ToDictionary(e => e.Id);
         foreach (var entity in registry)
             foreach (var s in entity.GetComponents<ChildrenSource>())
-                foreach (var id in s.ChildrenIds.ToList())
+            {
+                var ids = s.Children.Select(c => c.Id).ToList(); // 反序列化 id-stub / 运行时真实子实体
+                s.Children.Clear();
+                foreach (var id in ids)
                     if (byId.TryGetValue(id, out var child) && child != entity)
                     {
                         s.Children.Add(child);
                         _containerOf[child] = s;
                     }
+            }
     }
 
     /// <summary>
@@ -371,15 +370,15 @@ public sealed class LevelLayout : IEntitySource, IVoxelSource<Entity>, IEntityRe
         {
             if (_containerOf.TryGetValue(entity, out var oldContainer))
             {
-                oldContainer.RemoveChild(entity);
+                oldContainer.Children.Remove(entity);
                 _containerOf.Remove(entity);
             }
-            host.AddChild(entity);
+            host.Children.Add(entity);
             _containerOf[entity] = host;
         }
         else if (_containerOf.TryGetValue(entity, out var oldContainer))
         {
-            oldContainer.RemoveChild(entity);
+            oldContainer.Children.Remove(entity);
             _containerOf.Remove(entity);
         }
         return true;

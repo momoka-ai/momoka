@@ -11,35 +11,27 @@ namespace Momoka.Home.Levels.Entities.Components;
 [JsonTypeName("children")]
 public class ChildrenSource : Component
 {
-    /// <summary>子实体（内存真相，直接引用；级联 / 随移 / 反向索引走本表）。
-    /// 序列化走 <see cref="ChildrenIds"/>——不内嵌实体载荷，避免
-    /// <c>Entity → Components → Children → Entity</c> 循环。</summary>
+    /// <summary>子实体（内存真相，直接引用；级联 / 随移 / 反向索引走本表）。</summary>
     [JsonIgnore]
     public List<Entity> Children { get; } = new();
 
-    /// <summary>持久化：成员 Id 列表。装载时由 <c>LevelLayout.RestorePlacementFromGrid</c>
-    /// 按 Id 重链进 <see cref="Children"/>。</summary>
+    /// <summary>
+    /// 持久化成员 Id——**派生自 <see cref="Children"/>（单一真相源）**：序列化只写 Id，
+    /// 不内嵌实体载荷（避免 <c>Entity → Components → Children → Entity</c> 循环）。
+    /// 反序列化时 setter 以 Id 物化临时占位实体（stub），装载时由
+    /// <c>LevelLayout.RestorePlacementFromGrid</c> 按 Id 重链为注册表真实实体。
+    /// </summary>
     [JsonProperty("children")]
-    public List<Guid> ChildrenIds { get; set; } = new();
-
-    /// <summary>登记子实体（同步持久化 Id 表）。</summary>
-    public void AddChild(Entity entity)
+    public List<Guid> ChildrenIds
     {
-        Children.Add(entity);
-        ChildrenIds.Add(entity.Id);
-    }
-
-    /// <summary>移除子实体（同步持久化 Id 表）。</summary>
-    public bool RemoveChild(Entity entity)
-    {
-        Children.Remove(entity);
-        return ChildrenIds.Remove(entity.Id);
-    }
-
-    /// <summary>清空子实体与持久化 Id 表。</summary>
-    public void ClearChildren()
-    {
-        Children.Clear();
-        ChildrenIds.Clear();
+        get => Children.Select(c => c.Id).ToList();
+        set
+        {
+            Children.Clear();
+            if (value is null)
+                return;
+            foreach (var id in value)
+                Children.Add(new Entity { Id = id }); // 反序列化 id-stub——装载时重链
+        }
     }
 }

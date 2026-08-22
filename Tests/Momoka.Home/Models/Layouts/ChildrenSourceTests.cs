@@ -50,7 +50,7 @@ public class ChildrenSourceTests
         var group = new ChildrenSource();
         container.AddComponent(group);
         var wall = Box("wall", 2, 29, 1);
-        group.AddChild(wall);
+        group.Children.Add(wall);
 
         var json = JsonConvert.SerializeObject(container, Settings.JsonSerialization);
         var children = (JArray)JObject.Parse(json)["components"]![0]!["children"]!;
@@ -58,8 +58,7 @@ public class ChildrenSourceTests
 
         var back = JsonConvert.DeserializeObject<Entity>(json, Settings.JsonSerialization)!;
         var restored = Assert.IsType<ChildrenSource>(Assert.Single(back.Components));
-        Assert.Equal(new[] { wall.Id }, restored.ChildrenIds);
-        Assert.Empty(restored.Children); // 运行时子表不序列化——装载后重链
+        Assert.Equal(new[] { wall.Id }, restored.Children.Select(c => c.Id)); // 反序列化 id-stub
     }
 
     [Fact]
@@ -70,8 +69,8 @@ public class ChildrenSourceTests
         container.AddComponent(group);
         var wallA = Box("wall", 2, 29, 1);
         var wallB = Box("wall", 2, 10, 1); // 矮墙——独立实体自带高度
-        group.AddChild(wallA);
-        group.AddChild(wallB);
+        group.Children.Add(wallA);
+        group.Children.Add(wallB);
 
         var layout = new LevelLayout();
         layout.RestorePlacementFromGrid(new[] { container, wallA, wallB });
