@@ -23,9 +23,9 @@ public class Box3DTests
     public void Cabinet_FloorFootprint_IsThicknessTimesWidth()
     {
         var cabinet = new Box3D { SizeX = 2, SizeY = 3, SizeZ = 3 };
-        var footprint = cabinet.Cells2D().ToList();
+        var footprint = cabinet.Cells3D().Select(c => c.Xz).Distinct();
 
-        Assert.Equal(2 * 3, footprint.Count); // 2×3
+        Assert.Equal(2 * 3, footprint.Count()); // 2×3（XZ 投影）
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public class Box3DTests
         // 贴墙时旋转：局部 XZ 覆盖墙面（高×宽），局部 Y 为厚度
         var wallCabinet = new Box3D { SizeX = 3, SizeY = 2, SizeZ = 3 };
 
-        Assert.Equal(3 * 3, wallCabinet.Cells2D().Count()); // 3×3
+        Assert.Equal(3 * 3, wallCabinet.Cells3D().Select(c => c.Xz).Distinct().Count()); // 3×3
     }
 
     [Fact]

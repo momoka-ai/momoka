@@ -32,7 +32,6 @@ public class Cone3D : Volume
         }
     }
 
-    public override IEnumerable<Int2> Cells2D() => new Circle2D(Radius).Cells2D();
 }
 
 /// <summary>Vertical pyramid: rectangular base shrinking linearly to an apex (gable/pyramid roofs).</summary>
@@ -65,6 +64,4 @@ public class Pyramid3D : Volume
         }
     }
 
-    public override IEnumerable<Int2> Cells2D() =>
-        Cells3D().Where(c => c.Y == 0).Select(c => c.Xz).Distinct();
 }

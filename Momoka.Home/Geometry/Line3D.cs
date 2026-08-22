@@ -40,16 +40,6 @@ public class Line3D : Volume
         }
     }
 
-    /// <summary>
-    /// Support footprint: the line projected onto its local XZ plane (drop Y).
-    /// A wall's support footprint is its own XZ extent.
-    /// </summary>
-    public override IEnumerable<Int2> Cells2D()
-    {
-        foreach (var cell in Cells3D())
-            yield return new Int2(cell.X, cell.Z);
-    }
-
     protected static IEnumerable<Float3> RasterizeCross(Float3 center, int thickness)
     {
         var half = thickness / 2;

@@ -2,14 +2,14 @@ using Momoka.Home.Primitives;
 using Momoka.Home.Data.Json;
 namespace Momoka.Home.Geometry;
 
-/// <summary>Polygonal prism: arbitrary polygon footprint × height (irregular buildings).</summary>
+/// <summary>多边形棱柱：任意多边形截面 × 高度（异形建筑）。</summary>
 [JsonTypeName("polygon")]
 public class Polygon3D : Extruded3D
 {
-    public Polygon3D() : base(new Polygon2D(), 1) { }
+    public Polygon3D() : base(Array.Empty<Int2>(), 1) { }
 
     public Polygon3D(IEnumerable<Int2> vertices, int height)
-        : base(new Polygon2D(vertices), height)
+        : base(Rasterizer.FilledPolygon(vertices), height)
     {
     }
 }

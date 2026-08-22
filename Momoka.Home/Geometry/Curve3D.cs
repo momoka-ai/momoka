@@ -50,6 +50,4 @@ public class Curve3D : Line3D
         }
     }
 
-    public override IEnumerable<Int2> Cells2D() =>
-        Cells3D().Select(c => c.Xz).Distinct();
 }

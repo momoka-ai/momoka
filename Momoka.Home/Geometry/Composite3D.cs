@@ -24,20 +24,6 @@ public class Composite3D : Volume
             }
         }
     }
-
-    public override IEnumerable<Int2> Cells2D()
-    {
-        var seen = new HashSet<Int2>();
-        foreach (var child in Children)
-        {
-            foreach (var cell in child.Shape.Cells2D())
-            {
-                var p = cell + child.Offset.Xz;
-                if (seen.Add(p))
-                    yield return p;
-            }
-        }
-    }
 }
 
 /// <summary>A child volume of a <see cref="Composite3D"/> at a local offset.</summary>

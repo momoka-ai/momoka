@@ -4,48 +4,41 @@ using Momoka.Home.Primitives;
 namespace Momoka.Home.Tests.Models.Shapes;
 
 /// <summary>
-/// The extended shape family: 2D footprints (Polygon/Circle/…), prisms,
-/// composites, curved lines and full-3D bodies. Shapes are pure local geometry.
+/// The extended shape family: prisms (extruded sections), composites, curved
+/// lines and full-3D bodies. Shapes are pure local geometry.
 /// </summary>
 public class ShapeFamilyTests
 {
     [Fact]
-    public void Polygon2D_ConcaveL_OmitsTheMissingCorner()
+    public void Extruded3D_RectSectionTimesHeight_IsPrismVolume()
     {
-        var poly = new Polygon2D(
-            new Int2(0, 0), new Int2(3, 0), new Int2(3, 1),
-            new Int2(1, 1), new Int2(1, 3), new Int2(0, 3));
+        var prism = new Extruded3D(new[]
+        {
+            new Int2(0, 0), new Int2(1, 0),
+            new Int2(0, 1), new Int2(1, 1),
+            new Int2(0, 2), new Int2(1, 2),
+        }, 4); // 2×3 截面（x∈0..1, z∈0..2）
+        var cells = prism.Cells3D().ToList();
 
-        var cells = poly.Cells2D().ToHashSet();
+        Assert.Equal(2 * 3 * 4, cells.Count);
+        Assert.Contains(new Int3(1, 3, 2), cells);
+    }
+
+    [Fact]
+    public void Polygon3D_ConcaveL_OmitsTheMissingCorner()
+    {
+        var poly = new Polygon3D(new[]
+        {
+            new Int2(0, 0), new Int2(3, 0), new Int2(3, 1),
+            new Int2(1, 1), new Int2(1, 3), new Int2(0, 3),
+        }, 1);
+
+        var cells = poly.Cells3D().Select(c => c.Xz).ToHashSet();
 
         Assert.Contains(new Int2(0, 0), cells);
         Assert.Contains(new Int2(2, 0), cells);
         Assert.Contains(new Int2(0, 2), cells);
         Assert.DoesNotContain(new Int2(2, 2), cells); // 缺失角
-    }
-
-    [Fact]
-    public void Circle2D_CellsStayWithinRadius()
-    {
-        var circle = new Circle2D(3);
-        var cells = circle.Cells2D().ToList();
-
-        Assert.NotEmpty(cells);
-        Assert.All(cells, c => Assert.True(c.X * c.X + c.Z * c.Z <= 9));
-        Assert.Contains(new Int2(0, 0), cells);
-        Assert.Contains(new Int2(3, 0), cells);
-        Assert.DoesNotContain(new Int2(3, 3), cells);
-    }
-
-    [Fact]
-    public void Extruded3D_RectFootprintTimesHeight_IsPrismVolume()
-    {
-        var prism = new Extruded3D(new Rect2D(2, 3), 4);
-        var cells = prism.Cells3D().ToList();
-
-        Assert.Equal(2 * 3 * 4, cells.Count);
-        Assert.Equal(2 * 3, prism.Cells2D().Count());
-        Assert.Contains(new Int3(1, 3, 2), cells);
     }
 
     [Fact]
@@ -71,7 +64,6 @@ public class ShapeFamilyTests
         Assert.Contains(new Int3(1, 0, 1), cells);
         Assert.Contains(new Int3(3, 0, 0), cells); // 第二个子形状偏移后
         Assert.Equal(4 + 1, cells.Count);
-        Assert.Equal(5, composite.Cells2D().Count()); // 2×2 + 1
     }
 
     [Fact]
@@ -108,14 +100,12 @@ public class ShapeFamilyTests
     }
 
     [Fact]
-    public void Pyramid3D_BaseMatchesFootprint()
+    public void Pyramid3D_BaseMatchesBaseCells()
     {
         var pyramid = new Pyramid3D(4, 4, 3);
-        var footprint = pyramid.Cells2D().ToHashSet();
         var baseCells = pyramid.Cells3D().Where(c => c.Y == 0).Select(c => c.Xz).ToHashSet();
 
-        Assert.Equal(baseCells, footprint);
-        Assert.Equal(4 * 4, footprint.Count);
+        Assert.Equal(4 * 4, baseCells.Count);
     }
 
     [Fact]

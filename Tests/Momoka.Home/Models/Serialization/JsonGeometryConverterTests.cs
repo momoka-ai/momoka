@@ -7,9 +7,9 @@ using Newtonsoft.Json;
 namespace Momoka.Home.Tests.Models.Serialization;
 
 /// <summary>
-/// Round-trips every <see cref="Volume"/> kind (and the 2D <see cref="Shape"/>
-/// footprints they embed) through <see cref="JsonGeometryConverter"/>. Locks the
-/// declarative JSON format so the registry/codec rewrite stays format-compatible.
+/// Round-trips every <see cref="Volume"/> kind through
+/// <see cref="JsonGeometryConverter"/>. Locks the declarative JSON format so the
+/// registry/codec rewrite stays format-compatible.
 /// </summary>
 public class JsonGeometryConverterTests
 {
@@ -68,8 +68,8 @@ public class JsonGeometryConverterTests
     {
         var circle = RoundTrip(new Circle3D(3, 4));
         Assert.Equal(4, circle.Height);
-        var footprint = Assert.IsType<Circle2D>(circle.Footprint);
-        Assert.Equal(3, footprint.Radius);
+        Assert.NotEmpty(circle.SectionCells); // 填充圆截面已持久化
+        Assert.All(circle.SectionCells, c => Assert.True(c.X * c.X + c.Z * c.Z <= 9));
     }
 
     [Fact]
@@ -128,25 +128,24 @@ public class JsonGeometryConverterTests
     }
 
     [Fact]
-    public void Extruded_RoundTripsWithRectFootprint()
+    public void Extruded_RoundTripsWithSectionCells()
     {
-        var extruded = RoundTrip(new Extruded3D(new Rect2D(2, 3), 4));
+        var extruded = RoundTrip(new Extruded3D(new[]
+        {
+            new Int2(0, 0), new Int2(1, 0), new Int2(2, 0),
+            new Int2(0, 1), new Int2(1, 1), new Int2(2, 1),
+        }, 4)); // 2×3 截面
         Assert.Equal(4, extruded.Height);
-        var footprint = Assert.IsType<Rect2D>(extruded.Footprint);
-        Assert.Equal(2, footprint.SizeX);
-        Assert.Equal(3, footprint.SizeZ);
+        Assert.Equal(6, extruded.SectionCells.Count);
+        Assert.Equal(2 * 3 * 4, extruded.Cells3D().Count());
     }
 
     [Fact]
-    public void Extruded_RoundTripsWithCompositeFootprint()
+    public void Extruded_DefaultsToEmptySection()
     {
-        var composite = new Composite2D();
-        composite.Children.Add(new CompositeChild2D { Shape = new Rect2D(2, 1), Offset = new Int2(0, 0) });
-        composite.Children.Add(new CompositeChild2D { Shape = new Circle2D(1), Offset = new Int2(3, 0) });
-
-        var extruded = RoundTrip(new Extruded3D(composite, 2));
-        var footprint = Assert.IsType<Composite2D>(extruded.Footprint);
-        Assert.Equal(2, footprint.Children.Count);
+        var extruded = RoundTrip(new Extruded3D());
+        Assert.Empty(extruded.SectionCells);
+        Assert.Empty(extruded.Cells3D());
     }
 
     [Fact]

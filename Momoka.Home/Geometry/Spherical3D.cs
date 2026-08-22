@@ -21,7 +21,6 @@ public class Sphere3D : Volume
                         yield return new Int3(x, y, z);
     }
 
-    public override IEnumerable<Int2> Cells2D() => new Circle2D(Radius).Cells2D();
 }
 
 /// <summary>Solid ellipsoid: (x/rx)² + (y/ry)² + (z/rz)² ≤ 1.</summary>
@@ -55,5 +54,4 @@ public class Ellipsoid3D : Volume
                         yield return new Int3(x, y, z);
     }
 
-    public override IEnumerable<Int2> Cells2D() => new Ellipse2D(RadiusX, RadiusZ).Cells2D();
 }

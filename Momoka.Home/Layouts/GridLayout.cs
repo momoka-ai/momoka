@@ -1,4 +1,3 @@
-using Momoka.Home.Geometry;
 using Momoka.Home.Primitives;
 namespace Momoka.Home.Layouts;
 
@@ -40,22 +39,6 @@ public class GridLayout<T> where T : notnull
 
     /// <summary>True if the local cell is blocked (cannot be placed there) — the cell is default(T).</summary>
     public bool IsCollided(Int2 xzCoords) => IsBlocked(this[xzCoords]);
-
-    /// <summary>
-    /// True if the shape's support footprint, placed at layout-local
-    /// <paramref name="pos"/>, lands on any blocked (or out-of-bounds) cell.
-    /// The footprint cells come from <see cref="IVoxelGeometry2D.Cells2D"/> and are
-    /// local to the object — the object's position on this surface is added here.
-    /// </summary>
-    public bool IsCollided(IVoxelGeometry2D shape, Int2 pos)
-    {
-        foreach (var cell in shape.Cells2D())
-        {
-            if (IsBlocked(this[cell + pos]))
-                return true;
-        }
-        return false;
-    }
 
     /// <summary>Marks a rectangle of cells (in local coords) with <paramref name="value"/>.</summary>
     public void Fill(T value, Int2 from, Int2 size)
