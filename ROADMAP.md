@@ -97,7 +97,8 @@
 
 待实现（按当前优先级）：
 
-- [ ] **LineGraph 墙体图模型（最高优先级）**：连续墙体 = 一个实体，`LineGraph : Composite`（每边一条 `Line` 子体积 + 节点/边表表达连接关系）；**新增墙 = 图加节点 + 边 → `SetVolume`**（BuildWall 直接变成 SetVolume，无需新命令）；异形墙（L/U/C/T）由并集天然填充转角；整墙移动 = MoveEntity；撤销 = 恢复旧 Volume。**2026-08-22：类型 + 序列化 + 测试已落地**（`Levels/Volumes/LineGraph.cs`，4 测试；空壳 `Graph3D` 已删除）。待实现：① 模型操作集成（首段建实体 / 连接段 SetVolume，模型操作替换 `BuildWallCommand` 盒构造）② 图墙排洞方案（`VolumePunch` 只支持 Box/Composite，需改造或改"开口占用格 + 墙体积洞格集合"）③ 挂载面（整墙网络外立面）④ `LayoutHelpers` 随命令消失（`InWorldExtent` → `LevelLayout`；Bound 扩展 → `LevelLayout.Add` 自动维护）
+- [x] **墙系统容器（2026-08-22）**：**方案 3 定案**——墙体 = 墙系统容器实体（无体积 marker，`ChildrenSource` 挂载成员）+ 独立墙段实体（Box/Line，自带高度 / 纹理 / 拆除粒度）；转角边邻接、角格归转弯段。`ChildrenSource : Component`（`List<Entity> Children` 内存真相 + `List<Guid> ChildrenIds` 持久化，装载时 `RestorePlacementFromGrid(registry)` 按 Id 重链）；`PlacementLayoutSource : ChildrenSource`（表面物件即子实体，几何推导改为 Id 重链）；级联删除 / 随移 / 反向索引统一走 `ChildrenSource`；`ClientLevelData` 对 null-volume marker 写格保护。**`LineGraph` 标记 `[Obsolete]`（暂留待退役）**——图语义上移容器组件，共享 Height 无法表达矮墙等异质段。
+- [ ] **LineGraph 墙体图模型（已弃用方向）**：连续墙体 = 一个实体的 `LineGraph : Composite`（共享 Height 挤出 + 节点/边表）。**2026-08-22 定案转向方案 3（墙系统容器）后标记 `[Obsolete]`，暂留待退役**——矮墙 / 逐段纹理 / 单段拆除 / 局部增量均无法在单一实体上表达。待实现（方案 3 路径）：① 容器级操作（整墙移动 = 成员整体平移、整墙删除 = 级联销毁，复用 `CascadeOf`）② 墙段模型操作（首段建实体 / 延伸 = 加成员）③ 开洞打在单段 Box 上（现有 `VolumePunch` 直接可用）④ 挂载面逐段生成（`BuildWallSurface` 原地保留）
 
 - [x] **3D Region 自动生成**：站立格（Up 放置面 + 净高过滤）→ `ColumnLayout` 引擎标 span（阻隔即占用，家具成洞）；`Region.BuildLayout()` + `LevelLayout.RebuildRegions()`（§5.6）；门开关 Portal 与 wall-extension 后续
 - [x] **空间查询层**（`IVoxelSource<T>` 扩展 + 纯算法层）：`Algorithms/` 五类型 `Traverse`（OnLine/InCone/InFrustum）/ `Visibility`（Project/IsInView）/ `Occlusion`（四档阻挡）/ `Collision.Result` / `Pathfinding.AStar`；查询扩展 `CanSee`×3 / `FindItemsInView`×3（射线/圆锥/视锥，严格遮挡）/ `IsCollided`×3 / `IsOccluded` / `GetItemsInBound` / `FindPath`（失败统一 null，无 Reachable）
