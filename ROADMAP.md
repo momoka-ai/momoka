@@ -84,7 +84,8 @@
 - [x] 空间根：`UnitLayout`（`sealed`，单一扁平 3D 根，`IEntitySource` + `IVoxelGeometry3D`）+ `LevelData`（`Momoka.Home.Level`：类型 + 布局 + 全实体注册表，服务器/客户端共同基类）+ `UnitType` 枚举
 - [x] **Residence → LevelData 重构（2026-08-20）**：`Residence` 删除——名称/地址归云端账号管理（本地仅 Home 实体 address 属性）；`Type`/`Layout`/`Entities` 入 `LevelData`；`ServerLevelData`/`ClientLevelData` 共同继承（服务器权威 / 客户端镜像）；隐藏 **Home 实体**（key=home、无 Volume、生成时创建、无增删渠道）承载地址与类型（unit_type 为 Type 持久化真相）；快照协议删 `ResidenceMeta`，`Type` 直接入 `SnapshotEvent`
 - [x] 体素存储：`VoxelLayout<T>`（Minecraft 式 16³ 区块 + paletted）、`GridLayout<T>`、`Subdivision<T>`（`Face` 面实体支持：`AssignEntity` / `EntityOf`）、`Graph2D`、`Palette` / `PackedBitStorage` / `PalettedContainer(RO)`；`Layouts/` 只剩纯运算 / 数学布局
-- [x] 几何：`Volume` / `Shape` + `IVoxelGeometry2D/3D` + `Box3D` / `Line3D` / `Curve3D` / `Polygon3D` / `Prism3D` / `Conic3D` / `Spherical3D` / `Extruded3D` / `Composite3D` / `Rect2D` / `Polygon2D` / `Circular2D` / `Composite2D`（带 `[JsonTypeName]`）
+- [x] 几何：`Volume` 层次 + `Box3D` / `Line3D` / `LineGraph3D` / `Curve3D` / `Polygon3D` / `Prism3D` / `Conic3D` / `Spherical3D` / `Extruded3D` / `Composite3D`（带 `[JsonTypeName]`）
+- [x] **2D 几何退役（2026-08-22）**：`Shape` / `Rect2D` / `Circular2D` / `Polygon2D` / `Composite2D` / `IVoxelGeometry2D/3D` 与全部 `Cells2D()` / `IsCollided(shape)` 删除；2D 光栅化降为内部 `Rasterizer`（even-odd ContainsCenter），只产 `Int2[]` 数据；`Extruded3D.Footprint: Shape` → `SectionCells: List<Int2>`；测试 383 全绿（+LineGraph3D 4 测试）
 - [x] 序列化管线：`JsonTypeNameRegistry` + `JsonTypeConverter` + `JsonGeometryConverter` + `JsonPropertyConverter`；`MideaVerifyTests` 用真实配置验证
 - [x] 组件：`Component` + `IComponentSource` + `CommandTarget` / `DataSource` / `EventSource` / `PlacementLayoutSource`
 - [x] 测试：383 个全绿（Layouts / Serialization / Shapes / Algorithms / Primitives / Properties / 放置链 / Level 编辑操作与 DTO 往返）
@@ -94,7 +95,7 @@
 
 待实现（按当前优先级）：
 
-- [ ] **GraphLine3D 墙体图模型（最高优先级）**：连续墙体 = 一个实体，`Volume` 复用现有 `Graph3D<Int3>` 做 `GraphLine3D`（节点 + 边 → 墙段盒并集）；**新增墙 = 图加节点 + 边 → `SetVolume`**（BuildWall 直接变成 SetVolume，无需新命令）；异形墙（L/U/C/T）天然连通路径；整墙移动 = MoveEntity；撤销 = 恢复旧 Volume。连带事项：① Graph 序列化（Edges 往返 + 节点重建）② 图墙排洞方案（`VolumePunch` 只支持 Box3D/Composite3D，需改造或改"开口占用格 + 墙体积洞格集合"）③ 挂载面（整墙网络外立面）④ `LayoutHelpers` 随命令消失（`InWorldExtent` → `UnitLayout`；Bound 扩展 → `UnitLayout.Add` 自动维护）
+- [ ] **LineGraph3D 墙体图模型（最高优先级）**：连续墙体 = 一个实体，`LineGraph3D : Composite3D`（每边一条 `Line3D` 子体积 + 节点/边表表达连接关系）；**新增墙 = 图加节点 + 边 → `SetVolume`**（BuildWall 直接变成 SetVolume，无需新命令）；异形墙（L/U/C/T）由并集天然填充转角；整墙移动 = MoveEntity；撤销 = 恢复旧 Volume。**2026-08-22：类型 + 序列化 + 测试已落地**（`Geometry/LineGraph3D.cs`，4 测试；空壳 `Graph3D` 已删除）。待实现：① 模型操作集成（首段建实体 / 连接段 SetVolume，模型操作替换 `BuildWallCommand` 盒构造）② 图墙排洞方案（`VolumePunch` 只支持 Box3D/Composite3D，需改造或改"开口占用格 + 墙体积洞格集合"）③ 挂载面（整墙网络外立面）④ `LayoutHelpers` 随命令消失（`InWorldExtent` → `UnitLayout`；Bound 扩展 → `UnitLayout.Add` 自动维护）
 
 - [x] **3D Region 自动生成**：站立格（Up 放置面 + 净高过滤）→ `ColumnLayout` 引擎标 span（阻隔即占用，家具成洞）；`Region.BuildLayout()` + `UnitLayout.RebuildRegions()`（§5.6）；门开关 Portal 与 wall-extension 后续
 - [x] **空间查询层**（`IVoxelSource<T>` 扩展 + 纯算法层）：`Algorithms/` 五类型 `Traverse`（OnLine/InCone/InFrustum）/ `Visibility`（Project/IsInView）/ `Occlusion`（四档阻挡）/ `Collision.Result` / `Pathfinding.AStar`；查询扩展 `CanSee`×3 / `FindItemsInView`×3（射线/圆锥/视锥，严格遮挡）/ `IsCollided`×3 / `IsOccluded` / `GetItemsInBound` / `FindPath`（失败统一 null，无 Reachable）
