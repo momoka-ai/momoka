@@ -90,6 +90,7 @@
 - [x] **`IVoxelSet` 格契约 + VoxelChunk 拆分（2026-08-22）**：`Layouts/VoxelSet.cs` 新增 `IVoxelSet.GetVoxelSet()`（局部占用格枚举）替代 `Volume.Cells3D()`——`Volume : IVoxelSet`，全部形状与调用点改走接口方法；`VoxelChunk` / `VoxelChunkSection` 从 `VoxelLayout.cs` 拆出到 `Layouts/VoxelChunk.cs`
 - [x] 序列化管线：`JsonTypeNameRegistry` + `JsonTypeConverter` + `JsonGeometryConverter` + `JsonPropertyConverter`；`MideaVerifyTests` 用真实配置验证
 - [x] **属性级 `[JsonConverter]` 支持（2026-08-22）**：`JsonTypeConverter` 引擎补齐 `property.Converter`（写侧直调转换器；读侧走转换器 + existingValue 原地改写，只读属性免 setter）——POD 字段可直接标注局部转换器（如 `ChildrenSource.Children` → `JsonEntityIdListConverter` 只写 Id），无需全局注册
+- [x] **JSON 格式 `{kind, data}` 委托（2026-08-22）**：成员序列化下沉 stock Json.NET——写 `{kind, data:{…}}` 信封（data 走无家族转换器的内部序列化器 + snake_case），读按判别物化 data；多态成员（`Entity.Volume` / `CompositeChild.Shape` / `TemplateCatalogEntry.Volume`）改属性级 `[JsonConverter]`；引擎 ~150→55 行，删除手动成员遍历/建型/属性转换器分支；存档/配置格式变更（`midea` 配置与测试固件已同步转换）
 - [x] 组件：`Component` + `IComponentSource` + `CommandTarget` / `DataSource` / `EventSource` / `PlacementLayoutSource`
 - [x] 测试：383 个全绿（Layouts / Serialization / Shapes / Algorithms / Primitives / Properties / 放置链 / Level 编辑操作与 DTO 往返）
 - [x] 旧容器清理与迁移：`Home` / `Level` / `Building`、旧 2D `Region`、`IVoxelSpaceRoot`、`PlaneLayout`、`TextureProperty`、`FloorPlanLayout` 已删除；`Region` 迁入域根（`Momoka.Home.Levels`），`LevelLayout.Regions`（`ColumnLayout<Region>`）取代 `Floors`
