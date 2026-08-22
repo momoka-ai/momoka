@@ -87,6 +87,7 @@
 - [x] 体素存储：`VoxelLayout<T>`（Minecraft 式 16³ 区块 + paletted）、`GridLayout<T>`、`Subdivision<T>`（`Face` 面实体支持：`AssignEntity` / `EntityOf`）、`Graph2D`、`Palette` / `PackedBitStorage` / `PalettedContainer(RO)`；`Layouts/` 只剩纯运算 / 数学布局
 - [x] 几何：`Volume` 层次 + `Box` / `Line` / `LineGraph` / `Curve` / `Polygon` / `Circle` / `Ellipse` / `Ring` / `Cylinder` / `Triangle` / `Cone` / `Pyramid` / `Sphere` / `Ellipsoid` / `Extruded` / `Composite`（带 `[JsonTypeName]`）
 - [x] **2D 几何退役（2026-08-22）**：`Shape` / `Rect2D` / `Circular2D` / `Polygon2D` / `Composite2D` / `IVoxelGeometry2D/3D` 与全部 `Cells2D()` / `IsCollided(shape)` 删除；2D 光栅化降为内部 `Rasterizer`（even-odd ContainsCenter），只产 `Int2[]` 数据；`Extruded.Footprint: Shape` → `SectionCells: List<Int2>`；测试 383 全绿（+LineGraph 4 测试）
+- [x] **`IVoxelSet` 格契约 + VoxelChunk 拆分（2026-08-22）**：`Layouts/VoxelSet.cs` 新增 `IVoxelSet.GetVoxelSet()`（局部占用格枚举）替代 `Volume.Cells3D()`——`Volume : IVoxelSet`，全部形状与调用点改走接口方法；`VoxelChunk` / `VoxelChunkSection` 从 `VoxelLayout.cs` 拆出到 `Layouts/VoxelChunk.cs`
 - [x] 序列化管线：`JsonTypeNameRegistry` + `JsonTypeConverter` + `JsonGeometryConverter` + `JsonPropertyConverter`；`MideaVerifyTests` 用真实配置验证
 - [x] 组件：`Component` + `IComponentSource` + `CommandTarget` / `DataSource` / `EventSource` / `PlacementLayoutSource`
 - [x] 测试：383 个全绿（Layouts / Serialization / Shapes / Algorithms / Primitives / Properties / 放置链 / Level 编辑操作与 DTO 往返）
