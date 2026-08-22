@@ -20,7 +20,7 @@ public class RegionTests
     private static Entity Box(string path, int sx, int sy, int sz) => new()
     {
         Key = new Key(path),
-        Volume = new Box3D { SizeX = sx, SizeY = sy, SizeZ = sz },
+        Volume = new Box { SizeX = sx, SizeY = sy, SizeZ = sz },
     };
 
     /// <summary>结构件盒子：is_structural 标记（墙 / 天花板 / 门）。</summary>

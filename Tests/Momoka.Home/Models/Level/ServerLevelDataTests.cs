@@ -28,7 +28,7 @@ public class ServerLevelDataTests
         server.Templates.Register("momoka:table", new EntityTemplate
         {
             Key = new Key("table"),
-            Volume = new Box3D { SizeX = 1, SizeY = 1, SizeZ = 1 },
+            Volume = new Box { SizeX = 1, SizeY = 1, SizeZ = 1 },
         });
 
     /// <summary>种子：已放置地板（带 Up 表面）+ 物件模板目录。</summary>
@@ -189,7 +189,7 @@ public class ServerLevelDataTests
         var a = Scenes.Box("a", 1, 1, 1);
         server.Entities.Add(a);
         // 构造重复 Id
-        server.Entities.Add(new Entity { Id = a.Id, Key = new Key("b"), Volume = new Box3D() });
+        server.Entities.Add(new Entity { Id = a.Id, Key = new Key("b"), Volume = new Box() });
 
         var report = server.Validate();
         Assert.Contains(report.HardErrors, e => e.StartsWith("duplicate entity id", StringComparison.Ordinal));

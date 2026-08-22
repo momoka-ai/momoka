@@ -9,7 +9,7 @@ namespace Momoka.Home.Levels.Commands;
 
 /// <summary>
 /// 开洞命令（事务）：(1) 预检——洞盒完整落在墙体内（VolumePunch 可分段）+ 幅界
-/// 校验 + 开口格仅被墙占用；(2) 墙排洞——墙 Volume 替换为分段体积（Composite3D：
+/// 校验 + 开口格仅被墙占用；(2) 墙排洞——墙 Volume 替换为分段体积（Composite：
 /// 左段 + 右段 + 过梁，排除洞口盒）；(3) 放置门 / 窗实体（is_open，挂宿主墙——
 /// 级联删除）。validate-then-apply——预检通过后各步骤无失败路径，整体原子。
 /// </summary>
@@ -39,7 +39,7 @@ public sealed class BuildOpeningCommand : IEditorCommand
             return false;
 
         // 洞盒必须完整落在墙体内（含幅界校验）
-        var openingVolume = new Box3D { SizeX = _openingSize.X, SizeY = _openingSize.Y, SizeZ = _openingSize.Z };
+        var openingVolume = new Box { SizeX = _openingSize.X, SizeY = _openingSize.Y, SizeZ = _openingSize.Z };
         foreach (var cell in openingVolume.Cells3D())
         {
             var p = _openingOrigin + cell;

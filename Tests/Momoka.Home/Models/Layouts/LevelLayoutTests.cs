@@ -19,7 +19,7 @@ public class UnitLayoutTests
     private static Entity Box(string path, int sx, int sy, int sz) => new()
     {
         Key = new Key(path),
-        Volume = new Box3D { SizeX = sx, SizeY = sy, SizeZ = sz },
+        Volume = new Box { SizeX = sx, SizeY = sy, SizeZ = sz },
     };
 
     private static Entity StructuralBox(string path, int sx, int sy, int sz)
@@ -52,7 +52,7 @@ public class UnitLayoutTests
         public FloorEntity()
         {
             Key = new Key("floor");
-            Volume = new Box3D { SizeX = 5, SizeY = 1, SizeZ = 5 };
+            Volume = new Box { SizeX = 5, SizeY = 1, SizeZ = 5 };
             this.AddProperties(new[] { new BooleanProperty(Property.IsImmutable, true) });
             var surface = new GridLayout<bool>(new Int2(5, 5));
             surface.Fill(true, Int2.Zero, new Int2(5, 5));

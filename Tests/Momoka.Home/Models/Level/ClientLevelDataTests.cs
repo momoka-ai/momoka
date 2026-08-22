@@ -16,7 +16,7 @@ public class ClientLevelDataTests
     {
         Id = id,
         Key = new Key(key),
-        Volume = new Box3D { SizeX = size.X, SizeY = size.Y, SizeZ = size.Z },
+        Volume = new Box { SizeX = size.X, SizeY = size.Y, SizeZ = size.Z },
         Transform = new Transform(position, Rotation.Identity),
     };
 
@@ -49,7 +49,7 @@ public class ClientLevelDataTests
         Assert.Equal(1u, client.Version);
 
         // 只读查询面（IVoxelSource<Entity> 扩展）
-        var hit = client.IsCollidedVolume(new Position(new Float3(0, 10, 0)), new Box3D { SizeX = 1, SizeY = 1, SizeZ = 1 });
+        var hit = client.IsCollidedVolume(new Position(new Float3(0, 10, 0)), new Box { SizeX = 1, SizeY = 1, SizeZ = 1 });
         Assert.NotNull(hit);
         Assert.Same(table, hit!.Value.Hit);
     }

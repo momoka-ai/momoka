@@ -16,7 +16,7 @@ internal static class Scenes
     public static Entity Box(string path, int sx, int sy, int sz) => new()
     {
         Key = new Key(path),
-        Volume = new Box3D { SizeX = sx, SizeY = sy, SizeZ = sz },
+        Volume = new Box { SizeX = sx, SizeY = sy, SizeZ = sz },
     };
 
     public static EditorSession Session() => new(new LevelData());

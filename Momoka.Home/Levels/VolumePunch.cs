@@ -4,7 +4,7 @@ namespace Momoka.Home.Levels;
 
 /// <summary>
 /// 墙排洞：从墙体体积中扣除矩形洞口盒，输出与墙同锚点的分段体积
-/// （直墙 = Box3D，多段 = Composite3D——左段 + 右段 + 过梁，无需新 Volume 子类）。
+/// （直墙 = Box，多段 = Composite——左段 + 右段 + 过梁，无需新 Volume 子类）。
 /// 洞盒必须完整落在墙体内，否则返回 null（事务拒绝）。
 /// </summary>
 public static class VolumePunch
@@ -16,7 +16,7 @@ public static class VolumePunch
     /// </summary>
     public static Volume? Punch(Volume wallVolume, Int3 wallAnchor, Int3 openingOrigin, Int3 openingSize)
     {
-        var holeBox = new Box3D { SizeX = openingSize.X, SizeY = openingSize.Y, SizeZ = openingSize.Z };
+        var holeBox = new Box { SizeX = openingSize.X, SizeY = openingSize.Y, SizeZ = openingSize.Z };
         var holeCells = holeBox.Cells3D().Select(c => openingOrigin + c).ToHashSet();
         var wallCells = wallVolume.Cells3D().Select(c => wallAnchor + c).ToHashSet();
         if (holeCells.Any(c => !wallCells.Contains(c)))
@@ -25,13 +25,13 @@ public static class VolumePunch
         var pieces = new List<(Int3 Origin, Int3 Size)>();
         switch (wallVolume)
         {
-            case Box3D box:
+            case Box box:
                 pieces.AddRange(Decompose(wallAnchor, new Int3(box.SizeX, box.SizeY, box.SizeZ), openingOrigin, openingSize));
                 break;
-            case Composite3D composite:
+            case Composite composite:
                 foreach (var child in composite.Children)
                 {
-                    if (child.Shape is not Box3D childBox)
+                    if (child.Shape is not Box childBox)
                         return null; // 仅支持盒形子体积
                     pieces.AddRange(Decompose(
                         wallAnchor + child.Offset,
@@ -46,10 +46,10 @@ public static class VolumePunch
 
         var children = pieces
             .Where(p => p.Size.X > 0 && p.Size.Y > 0 && p.Size.Z > 0)
-            .Select(p => new CompositeChild3D
+            .Select(p => new CompositeChild
             {
                 Offset = p.Origin - wallAnchor,
-                Shape = new Box3D { SizeX = p.Size.X, SizeY = p.Size.Y, SizeZ = p.Size.Z },
+                Shape = new Box { SizeX = p.Size.X, SizeY = p.Size.Y, SizeZ = p.Size.Z },
             })
             .ToList();
         if (children.Count == 0)
@@ -58,7 +58,7 @@ public static class VolumePunch
         if (children.Count == 1 && children[0].Offset == Int3.Zero)
             return children[0].Shape;
 
-        return new Composite3D { Children = children };
+        return new Composite { Children = children };
     }
 
     /// <summary>

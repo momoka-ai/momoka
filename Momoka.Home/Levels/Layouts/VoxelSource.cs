@@ -497,7 +497,7 @@ public static class VoxelSourceExtensions
     /// <example>
     /// <code>
     /// // 检查一个 2×2×2 格的箱子放在 (50, 0, 50) 是否与现有实体重叠
-    /// var box = new Box3D { SizeX = 2, SizeY = 2, SizeZ = 2 };
+    /// var box = new Box { SizeX = 2, SizeY = 2, SizeZ = 2 };
     /// var hit = unit.IsCollidedVolume(new Position(50, 0, 50), box);
     /// </code>
     /// </example>

@@ -15,7 +15,7 @@ public class VoxelLayoutChunkTests
 {
     private sealed class TestEntity : Entity
     {
-        public TestEntity() => Volume = new Box3D();
+        public TestEntity() => Volume = new Box();
     }
 
     [Fact]

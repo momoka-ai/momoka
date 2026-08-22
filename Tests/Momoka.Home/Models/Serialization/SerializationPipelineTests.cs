@@ -48,7 +48,7 @@ public class SerializationPipelineTests
         var spatial = Assert.IsType<Entity>(entity);
         Assert.Equal(new Key("midea", "air_conditioner.ac_1523"), spatial.Key);
 
-        var box = Assert.IsType<Box3D>(spatial.Volume);
+        var box = Assert.IsType<Box>(spatial.Volume);
         Assert.Equal(1, box.SizeX);
         Assert.Equal(2, box.SizeY);
         Assert.Equal(1, box.SizeZ);
@@ -78,7 +78,7 @@ public class SerializationPipelineTests
         factory.Register("entity.appliance.air_conditioner", new EntityTemplate
         {
             Key = new Key("entity", "appliance.air_conditioner"),
-            Volume = new Box3D { SizeX = 3, SizeY = 2, SizeZ = 2 },
+            Volume = new Box { SizeX = 3, SizeY = 2, SizeZ = 2 },
             Properties = new List<Property> { new BooleanProperty("power") }
         });
 
@@ -86,7 +86,7 @@ public class SerializationPipelineTests
         var entity = factory.Load(path);
 
         // mixin shape overridden by the child's own; the mixin's "power" property is inherited
-        var box = Assert.IsType<Box3D>(entity.Volume);
+        var box = Assert.IsType<Box>(entity.Volume);
         Assert.Equal(1, box.SizeX);
         Assert.Equal("disabled", entity.GetValue("ai_mode"));
         Assert.False(entity.GetValue("power") is true);
@@ -100,7 +100,7 @@ public class SerializationPipelineTests
         factory.Register("a", new EntityTemplate
         {
             Key = new Key("a"),
-            Volume = new Box3D { SizeX = 2, SizeY = 1, SizeZ = 1 },
+            Volume = new Box { SizeX = 2, SizeY = 1, SizeZ = 1 },
             Properties = new List<Property> { new IntProperty("level", 1) }
         });
         factory.Register("b", new EntityTemplate
@@ -118,7 +118,7 @@ public class SerializationPipelineTests
         var entity = factory.Load(path);
 
         // shape from the only shape-providing mixin; the child's own config overrides "level"
-        Assert.IsType<Box3D>(entity.Volume);
+        Assert.IsType<Box>(entity.Volume);
         Assert.Equal(3, entity.GetValue("level"));
     }
 
@@ -157,7 +157,7 @@ public class SerializationPipelineTests
         var template = new EntityTemplate
         {
             Key = new Key("brand", "thing"),
-            Volume = new Box3D { SizeX = 2, SizeY = 3, SizeZ = 4 },
+            Volume = new Box { SizeX = 2, SizeY = 3, SizeZ = 4 },
             Properties = new List<Property> { new BooleanProperty("on", true) { Value = true } }
         };
 
@@ -167,7 +167,7 @@ public class SerializationPipelineTests
 
         // Key is path-derived (never serialized); content round-trips.
         Assert.Equal(EntityTemplateFactory.KeyFromPath(path), loaded.Key);
-        var box = Assert.IsType<Box3D>(loaded.Volume);
+        var box = Assert.IsType<Box>(loaded.Volume);
         Assert.Equal(2, box.SizeX);
         Assert.True(loaded.Properties!.Single(p => p.Name == "on").BoxedValue is true);
     }
@@ -184,7 +184,7 @@ public class SerializationPipelineTests
     {
         // [JsonConverter] on EntityTemplate.Volume works without any registered settings.
         var template = JsonConvert.DeserializeObject<EntityTemplate>("""{ "shape": { "kind": "box", "size_x": 1, "size_y": 2, "size_z": 3 } }""");
-        var box = Assert.IsType<Box3D>(template!.Volume);
+        var box = Assert.IsType<Box>(template!.Volume);
         Assert.Equal(1, box.SizeX);
         Assert.Equal(2, box.SizeY);
         Assert.Equal(3, box.SizeZ);

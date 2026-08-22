@@ -23,8 +23,8 @@ public sealed class WallSegment
 }
 
 /// <summary>
-/// 砌墙命令（创建即放置，无暂存态）：校验幅界 → 生成不可变墙实体（直墙 = Box3D，
-/// 多段 = Composite3D）并挂一垂直放置面（供开洞 / 挂件宿主登记）→ 放入空间 →
+/// 砌墙命令（创建即放置，无暂存态）：校验幅界 → 生成不可变墙实体（直墙 = Box，
+/// 多段 = Composite）并挂一垂直放置面（供开洞 / 挂件宿主登记）→ 放入空间 →
 /// 登记注册表 → 扩展 Bound。validate-then-apply——预检通过后无失败路径，整体原子。
 /// </summary>
 public sealed class BuildWallCommand : IEditorCommand
@@ -56,14 +56,14 @@ public sealed class BuildWallCommand : IEditorCommand
             _segments.Min(s => s.Origin.Z));
 
         Volume volume = _segments.Count == 1
-            ? new Box3D { SizeX = _segments[0].Size.X, SizeY = _segments[0].Size.Y, SizeZ = _segments[0].Size.Z }
-            : new Composite3D
+            ? new Box { SizeX = _segments[0].Size.X, SizeY = _segments[0].Size.Y, SizeZ = _segments[0].Size.Z }
+            : new Composite
             {
                 Children = _segments
-                    .Select(s => new CompositeChild3D
+                    .Select(s => new CompositeChild
                     {
                         Offset = s.Origin - min,
-                        Shape = new Box3D { SizeX = s.Size.X, SizeY = s.Size.Y, SizeZ = s.Size.Z },
+                        Shape = new Box { SizeX = s.Size.X, SizeY = s.Size.Y, SizeZ = s.Size.Z },
                     })
                     .ToList(),
             };

@@ -22,7 +22,7 @@ public class StructureCommandTests
 
         var wall = session.Layout.Entities.Single(e => e.Key == new Key("wall"));
         Assert.True(wall.IsImmutable());
-        Assert.IsType<Box3D>(wall.Volume);
+        Assert.IsType<Box>(wall.Volume);
         Assert.NotNull(wall.GetComponent<PlacementLayoutSource>());
         // 占用格已写入
         Assert.Same(wall, session.Layout.Voxels[new Int3(5, 1, 0)]);
@@ -43,7 +43,7 @@ public class StructureCommandTests
         }));
 
         var wall = session.Layout.Entities.Single(e => e.Key == new Key("wall"));
-        var composite = Assert.IsType<Composite3D>(wall.Volume);
+        var composite = Assert.IsType<Composite>(wall.Volume);
         Assert.Equal(2, composite.Children.Count);
         Assert.Same(wall, session.Layout.Voxels[new Int3(5, 1, 3)]);
         Assert.True(session.Layout.Voxels[new Int3(5, 1, 5)] is null); // L 形缺口
@@ -75,8 +75,8 @@ public class StructureCommandTests
         Assert.NotNull(changes);
 
         var wall = session.Layout.Find(midWall)!;
-        // 墙体积已分段（Composite3D：左段 + 右段 + 过梁）
-        var composite = Assert.IsType<Composite3D>(wall.Volume);
+        // 墙体积已分段（Composite：左段 + 右段 + 过梁）
+        var composite = Assert.IsType<Composite>(wall.Volume);
         Assert.True(composite.Cells3D().Any());
         // 洞口局部格（y<20 且 z∈{3,4}）已从墙体排除
         Assert.DoesNotContain(composite.Cells3D(), c => c.Y < 20 && c.Z is 3 or 4);
@@ -119,7 +119,7 @@ public class StructureCommandTests
         // 移除开口实体 → 墙体保留洞口（墙体积不变）
         Assert.True(session.Execute(new RemoveEntityCommand(doorId)) is not null);
         var wall = session.Layout.Find(midWall)!;
-        Assert.IsType<Composite3D>(wall.Volume);
+        Assert.IsType<Composite>(wall.Volume);
         Assert.Null(session.Layout.Voxels[new Int3(5, 10, 4)]);
     }
 

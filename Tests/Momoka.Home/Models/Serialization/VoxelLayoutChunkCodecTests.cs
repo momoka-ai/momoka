@@ -21,7 +21,7 @@ public class VoxelLayoutChunkCodecTests
     private static Entity Box(string path, int sx, int sy, int sz) => new()
     {
         Key = new Key(path),
-        Volume = new Box3D { SizeX = sx, SizeY = sy, SizeZ = sz },
+        Volume = new Box { SizeX = sx, SizeY = sy, SizeZ = sz },
     };
 
     private static string TempDb() =>

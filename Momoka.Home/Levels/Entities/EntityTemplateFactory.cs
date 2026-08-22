@@ -125,7 +125,7 @@ public class EntityTemplateFactory
         var entity = new Entity
         {
             Key = template.Key,
-            Volume = template.Volume ?? new Box3D()
+            Volume = template.Volume ?? new Box()
         };
         entity.AddProperties(template.Properties?.Select(p => p.Clone()) ?? Enumerable.Empty<Property>());
         return entity;

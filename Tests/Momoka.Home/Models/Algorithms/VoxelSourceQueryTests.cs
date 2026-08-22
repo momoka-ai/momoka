@@ -18,7 +18,7 @@ namespace Momoka.Home.Tests.Models.Algorithms;
 /// </summary>
 public class VoxelSourceQueryTests
 {
-    private static Entity Box(string path) => new() { Key = path, Volume = new Box3D() };
+    private static Entity Box(string path) => new() { Key = path, Volume = new Box() };
 
     private static Entity StructuralBox(string path)
     {
@@ -295,7 +295,7 @@ public class VoxelSourceQueryTests
         IVoxelSource<Entity> unit = EmptyUnit();
         var existing = Box("existing");
         unit.Voxels[new Int3(2, 0, 2)] = existing;
-        var volume = new Box3D { SizeX = 2, SizeY = 1, SizeZ = 2 };
+        var volume = new Box { SizeX = 2, SizeY = 1, SizeZ = 2 };
 
         var hit = unit.IsCollidedVolume(new Position(new Float3(20, 0, 20)), volume);
 
@@ -308,7 +308,7 @@ public class VoxelSourceQueryTests
     public void IsCollidedVolume_ClearArea_ReturnsNull()
     {
         IVoxelSource<Entity> unit = EmptyUnit();
-        var volume = new Box3D { SizeX = 2, SizeY = 1, SizeZ = 2 };
+        var volume = new Box { SizeX = 2, SizeY = 1, SizeZ = 2 };
 
         Assert.Null(unit.IsCollidedVolume(new Position(new Float3(50, 0, 50)), volume));
     }

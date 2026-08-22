@@ -15,7 +15,7 @@ public class MideaVerifyTests
         factory.Register("entity.appliance.air_conditioner", new EntityTemplate
         {
             Key = new Key("entity", "appliance.air_conditioner"),
-            Volume = new Box3D { SizeX = 2, SizeY = 2, SizeZ = 2 }
+            Volume = new Box { SizeX = 2, SizeY = 2, SizeZ = 2 }
         });
 
         var path = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "..", "..", "Documentation", "midea", "air_conditioner.ac_1523.json");
@@ -23,7 +23,7 @@ public class MideaVerifyTests
 
         var entity = factory.Load(path);
 
-        var box = Assert.IsType<Box3D>(entity.Volume);
+        var box = Assert.IsType<Box>(entity.Volume);
         Assert.Equal(1, box.SizeX);
         Assert.Equal(2, box.SizeY);
         Assert.Equal(1, box.SizeZ);

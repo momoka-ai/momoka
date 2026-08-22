@@ -26,7 +26,7 @@ public class EntitySerializationTests
         {
             Key = new Key("midea", "air_conditioner.ac_1523"),
             Transform = new Transform(new Float3(20, 10, 30), Rotation.Identity),
-            Volume = new Box3D { SizeX = 1, SizeY = 2, SizeZ = 1 },
+            Volume = new Box { SizeX = 1, SizeY = 2, SizeZ = 1 },
         };
         entity.AddProperties(new Property[]
         {
@@ -53,7 +53,7 @@ public class EntitySerializationTests
         Assert.Equal(entity.Key, loaded.Key);
         Assert.Equal(entity.Transform, loaded.Transform);
 
-        var box = Assert.IsType<Box3D>(loaded.Volume);
+        var box = Assert.IsType<Box>(loaded.Volume);
         Assert.Equal(1, box.SizeX);
 
         Assert.Equal(3, loaded.Properties.Count);

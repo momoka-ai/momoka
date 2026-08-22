@@ -24,8 +24,8 @@ public class VoxelLayoutTests
         {
             Bound = Bound.FromCorners(Int3.Zero.ToFloat3(), new Int3(7, 7, 7).ToFloat3()),
         };
-        var a = new TestEntity(new Box3D { SizeX = 2, SizeY = 1, SizeZ = 2 });
-        var b = new TestEntity(new Box3D { SizeX = 1, SizeY = 1, SizeZ = 1 });
+        var a = new TestEntity(new Box { SizeX = 2, SizeY = 1, SizeZ = 2 });
+        var b = new TestEntity(new Box { SizeX = 1, SizeY = 1, SizeZ = 1 });
         layout[new Int3(1, 0, 1)] = a;
         layout[new Int3(2, 0, 1)] = a;
         layout[new Int3(1, 0, 2)] = a;
@@ -46,8 +46,8 @@ public class VoxelLayoutTests
     public void Select_SkipsDefaultMappedValues()
     {
         var layout = new VoxelLayout<Entity>();
-        layout[new Int3(1, 0, 1)] = new TestEntity(new Box3D());
-        layout[new Int3(4, 0, 4)] = new TestEntity(new Box3D());
+        layout[new Int3(1, 0, 1)] = new TestEntity(new Box());
+        layout[new Int3(4, 0, 4)] = new TestEntity(new Box());
 
         var mapped = layout.Select(_ => false);
 
@@ -59,7 +59,7 @@ public class VoxelLayoutTests
     public void Clear_RemovesAllCells()
     {
         var layout = new VoxelLayout<Entity>();
-        var e = new TestEntity(new Box3D());
+        var e = new TestEntity(new Box());
         layout[new Int3(3, 5, 7)] = e;
 
         Assert.Same(e, layout[new Int3(3, 5, 7)]);
@@ -71,7 +71,7 @@ public class VoxelLayoutTests
     public void GetEntityAtPoint_And_GetEntityAtNearest_FindValues()
     {
         var layout = new VoxelLayout<Entity>();
-        var a = new TestEntity(new Box3D());
+        var a = new TestEntity(new Box());
         layout[new Int3(3, 5, 7)] = a;
 
         Assert.Same(a, layout.AtPoint(new Int3(3, 5, 7)));

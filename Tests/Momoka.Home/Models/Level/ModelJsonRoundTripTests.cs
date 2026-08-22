@@ -63,7 +63,7 @@ public class ModelJsonRoundTripTests
         var punched = VolumePunch.Punch(wall.Volume, Int3.Zero, new Int3(0, 1, 4), new Int3(1, 20, 2))!;
         wall.Volume = punched;
         var wallBack = RoundTrip(wall);
-        Assert.Equal(4, Assert.IsType<Composite3D>(wallBack.Volume).Children.Count);
+        Assert.Equal(4, Assert.IsType<Composite>(wallBack.Volume).Children.Count);
     }
 
     [Fact]
@@ -92,13 +92,13 @@ public class ModelJsonRoundTripTests
         var entry = new TemplateCatalogEntry
         {
             Key = "momoka:table",
-            Volume = new Box3D { SizeX = 2, SizeY = 1, SizeZ = 2 },
+            Volume = new Box { SizeX = 2, SizeY = 1, SizeZ = 2 },
             Properties = new List<Property> { new BooleanProperty(Property.IsImmutable, true) },
             Components = new List<string> { "placement_layout" },
         };
         var back = RoundTrip(entry);
         Assert.Equal("momoka:table", back.Key);
-        var volume = Assert.IsType<Box3D>(back.Volume);
+        var volume = Assert.IsType<Box>(back.Volume);
         Assert.Equal(2, volume.SizeX);
         Assert.Equal(1, volume.SizeY);
         Assert.Equal(2, volume.SizeZ);

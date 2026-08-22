@@ -20,7 +20,7 @@ public class SqliteStoreTests
     private static Entity Box(string path, int sx, int sy, int sz) => new()
     {
         Key = new Key(path),
-        Volume = new Box3D { SizeX = sx, SizeY = sy, SizeZ = sz },
+        Volume = new Box { SizeX = sx, SizeY = sy, SizeZ = sz },
     };
 
     /// <summary>服务器形态的 LevelData：隐藏 Home 实体（Type 持久化真相）+ 注册实体 + 放置实体。</summary>
