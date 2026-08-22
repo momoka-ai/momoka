@@ -1,9 +1,9 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Momoka.Home.Levels.Volumes;
 using Momoka.Home.Primitives;
 using Momoka.Home.Levels.Entities;
 using Momoka.Home.Data.Json;
-using Momoka.Home.Data.Json.Converters;
-using Newtonsoft.Json;
 using Momoka.Home.Levels.Entities.Properties;
 namespace Momoka.Home.Levels.Entities;
 
@@ -16,9 +16,11 @@ namespace Momoka.Home.Levels.Entities;
 /// </summary>
 public class EntityTemplateFactory
 {
-    private static readonly JsonSerializerSettings Settings = new()
+    private static readonly JsonSerializerOptions Settings = new()
     {
-        Converters = { new JsonGeometryConverter(), new JsonPropertyConverter() }
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+        TypeInfoResolver = new KindTypeResolver(),
+        PreferredObjectCreationHandling = JsonObjectCreationHandling.Populate,
     };
 
     private readonly Dictionary<string, EntityTemplate> _templates = new();
@@ -47,7 +49,7 @@ public class EntityTemplateFactory
     public EntityTemplate LoadTemplate(string path)
     {
         var key = KeyFromPath(path);
-        var template = JsonConvert.DeserializeObject<EntityTemplate>(File.ReadAllText(path), Settings)
+        var template = JsonSerializer.Deserialize<EntityTemplate>(File.ReadAllText(path), Settings)
             ?? throw new InvalidDataException($"Failed to parse entity config '{path}'.");
         template.Key = key;
         return Compose(template);
@@ -59,7 +61,7 @@ public class EntityTemplateFactory
     /// <summary>Writes a template back to a config file (round-trip).</summary>
     public void Save(string path, EntityTemplate template)
     {
-        var json = JsonConvert.SerializeObject(template, Formatting.Indented, Settings);
+        var json = JsonSerializer.Serialize(template, Settings);
         File.WriteAllText(path, json);
     }
 

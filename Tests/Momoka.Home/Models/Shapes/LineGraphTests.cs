@@ -1,5 +1,5 @@
 #pragma warning disable CS0618 // LineGraph 已弃用（暂留），测试保留覆盖
-using Newtonsoft.Json;
+using System.Text.Json;
 using Xunit;
 using Momoka.Home.Data;
 using Momoka.Home;
@@ -68,10 +68,10 @@ public class LineGraph3DTests
         wall.AddSegment(new Int3(0, 0, 0), new Int3(9, 0, 0), 1);
         wall.AddSegment(new Int3(9, 0, 0), new Int3(9, 0, 6), 2);
 
-        var json = JsonConvert.SerializeObject(wall, Settings.JsonSerialization);
+        var json = JsonSerializer.Serialize<Volume>(wall, Settings.JsonSerialization);
         Assert.Contains("line_graph", json);
 
-        var back = JsonConvert.DeserializeObject<LineGraph>(json, Settings.JsonSerialization)!;
+        var back = JsonSerializer.Deserialize<LineGraph>(json, Settings.JsonSerialization)!;
         Assert.Equal(29, back.Height);
         Assert.Equal(wall.Nodes, back.Nodes);
         Assert.Equal(wall.Edges, back.Edges);

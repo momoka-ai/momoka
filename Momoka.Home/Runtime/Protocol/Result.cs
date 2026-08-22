@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+using System.Text.Json.Nodes;
 namespace Momoka.Home.Runtime.Protocol;
 
 /// <summary>
@@ -11,9 +11,9 @@ public sealed class Result
     public bool Ok { get; set; }
     public string? ErrorCode { get; set; }
     public uint Version { get; set; }
-    public JToken? Payload { get; set; }
+    public JsonNode? Payload { get; set; }
 
     public static Result Success(uint version) => new() { Ok = true, Version = version };
-    public static Result WithPayload(JToken payload) => new() { Ok = true, Payload = payload };
+    public static Result WithPayload(JsonNode payload) => new() { Ok = true, Payload = payload };
     public static Result Fail(string errorCode) => new() { Ok = false, ErrorCode = errorCode };
 }

@@ -1,4 +1,4 @@
-using Newtonsoft.Json;
+using System.Text.Json.Serialization;
 namespace Momoka.Home.Levels.Entities.Properties;
 
 /// <summary>
@@ -11,7 +11,7 @@ namespace Momoka.Home.Levels.Entities.Properties;
 /// the base, and no validation callback: invalid assignments are the storage
 /// type's own job.
 /// </summary>
-public abstract class Property
+public abstract class Property : IJsonOnDeserialized
 {
     /// <summary>
     /// Marks an entity as fixed building fabric (floors, walls, doors, windows) —
@@ -40,7 +40,7 @@ public abstract class Property
     public const string Texture = "texture";
 
     /// <summary>Identity of the property; maps to the JSON "key" field.</summary>
-    [JsonProperty("key")]
+    [JsonPropertyName("key")]
     public string Name { get; set; } = "";
 
     [JsonIgnore]
@@ -89,6 +89,8 @@ public abstract class Property
     /// </summary>
     public virtual void OnConfigLoaded() { }
 
+    void IJsonOnDeserialized.OnDeserialized() => OnConfigLoaded();
+
     public Dictionary<string, object?> ToSchema()
     {
         var schema = new Dictionary<string, object?>
@@ -120,6 +122,7 @@ public abstract class Property
 /// </summary>
 public abstract class Property<T> : Property, ICloneable
 {
+    [JsonIgnore]
     public override Type ValueType => typeof(T);
 
     /// <summary>The default value; <see cref="Value"/> equals it until explicitly set.</summary>
@@ -136,7 +139,8 @@ public abstract class Property<T> : Property, ICloneable
     /// <c>bool</c>, default <c>false</c>), so the storage is a plain T seeded
     /// with the default.
     /// </summary>
-    [JsonProperty("value", NullValueHandling = NullValueHandling.Ignore)]
+    [JsonPropertyName("value")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public virtual T Value
     {
         get => _value;
@@ -144,6 +148,7 @@ public abstract class Property<T> : Property, ICloneable
     }
 
     /// <summary>Boxed current value; null is treated as "reset to default".</summary>
+    [JsonIgnore]
     public override object? BoxedValue
     {
         get => _value;

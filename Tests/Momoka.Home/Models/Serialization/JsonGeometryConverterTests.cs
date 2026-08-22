@@ -1,25 +1,25 @@
+using System.Text.Json;
 using Xunit;
 using Momoka.Home.Levels.Volumes;
 using Momoka.Home.Primitives;
 using Momoka.Home.Data.Json;
-using Momoka.Home.Data.Json.Converters;
-using Newtonsoft.Json;
 namespace Momoka.Home.Tests.Models.Serialization;
 
 /// <summary>
-/// Round-trips every <see cref="Volume"/> kind through
-/// <see cref="JsonGeometryConverter"/>. Locks the declarative JSON format so the
-/// registry/codec rewrite stays format-compatible.
+/// Round-trips every <see cref="Volume"/> kind through the STJ
+/// <see cref="KindTypeResolver"/> polymorphism. Locks the declarative JSON
+/// format (flat discriminator + snake_case members).
 /// </summary>
 public class JsonGeometryConverterTests
 {
-    private static readonly JsonSerializerSettings Settings = new()
+    private static readonly JsonSerializerOptions Settings = new()
     {
-        Converters = { new JsonGeometryConverter() }
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+        TypeInfoResolver = new KindTypeResolver(),
     };
 
     private static T RoundTrip<T>(T volume) where T : Volume =>
-        (T)JsonConvert.DeserializeObject(JsonConvert.SerializeObject(volume, Settings), typeof(T), Settings)!;
+        JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(volume, Settings), Settings)!;
 
     [Fact]
     public void Box_RoundTrips()
@@ -163,10 +163,10 @@ public class JsonGeometryConverterTests
     }
 
     [Fact]
-    public void Box_SerializesToKindDataJson()
+    public void Box_SerializesToFlatKindJson()
     {
-        var json = JsonConvert.SerializeObject(new Box { SizeX = 1, SizeY = 2, SizeZ = 3 }, Settings);
-        Assert.Equal("""{"kind":"box","data":{"size_x":1,"size_y":2,"size_z":3}}""", json);
+        var json = JsonSerializer.Serialize<Volume>(new Box { SizeX = 1, SizeY = 2, SizeZ = 3 }, Settings);
+        Assert.Equal("""{"kind":"box","size_x":1,"size_y":2,"size_z":3}""", json);
     }
 
     [Fact]
@@ -175,7 +175,7 @@ public class JsonGeometryConverterTests
         var composite = new Composite();
         composite.Children.Add(new CompositeChild { Shape = new Box { SizeX = 1, SizeY = 1, SizeZ = 1 }, Offset = new Int3(0, 0, 0) });
 
-        var json = JsonConvert.SerializeObject(composite, Settings);
+        var json = JsonSerializer.Serialize(composite, Settings);
         Assert.Contains("\"kind\":\"box\"", json);
         Assert.Contains("\"offset\":{\"x\":0,\"y\":0,\"z\":0}", json);
     }

@@ -74,7 +74,7 @@ public sealed class BuildOpeningCommand : IEditorCommand
         opening.AddProperty(
             new BooleanProperty(Property.IsImmutable, true),
             new BooleanProperty(Property.IsOpen, _isOpen),
-            new EnumProperty<RotationAlignment>(Property.RotationAlignment, RotationAlignment.Vertical));
+            EnumProperty.Create(Property.RotationAlignment, RotationAlignment.Vertical));
 
         if (!unit.Add(opening, new Position(_openingOrigin.ToFloat3() * unit.Voxels.Length), surface))
             return false;

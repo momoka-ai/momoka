@@ -36,6 +36,10 @@ public static class JsonTypeNameRegistry
     public static bool TryGetType<TBase>(string name, out Type type) where TBase : class
         => Ensure<TBase>().ByName.TryGetValue(name, out type!);
 
+    /// <summary>All registered (discriminator, type) pairs of a family, for STJ polymorphic configuration.</summary>
+    public static IEnumerable<KeyValuePair<string, Type>> All<TBase>() where TBase : class
+        => Ensure<TBase>().ByName;
+
     private static (Dictionary<string, Type> ByName, Dictionary<Type, string> NameByType) Ensure<TBase>() where TBase : class
     {
         lock (Sync)

@@ -151,7 +151,7 @@ public class PropertyTests
     [Fact]
     public void Enum_GetValidValues_ListsEnumNames()
     {
-        var prop = new EnumProperty<TestMode>("mode", TestMode.Off);
+        var prop = EnumProperty.Create<TestMode>("mode", TestMode.Off);
 
         Assert.Equal(TestModeNames, prop.GetValidValues());
     }
@@ -159,10 +159,10 @@ public class PropertyTests
     [Fact]
     public void Enum_Value_StoresTypedEnum()
     {
-        var prop = new EnumProperty<TestMode>("mode", TestMode.Off);
-        prop.Value = TestMode.High;
+        var prop = EnumProperty.Create<TestMode>("mode", TestMode.Off);
+        prop.BoxedValue = TestMode.High;
 
-        Assert.Equal(TestMode.High, prop.Value);
+        Assert.Equal(TestMode.High, prop.BoxedValue);
     }
 
     // ── ToSchema ─────────────────────────────────────────
@@ -202,6 +202,6 @@ public class PropertyTests
         Assert.Equal("integer", new IntProperty("level").ToSchema()["type"]);
         Assert.Equal("number", new FloatProperty("temp").ToSchema()["type"]);
         Assert.Equal("string", new StringProperty("series").ToSchema()["type"]);
-        Assert.Equal("enum", new EnumProperty<TestMode>("mode", TestMode.Off).ToSchema()["type"]);
+        Assert.Equal("enum", EnumProperty.Create<TestMode>("mode", TestMode.Off).ToSchema()["type"]);
     }
 }

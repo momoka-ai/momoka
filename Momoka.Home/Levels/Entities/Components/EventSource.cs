@@ -1,9 +1,6 @@
 using Momoka.Home.Data.Json;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
 namespace Momoka.Home.Levels.Entities.Components;
 
-[JsonConverter(typeof(StringEnumConverter))]
 public enum EventType
 {
     ButtonPress,

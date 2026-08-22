@@ -1,5 +1,5 @@
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Xunit;
 using Momoka.Home.Data;
 using Momoka.Home.Levels;
@@ -52,11 +52,11 @@ public class ChildrenSourceTests
         var wall = Box("wall", 2, 29, 1);
         group.Children.Add(wall);
 
-        var json = JsonConvert.SerializeObject(container, Settings.JsonSerialization);
-        var children = (JArray)JObject.Parse(json)["components"]![0]!["data"]!["children"]!;
-        Assert.Equal(new[] { wall.Id.ToString() }, children.Select(t => t.Value<string>()));
+        var json = JsonSerializer.Serialize(container, Settings.JsonSerialization);
+        var children = (JsonArray?)JsonNode.Parse(json)?["components"]?[0]?["children"];
+        Assert.Equal(new[] { wall.Id.ToString() }, children!.Select(t => t!.GetValue<Guid>().ToString()));
 
-        var back = JsonConvert.DeserializeObject<Entity>(json, Settings.JsonSerialization)!;
+        var back = JsonSerializer.Deserialize<Entity>(json, Settings.JsonSerialization)!;
         var restored = Assert.IsType<ChildrenSource>(Assert.Single(back.Components));
         Assert.Equal(new[] { wall.Id }, restored.Children.Select(c => c.Id)); // 反序列化 id-stub
     }
@@ -107,8 +107,8 @@ public class ChildrenSourceTests
         var mug = Box("mug", 1, 1, 1);
         layout.Add(mug, new Position(new Float3(0, 10, 0)), surface);
 
-        var json = JsonConvert.SerializeObject(new[] { floor, mug }, Settings.JsonSerialization);
-        var back = JsonConvert.DeserializeObject<Entity[]>(json, Settings.JsonSerialization)!;
+        var json = JsonSerializer.Serialize(new[] { floor, mug }, Settings.JsonSerialization);
+        var back = JsonSerializer.Deserialize<Entity[]>(json, Settings.JsonSerialization)!;
 
         var restoredLayout = new LevelLayout();
         restoredLayout.RestorePlacementFromGrid(back);

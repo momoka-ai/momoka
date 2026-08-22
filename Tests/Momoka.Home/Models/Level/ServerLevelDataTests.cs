@@ -1,5 +1,5 @@
+using System.Text.Json;
 using Momoka.Home.Runtime;
-using Newtonsoft.Json;
 using Xunit;
 using Momoka.Home.Data;
 using Momoka.Home;
@@ -43,7 +43,7 @@ public class ServerLevelDataTests
     }
 
     private static T Payload<T>(Result result) =>
-        JsonConvert.DeserializeObject<T>(result.Payload!.ToString(), Settings.JsonSerialization)!;
+        JsonSerializer.Deserialize<T>(result.Payload!.ToJsonString(), Settings.JsonSerialization)!;
 
     [Fact]
     public void CreateEntity_FromTemplate_RaisesEntityCreated_AndPoolEntry()
@@ -172,12 +172,12 @@ public class ServerLevelDataTests
         server.PlaceEntity(new PlaceEntityRequest { EntityId = machine.Id, Position = new Float3(0, 10, 0) }, "c1");
 
         // 表缺 is_open 属性 → set_property 失败（语义同 SetValue）
-        var missing = server.SetProperty(new SetPropertyRequest { EntityId = machine.Id, Name = "is_open", Value = Newtonsoft.Json.Linq.JToken.FromObject(true) }, "c1");
+        var missing = server.SetProperty(new SetPropertyRequest { EntityId = machine.Id, Name = "is_open", Value = true }, "c1");
         Assert.False(missing.Ok);
 
         // 有属性后按 JSON 原生标量设置
         server.Session.Layout.Find(machine.Id)!.AddProperty(new BooleanProperty(Property.IsOpen, false));
-        var set = server.SetProperty(new SetPropertyRequest { EntityId = machine.Id, Name = "is_open", Value = Newtonsoft.Json.Linq.JToken.FromObject(true) }, "c1");
+        var set = server.SetProperty(new SetPropertyRequest { EntityId = machine.Id, Name = "is_open", Value = true }, "c1");
         Assert.True(set.Ok);
         Assert.True(server.Session.Layout.Find(machine.Id)!.GetValue<bool>(Property.IsOpen));
     }

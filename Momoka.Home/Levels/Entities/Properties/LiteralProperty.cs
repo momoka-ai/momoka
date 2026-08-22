@@ -1,5 +1,5 @@
+using System.Text.Json.Serialization;
 using Momoka.Home.Data.Json;
-using Newtonsoft.Json;
 namespace Momoka.Home.Levels.Entities.Properties;
 
 /// <summary>
@@ -12,7 +12,8 @@ namespace Momoka.Home.Levels.Entities.Properties;
 public class LiteralProperty : StringProperty
 {
     /// <summary>The closed set of allowed values (config "values").</summary>
-    [JsonProperty("values", NullValueHandling = NullValueHandling.Ignore)]
+    [JsonPropertyName("values")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<string>? ValidValues { get; set; }
 
     public LiteralProperty() { }
@@ -28,7 +29,8 @@ public class LiteralProperty : StringProperty
         ValidValues = validValues;
     }
 
-    [JsonProperty("value", NullValueHandling = NullValueHandling.Ignore)]
+    [JsonPropertyName("value")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public override string Value
     {
         get => base.Value;

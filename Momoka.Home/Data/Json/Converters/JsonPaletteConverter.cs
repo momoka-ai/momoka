@@ -1,6 +1,7 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Momoka.Home.Levels.Entities;
 using Momoka.Home.Levels.Layouts;
-using Newtonsoft.Json;
 namespace Momoka.Home.Data.Json.Converters;
 
 /// <summary>
@@ -11,35 +12,34 @@ namespace Momoka.Home.Data.Json.Converters;
 /// is not supported here (Entity references need the entity table); restore
 /// via <see cref="Palette{T}.FromValues"/> at the storage layer.
 /// </summary>
-public class JsonPaletteConverter : JsonConverter
+public sealed class JsonPaletteConverterFactory : JsonConverterFactory
 {
-    public override bool CanConvert(Type objectType) =>
-        objectType.IsGenericType && objectType.GetGenericTypeDefinition() == typeof(Palette<>);
+    public override bool CanConvert(Type typeToConvert) =>
+        typeToConvert.IsGenericType && typeToConvert.GetGenericTypeDefinition() == typeof(Palette<>);
 
-    public override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer)
+    public override JsonConverter? CreateConverter(Type typeToConvert, JsonSerializerOptions options)
     {
-        if (value is null)
-        {
-            writer.WriteNull();
-            return;
-        }
+        var valueType = typeToConvert.GetGenericArguments()[0];
+        return (JsonConverter)Activator.CreateInstance(typeof(JsonPaletteConverter<>).MakeGenericType(valueType))!;
+    }
+}
 
-        var type = value.GetType();
-        var size = (int)type.GetProperty(nameof(Palette<int>.Size))!.GetValue(value)!;
-        var valueFor = type.GetMethod(nameof(Palette<int>.ValueFor))!;
+public sealed class JsonPaletteConverter<T> : JsonConverter<Palette<T>> where T : notnull
+{
+    public override Palette<T>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        throw new NotSupportedException("Palette restore needs the entity table — use Palette<T>.FromValues at the storage layer.");
 
+    public override void Write(Utf8JsonWriter writer, Palette<T> value, JsonSerializerOptions options)
+    {
         writer.WriteStartArray();
-        for (var i = 1; i < size; i++)
+        for (var i = 1; i < value.Size; i++)
         {
-            var v = valueFor.Invoke(value, new object[] { i });
+            var v = value.ValueFor(i);
             if (v is Entity e)
-                writer.WriteValue(e.Id);
+                writer.WriteStringValue(e.Id);
             else
-                serializer.Serialize(writer, v);
+                JsonSerializer.Serialize(writer, v, options);
         }
         writer.WriteEndArray();
     }
-
-    public override object? ReadJson(JsonReader reader, Type objectType, object? existingValue, JsonSerializer serializer) =>
-        throw new NotSupportedException("Palette restore needs the entity table — use Palette<T>.FromValues at the storage layer.");
 }

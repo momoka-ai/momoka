@@ -1,29 +1,28 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Momoka.Home.Data.Json;
 using Momoka.Home.Data.Json.Converters;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
-using Newtonsoft.Json.Serialization;
 namespace Momoka.Home.Data;
 
 /// <summary>Central application settings.</summary>
 public static class Settings
 {
     /// <summary>
-    /// The canonical JSON settings for direct Momoka serialization: snake_case,
-    /// indented, snake_case enums, plus the geometry/property/component/key
-    /// converters — the single settings object for entities, residences and the
-    /// <c>Residence.json</c> save file.
+    /// The canonical JSON options for direct Momoka serialization: snake_case,
+    /// indented, snake_case enums, registry-driven polymorphism (via
+    /// <see cref="KindTypeResolver"/>) plus the Key converter — the single
+    /// options object for entities, residences and the save file.
     /// </summary>
-    public static readonly JsonSerializerSettings JsonSerialization = new()
+    public static readonly JsonSerializerOptions JsonSerialization = new()
     {
-        ContractResolver = new DefaultContractResolver { NamingStrategy = new SnakeCaseNamingStrategy() },
-        Formatting = Formatting.Indented,
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+        WriteIndented = true,
+        TypeInfoResolver = new KindTypeResolver(),
+        PreferredObjectCreationHandling = JsonObjectCreationHandling.Populate,
         Converters =
         {
-            new JsonGeometryConverter(),
-            new JsonPropertyConverter(),
-            new JsonComponentConverter(),
             new JsonKeyConverter(),
-            new StringEnumConverter { NamingStrategy = new SnakeCaseNamingStrategy() },
+            new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower),
         },
     };
 }

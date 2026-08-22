@@ -1,3 +1,4 @@
+using System.Text.Json;
 using LinqToDB;
 using LinqToDB.Data;
 using LinqToDB.DataProvider.SQLite;
@@ -7,7 +8,6 @@ using Momoka.Home.Levels.Entities.Properties;
 using Momoka.Home.Levels.Layouts;
 using Momoka.Home.Levels;
 using Momoka.Home.Primitives;
-using Newtonsoft.Json;
 namespace Momoka.Home.Data.Sqlite;
 
 /// <summary>
@@ -95,7 +95,7 @@ public sealed class SqliteStore : IDisposable
             _db.Insert(new EntityRow
             {
                 Id = entity.Id.ToString("D"),
-                Json = JsonConvert.SerializeObject(entity, Settings.JsonSerialization),
+                Json = JsonSerializer.Serialize(entity, Settings.JsonSerialization),
             });
         }
 
@@ -138,7 +138,7 @@ public sealed class SqliteStore : IDisposable
 
         var data = new LevelData();
         foreach (var row in rows)
-            data.Entities.Add(JsonConvert.DeserializeObject<Entity>(row.Json, Settings.JsonSerialization)!);
+            data.Entities.Add(JsonSerializer.Deserialize<Entity>(row.Json, Settings.JsonSerialization)!);
 
         // Type 从 Home 实体还原（持久化真相）
         if (data.Entities.FirstOrDefault(e => e.Key == LevelData.HomeKey) is { } home)

@@ -38,9 +38,9 @@ public static class PropertySourceExtensions
     public static T GetValue<T>(this IPropertySource source, string name)
     {
         var p = FindProperty(source, name);
-        if (p?.ValueType.Equals(typeof(T)) ?? false)
-            return ((Property<T>)p).Value;
-        return default!;
+        return p is not null && p.ValueType.Equals(typeof(T))
+            ? (T)(p.BoxedValue ?? p.GetUnsetValue())!
+            : default!;
     }
 
     /// <summary>

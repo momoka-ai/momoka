@@ -1,9 +1,9 @@
+using System.Text.Json.Serialization;
 using Momoka.Home.Levels.Entities;
 using Momoka.Home.Levels.Layouts;
 using Momoka.Home.Primitives;
 using Momoka.Home.Data.Json;
 using Momoka.Home.Data.Json.Converters;
-using Newtonsoft.Json;
 namespace Momoka.Home.Levels.Entities.Components;
 
 /// <summary>
@@ -19,6 +19,7 @@ public class PlacementLayoutSource : ChildrenSource
 {
     /// <summary>放置表面格网（局部坐标，纯数据——位置 / 朝向见 <see cref="Transform"/>）。
     /// 语义上携带本组件即必提供表面，故恒非空（JSON 缺省 / 旧数据时取默认空网格）。</summary>
+    [JsonConverter(typeof(JsonGridLayoutConverter))]
     public GridLayout<bool> Layout { get; set; } = new(Int2.Zero);
 
     /// <summary>表面姿态：位置（世界 cm）+ 朝向。缺省 Identity（原点朝上）。</summary>

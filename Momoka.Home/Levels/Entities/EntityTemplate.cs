@@ -1,9 +1,8 @@
+using System.Text.Json.Serialization;
 using Momoka.Home.Levels.Volumes;
 using Momoka.Home.Primitives;
 using Momoka.Home.Levels.Entities;
 using Momoka.Home.Data.Json;
-using Momoka.Home.Data.Json.Converters;
-using Newtonsoft.Json;
 using Momoka.Home.Levels.Entities.Properties;
 namespace Momoka.Home.Levels.Entities;
 
@@ -29,19 +28,18 @@ public class EntityTemplate
     /// merged in array order — later entries override earlier ones by name; this
     /// config's own fields override everything. Pure data, so no diamond problem.
     /// </summary>
-    [JsonProperty("extends")]
+    [JsonPropertyName("extends")]
     public List<string> Extends { get; set; } = new();
 
     /// <summary>Volume, inherited from the extended templates and overridden by this config.</summary>
-    [JsonProperty("shape")]
-    [JsonConverter(typeof(JsonGeometryConverter))]
+    [JsonPropertyName("shape")]
     public Volume? Volume { get; set; }
 
     /// <summary>Properties, merged from the extended templates by name.</summary>
-    [JsonProperty("properties")]
+    [JsonPropertyName("properties")]
     public List<Property>? Properties { get; set; }
 
     /// <summary>Component type keys (resolution into instances comes later).</summary>
-    [JsonProperty("components")]
+    [JsonPropertyName("components")]
     public List<string>? Components { get; set; }
 }

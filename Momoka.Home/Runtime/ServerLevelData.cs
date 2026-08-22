@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Momoka.Home.Data;
 using Momoka.Home.Data.Sqlite;
 using Momoka.Home.Levels.Commands;
@@ -6,8 +8,6 @@ using Momoka.Home.Levels.Entities;
 using Momoka.Home.Levels.Volumes;
 using Momoka.Home.Levels.Layouts;
 using Momoka.Home.Primitives;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using Momoka.Home.Levels.Entities.Components;
 using Momoka.Home.Levels.Entities.Properties;
 using Momoka.Home.Levels;
@@ -60,7 +60,7 @@ public sealed class ServerLevelData : LevelData
         if (Entities.All(e => e.Key != HomeKey))
         {
             var home = new Entity { Key = HomeKey };
-            home.AddProperty(new EnumProperty<LevelType>(Property.LevelType, LevelType.Estate));
+            home.AddProperty(EnumProperty.Create(Property.LevelType, LevelType.Estate));
             home.AddProperty(new StringProperty(Property.Address, ""));
             Entities.Add(home);
         }
@@ -223,7 +223,7 @@ public sealed class ServerLevelData : LevelData
         lock (_gate)
         {
             var snapshot = BuildSnapshot();
-            return Result.WithPayload(JToken.FromObject(snapshot, JsonSerializer.Create(Settings.JsonSerialization)));
+            return Result.WithPayload(JsonSerializer.SerializeToNode(snapshot, Settings.JsonSerialization)!);
         }
     }
 
@@ -241,7 +241,7 @@ public sealed class ServerLevelData : LevelData
             return new Outcome(Result.Fail("create_failed"), null);
         var created = command.CreatedEntity!;
         return new Outcome(
-            Result.WithPayload(JToken.FromObject(created, JsonSerializer.Create(Settings.JsonSerialization))),
+            Result.WithPayload(JsonSerializer.SerializeToNode(created, Settings.JsonSerialization)!),
             () => EntityCreated?.Invoke(created));
     });
 
@@ -288,8 +288,23 @@ public sealed class ServerLevelData : LevelData
     {
         if (Session.Layout.Find(request.EntityId) is null)
             return new Outcome(Result.Fail("entity_not_found"), null);
-        return Execute(new SetPropertyCommand(request.EntityId, request.Name, request.Value?.ToObject<object>()));
+        return Execute(new SetPropertyCommand(request.EntityId, request.Name, BoxProtocolValue(request.Value)));
     });
+
+    /// <summary>协议标量 → 盒装值（网络层反序列化到 object 会产生 JsonElement，就地解包）。</summary>
+    private static object? BoxProtocolValue(object? value) => value switch
+    {
+        null => null,
+        JsonElement e => e.ValueKind switch
+        {
+            JsonValueKind.String => e.GetString(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Number => e.TryGetInt64(out var l) ? l : e.GetDouble(),
+            _ => null,
+        },
+        _ => value,
+    };
 
     /// <summary>重涂贴图（Property.Texture，模板外补建）。</summary>
     public Result SetTexture(SetTextureRequest request, string connectionId) => Handle(connectionId, () =>

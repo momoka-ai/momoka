@@ -1,9 +1,10 @@
+using System.Text.Json;
 using Xunit;
 using Momoka.Home;
+using Momoka.Home.Data.Json;
 using Momoka.Home.Levels.Entities;
 using Momoka.Home.Levels.Volumes;
 using Momoka.Home.Primitives;
-using Newtonsoft.Json;
 using Momoka.Home.Levels.Entities.Components;
 using Momoka.Home.Levels.Entities.Properties;
 namespace Momoka.Home.Tests.Models.Serialization;
@@ -14,15 +15,21 @@ namespace Momoka.Home.Tests.Models.Serialization;
 /// </summary>
 public class SerializationPipelineTests
 {
+    private static readonly JsonSerializerOptions Settings = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+        TypeInfoResolver = new KindTypeResolver(),
+    };
+
     private static readonly string[] AiModeValues = ["disabled", "skyscreen_mode", "no_direct_wind_mode", "fast_cooling_mode"];
 
     private const string AcConfigJson = """
     {
-        "shape": { "kind": "box", "data": { "size_x": 1, "size_y": 2, "size_z": 1 } },
+        "shape": { "kind": "box", "size_x": 1, "size_y": 2, "size_z": 1 },
         "properties": [
-            { "type": "literals", "data": { "key": "ai_mode", "values": ["disabled", "skyscreen_mode", "no_direct_wind_mode", "fast_cooling_mode"], "value": "disabled" } },
-            { "type": "boolean", "data": { "key": "clean_mode" } },
-            { "type": "string", "data": { "key": "texture", "value": "texture.midea.air_conditioner.ac_1523" } }
+            { "type": "literals", "key": "ai_mode", "values": ["disabled", "skyscreen_mode", "no_direct_wind_mode", "fast_cooling_mode"], "value": "disabled" },
+            { "type": "boolean", "key": "clean_mode" },
+            { "type": "string", "key": "texture", "value": "texture.midea.air_conditioner.ac_1523" }
         ]
     }
     """;
@@ -30,9 +37,9 @@ public class SerializationPipelineTests
     private const string AcWithExtendsConfigJson = """
     {
         "extends": [ "entity.appliance.air_conditioner" ],
-        "shape": { "kind": "box", "data": { "size_x": 1, "size_y": 2, "size_z": 1 } },
+        "shape": { "kind": "box", "size_x": 1, "size_y": 2, "size_z": 1 },
         "properties": [
-            { "type": "literals", "data": { "key": "ai_mode", "values": ["disabled", "skyscreen_mode", "no_direct_wind_mode", "fast_cooling_mode"], "value": "disabled" } }
+            { "type": "literals", "key": "ai_mode", "values": ["disabled", "skyscreen_mode", "no_direct_wind_mode", "fast_cooling_mode"], "value": "disabled" }
         ]
     }
     """;
@@ -112,7 +119,7 @@ public class SerializationPipelineTests
         var path = WriteTempConfig("brand", "thing.json", """
         {
             "extends": [ "a", "b" ],
-            "properties": [ { "type": "int", "data": { "key": "level", "value": 3 } } ]
+            "properties": [ { "type": "int", "key": "level", "value": 3 } ]
         }
         """);
         var entity = factory.Load(path);
@@ -139,7 +146,7 @@ public class SerializationPipelineTests
         var factory = new EntityTemplateFactory();
         var path = WriteTempConfig("brand", "series.json", """
         {
-            "properties": [ { "type": "string", "data": { "key": "series", "value": "AC-1" } } ]
+            "properties": [ { "type": "string", "key": "series", "value": "AC-1" } ]
         }
         """);
 
@@ -180,10 +187,10 @@ public class SerializationPipelineTests
     }
 
     [Fact]
-    public void EntityTemplate_Volume_DeserializesViaMemberConverter()
+    public void EntityTemplate_Volume_DeserializesViaResolver()
     {
-        // [JsonConverter] on EntityTemplate.Volume works without any registered settings.
-        var template = JsonConvert.DeserializeObject<EntityTemplate>("""{ "shape": { "kind": "box", "data": { "size_x": 1, "size_y": 2, "size_z": 3 } } }""");
+        // Resolver-driven polymorphism works on the shape member without any property converter.
+        var template = JsonSerializer.Deserialize<EntityTemplate>("""{ "shape": { "kind": "box", "size_x": 1, "size_y": 2, "size_z": 3 } }""", Settings);
         var box = Assert.IsType<Box>(template!.Volume);
         Assert.Equal(1, box.SizeX);
         Assert.Equal(2, box.SizeY);

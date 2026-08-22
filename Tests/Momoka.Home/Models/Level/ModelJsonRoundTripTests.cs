@@ -1,4 +1,4 @@
-using Newtonsoft.Json;
+using System.Text.Json;
 using Xunit;
 using Momoka.Home.Data;
 using Momoka.Home;
@@ -13,13 +13,12 @@ namespace Momoka.Home.Tests.Models.Level;
 
 /// <summary>
 /// 模型类型在 <see cref="Settings.JsonSerialization"/> 下的 JSON 往返——协议叶载荷
-/// 直接复用模型类型（路线 B）的前提。JSON 协议 + 现有 Newtonsoft 转换器，
-/// 无需独立 DTO。
+/// 直接复用模型类型（路线 B）的前提。JSON 协议 + STJ 注册表多态，无需独立 DTO。
 /// </summary>
 public class ModelJsonRoundTripTests
 {
     private static T RoundTrip<T>(T value) =>
-        JsonConvert.DeserializeObject<T>(JsonConvert.SerializeObject(value, Settings.JsonSerialization), Settings.JsonSerialization)!;
+        JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value, Settings.JsonSerialization), Settings.JsonSerialization)!;
 
     [Fact]
     public void Entity_RoundTrips_FullPayload()
@@ -53,7 +52,7 @@ public class ModelJsonRoundTripTests
         door.AddProperty(
             new BooleanProperty(Property.IsImmutable, true),
             new BooleanProperty(Property.IsOpen, true),
-            new EnumProperty<RotationAlignment>(Property.RotationAlignment, RotationAlignment.Vertical),
+            EnumProperty.Create(Property.RotationAlignment, RotationAlignment.Vertical),
             new LiteralProperty("device_type", AcFanValues, "ac"));
         var doorBack = RoundTrip(door);
         Assert.Equal(RotationAlignment.Vertical, doorBack.GetValue<RotationAlignment>(Property.RotationAlignment));

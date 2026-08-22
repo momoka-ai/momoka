@@ -1,36 +1,44 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Momoka.Home.Levels.Entities;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 namespace Momoka.Home.Data.Json.Converters;
 
 /// <summary>
 /// 实体引用列表 ↔ Id 数组（局部转换器，属性级 <c>[JsonConverter]</c> 标注使用）：
 /// 只序列化 Id，不内嵌实体载荷（避免 <c>Entity → Components → Children → Entity</c>
-/// 循环）。读回时以 Id 物化临时占位实体（stub）——若目标列表已存在（只读属性，
-/// 转换器原地改写 existingValue）则清空填充；装载时由
+/// 循环）。读回时以 Id 物化临时占位实体（stub）；装载时由
 /// <c>LevelLayout.RestorePlacementFromGrid</c> 按 Id 重链为注册表真实实体。
 /// </summary>
 public class JsonEntityIdListConverter : JsonConverter<List<Entity>>
 {
-    public override void WriteJson(JsonWriter writer, List<Entity>? value, JsonSerializer serializer)
+    public override List<Entity> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        writer.WriteStartArray();
-        if (value is not null)
-            foreach (var entity in value)
-                writer.WriteValue(entity.Id);
-        writer.WriteEndArray();
+        var result = new List<Entity>();
+        if (reader.TokenType == JsonTokenType.Null)
+            return result;
+        if (reader.TokenType != JsonTokenType.StartArray)
+            throw new JsonException("Entity id list must be an array.");
+
+        while (reader.Read())
+        {
+            if (reader.TokenType == JsonTokenType.EndArray)
+                break;
+            result.Add(new Entity { Id = reader.GetGuid() }); // 反序列化 id-stub——装载时重链
+        }
+        return result;
     }
 
-    public override List<Entity> ReadJson(JsonReader reader, Type objectType, List<Entity>? existingValue, bool hasExistingValue, JsonSerializer serializer)
+    public override void Write(Utf8JsonWriter writer, List<Entity>? value, JsonSerializerOptions options)
     {
-        var result = existingValue ?? new List<Entity>();
-        result.Clear();
-        if (reader.TokenType == JsonToken.Null)
-            return result;
+        if (value is null)
+        {
+            writer.WriteNullValue();
+            return;
+        }
 
-        var array = JArray.Load(reader);
-        foreach (var token in array)
-            result.Add(new Entity { Id = token.ToObject<Guid>() }); // 反序列化 id-stub——装载时重链
-        return result;
+        writer.WriteStartArray();
+        foreach (var entity in value)
+            writer.WriteStringValue(entity.Id);
+        writer.WriteEndArray();
     }
 }

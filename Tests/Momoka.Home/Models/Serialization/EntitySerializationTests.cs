@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Xunit;
 using Momoka.Home.Levels.Entities;
 using Momoka.Home.Data;
@@ -6,7 +7,6 @@ using Momoka.Home.Levels.Volumes;
 using Momoka.Home.Levels.Layouts;
 using Momoka.Home.Primitives;
 using Momoka.Home.Data.Json;
-using Newtonsoft.Json;
 using Momoka.Home.Levels.Entities.Components;
 using Momoka.Home.Levels.Entities.Properties;
 namespace Momoka.Home.Tests.Models.Serialization;
@@ -46,8 +46,8 @@ public class EntitySerializationTests
         entity.AddComponent(new DataSource(DataSourceType.Temperature) { Value = 24.5f });
         entity.AddComponent(new CommandTarget { Commands = "[\"turn_on\",\"turn_off\"]" });
 
-        var json = JsonConvert.SerializeObject(entity, Settings.JsonSerialization);
-        var loaded = JsonConvert.DeserializeObject<Entity>(json, Settings.JsonSerialization)!;
+        var json = JsonSerializer.Serialize(entity, Settings.JsonSerialization);
+        var loaded = JsonSerializer.Deserialize<Entity>(json, Settings.JsonSerialization)!;
 
         Assert.Equal(entity.Id, loaded.Id);
         Assert.Equal(entity.Key, loaded.Key);

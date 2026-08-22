@@ -1,7 +1,7 @@
+using System.Text.Json.Serialization;
 using Momoka.Home.Data.Json;
 using Momoka.Home.Data.Json.Converters;
 using Momoka.Home.Levels.Entities;
-using Newtonsoft.Json;
 namespace Momoka.Home.Levels.Entities.Components;
 
 /// <summary>
@@ -16,5 +16,5 @@ public class ChildrenSource : Component
     /// 序列化由 <see cref="JsonEntityIdListConverter"/> 处理——只写 Id 不内嵌实体载荷；
     /// 读回为 id-stub，装载时由 <c>LevelLayout.RestorePlacementFromGrid</c> 按 Id 重链。</summary>
     [JsonConverter(typeof(JsonEntityIdListConverter))]
-    public List<Entity> Children { get; } = new();
+    public List<Entity> Children { get; set; } = new();
 }

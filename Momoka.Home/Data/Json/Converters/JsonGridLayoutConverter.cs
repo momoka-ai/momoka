@@ -1,7 +1,7 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Momoka.Home.Levels.Layouts;
 using Momoka.Home.Primitives;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 namespace Momoka.Home.Data.Json.Converters;
 
 /// <summary>
@@ -12,51 +12,41 @@ namespace Momoka.Home.Data.Json.Converters;
 /// </summary>
 public class JsonGridLayoutConverter : JsonConverter<GridLayout<bool>>
 {
-    public override void WriteJson(JsonWriter writer, GridLayout<bool>? value, JsonSerializer serializer)
+    public override GridLayout<bool>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        if (value is null)
-        {
-            writer.WriteNull();
-            return;
-        }
+        if (reader.TokenType == JsonTokenType.Null)
+            return null;
 
-        writer.WriteStartObject();
-        writer.WritePropertyName("size");
-        WriteInt2(writer, value.Size);
-        writer.WritePropertyName("unit_length");
-        writer.WriteValue(value.UnitLength);
-        writer.WritePropertyName("cells");
-        writer.WriteStartArray();
-        for (var z = 0; z < value.Size.Z; z++)
-            for (var x = 0; x < value.Size.X; x++)
-                writer.WriteValue(value[new Int2(x, z)]);
-        writer.WriteEndArray();
-        writer.WriteEndObject();
-    }
-
-    public override GridLayout<bool>? ReadJson(JsonReader reader, Type objectType, GridLayout<bool>? existingValue, bool hasExistingValue, JsonSerializer serializer)
-    {
-        var obj = JObject.Load(reader);
-        var size = ReadInt2(obj["size"]);
-        var unitLength = obj["unit_length"]?.Value<float>() ?? 10f;
-        var cells = obj["cells"]!.ToObject<bool[]>();
+        using var doc = JsonDocument.ParseValue(ref reader);
+        var root = doc.RootElement;
+        var sizeToken = root.GetProperty("size");
+        var size = new Int2(sizeToken[0].GetInt32(), sizeToken[1].GetInt32());
+        var unitLength = root.TryGetProperty("unit_length", out var unit) ? unit.GetSingle() : 10f;
+        var cells = root.GetProperty("cells");
 
         var grid = new GridLayout<bool>(size) { UnitLength = unitLength };
         var i = 0;
         for (var z = 0; z < size.Z; z++)
             for (var x = 0; x < size.X; x++)
-                grid[new Int2(x, z)] = cells![i++];
+                grid[new Int2(x, z)] = cells[i++].GetBoolean();
         return grid;
     }
 
-    private static void WriteInt2(JsonWriter writer, Int2 value)
+    public override void Write(Utf8JsonWriter writer, GridLayout<bool> value, JsonSerializerOptions options)
     {
+        writer.WriteStartObject();
+        writer.WritePropertyName("size");
         writer.WriteStartArray();
-        writer.WriteValue(value.X);
-        writer.WriteValue(value.Z);
+        writer.WriteNumberValue(value.Size.X);
+        writer.WriteNumberValue(value.Size.Z);
         writer.WriteEndArray();
+        writer.WriteNumber("unit_length", value.UnitLength);
+        writer.WritePropertyName("cells");
+        writer.WriteStartArray();
+        for (var z = 0; z < value.Size.Z; z++)
+            for (var x = 0; x < value.Size.X; x++)
+                writer.WriteBooleanValue(value[new Int2(x, z)]);
+        writer.WriteEndArray();
+        writer.WriteEndObject();
     }
-
-    private static Int2 ReadInt2(JToken? token) =>
-        new(token![0]!.Value<int>(), token![1]!.Value<int>());
 }

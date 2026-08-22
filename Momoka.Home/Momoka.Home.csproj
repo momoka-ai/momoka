@@ -15,7 +15,6 @@
     <PackageReference Include="linq2db" Version="6.4.0" />
     <PackageReference Include="MessagePack" Version="2.5.187" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.10" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
   </ItemGroup>
 
 </Project>

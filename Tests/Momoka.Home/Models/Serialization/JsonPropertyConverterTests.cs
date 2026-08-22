@@ -1,24 +1,25 @@
+using System.Text.Json;
 using Xunit;
 using Momoka.Home.Data.Json;
 using Momoka.Home.Levels.Entities;
-using Momoka.Home.Data.Json.Converters;
-using Newtonsoft.Json;
 using Momoka.Home.Levels.Entities.Properties;
 namespace Momoka.Home.Tests.Models.Serialization;
 
 /// <summary>
-/// Direct deserialization of each property kind via <see cref="JsonPropertyConverter"/>:
-/// "type" resolves the concrete class, "key"/"value"/"values" bind in one pass.
+/// Direct deserialization of each property kind via the STJ
+/// <see cref="KindTypeResolver"/> polymorphism: "type" resolves the concrete
+/// class, "key"/"value"/"values" bind in one pass.
 /// </summary>
 public class JsonPropertyConverterTests
 {
-    private static readonly JsonSerializerSettings Settings = new()
+    private static readonly JsonSerializerOptions Settings = new()
     {
-        Converters = { new JsonPropertyConverter() }
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+        TypeInfoResolver = new KindTypeResolver(),
     };
 
     private static T RoundTrip<T>(T property) where T : Property =>
-        (T)JsonConvert.DeserializeObject(JsonConvert.SerializeObject(property, Settings), typeof(T), Settings)!;
+        JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(property, Settings), Settings)!;
 
     [Fact]
     public void Boolean_RoundTrips()
@@ -80,14 +81,15 @@ public class JsonPropertyConverterTests
     [Fact]
     public void Literal_ConfigWithInvalidValue_Throws()
     {
-        var json = """{ "type": "literals", "data": { "key": "mode", "values": ["a", "b"], "value": "c" } }""";
-        Assert.Throws<ArgumentException>(() => JsonConvert.DeserializeObject<Property>(json, Settings));
+        var json = """{ "type": "literals", "key": "mode", "values": ["a", "b"], "value": "c" }""";
+        // OnDeserialized 的跨字段校验异常由 STJ 原样传播。
+        Assert.Throws<ArgumentException>(() => JsonSerializer.Deserialize<Property>(json, Settings));
     }
 
     [Fact]
     public void Boolean_DeserializesFromConfigJson()
     {
-        var prop = JsonConvert.DeserializeObject<BooleanProperty>("""{ "type": "boolean", "data": { "key": "clean_mode", "value": true } }""", Settings);
+        var prop = JsonSerializer.Deserialize<BooleanProperty>("""{ "type": "boolean", "key": "clean_mode", "value": true }""", Settings);
         Assert.Equal("clean_mode", prop!.Name);
         Assert.True(prop.Value);
     }

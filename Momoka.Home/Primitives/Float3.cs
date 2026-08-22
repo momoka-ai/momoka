@@ -1,6 +1,6 @@
 using System.Numerics;
+using System.Text.Json.Serialization;
 using Momoka.Home;
-using Newtonsoft.Json;
 namespace Momoka.Home.Primitives;
 
 /// <summary>

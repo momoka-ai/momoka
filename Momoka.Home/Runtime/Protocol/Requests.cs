@@ -1,4 +1,3 @@
-using Newtonsoft.Json.Linq;
 using Momoka.Home.Levels.Commands;
 using Momoka.Home.Primitives;
 namespace Momoka.Home.Runtime.Protocol;
@@ -45,7 +44,7 @@ public sealed class SetPropertyRequest
     public Guid EntityId { get; set; }
     public string Name { get; set; } = "";
     /// <summary>JSON 原生标量（bool / number / string / null=清除）；服务器按属性类型强转。</summary>
-    public JToken? Value { get; set; }
+    public object? Value { get; set; }
 }
 
 public sealed class SetTextureRequest

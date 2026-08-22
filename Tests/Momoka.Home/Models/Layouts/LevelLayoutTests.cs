@@ -251,7 +251,7 @@ public class UnitLayoutTests
         var source = roof.GetComponent<PlacementLayoutSource>()!;
 
         var panel = Box("solar", 1, 1, 1); // 期望 Tilted（太阳能板）
-        panel.AddProperties(new[] { new EnumProperty<RotationAlignment>(Property.RotationAlignment, RotationAlignment.Tilted) });
+        panel.AddProperties(new[] { EnumProperty.Create(Property.RotationAlignment, RotationAlignment.Tilted) });
         Assert.True(unit.Add(panel, new Position(new Float3(0, 10, 0)), source));
         Assert.Same(panel, Assert.Single(source.Children));
     }
@@ -284,7 +284,7 @@ public class UnitLayoutTests
         var source = floor.GetComponent<PlacementLayoutSource>()!;
 
         var painting = Box("painting", 1, 1, 1); // 期望 Vertical（墙面）
-        painting.AddProperties(new[] { new EnumProperty<RotationAlignment>(Property.RotationAlignment, RotationAlignment.Vertical) });
+        painting.AddProperties(new[] { EnumProperty.Create(Property.RotationAlignment, RotationAlignment.Vertical) });
         Assert.False(unit.Add(painting, new Position(new Float3(0, 10, 0)), source));
     }
 
@@ -297,7 +297,7 @@ public class UnitLayoutTests
         var source = floor.GetComponent<PlacementLayoutSource>()!;
 
         var mat = Box("mat", 1, 1, 1); // 期望 Horizontal → 接受 Upside 面
-        mat.AddProperties(new[] { new EnumProperty<RotationAlignment>(Property.RotationAlignment, RotationAlignment.Horizontal) });
+        mat.AddProperties(new[] { EnumProperty.Create(Property.RotationAlignment, RotationAlignment.Horizontal) });
         Assert.True(unit.Add(mat, new Position(new Float3(0, 10, 0)), source));
     }
 

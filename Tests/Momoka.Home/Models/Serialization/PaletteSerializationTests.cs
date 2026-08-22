@@ -1,11 +1,11 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Xunit;
 using Momoka.Home.Levels.Entities;
 using Momoka.Home.Data;
 using Momoka.Home.Levels;
 using Momoka.Home.Levels.Layouts;
 using Momoka.Home.Primitives;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 namespace Momoka.Home.Tests.Models.Serialization;
 
 /// <summary>
@@ -16,7 +16,7 @@ namespace Momoka.Home.Tests.Models.Serialization;
 public class PaletteSerializationTests
 {
     private static string Compact(string json) =>
-        JToken.Parse(json).ToString(Formatting.None);
+        JsonNode.Parse(json)!.ToJsonString();
 
     [Fact]
     public void Palette_NonEntity_SerializesToValueArray()
@@ -25,7 +25,7 @@ public class PaletteSerializationTests
         palette.IdFor(5);
         palette.IdFor(7);
 
-        var json = Compact(JsonConvert.SerializeObject(palette, Settings.JsonSerialization));
+        var json = Compact(JsonSerializer.Serialize(palette, Settings.JsonSerialization));
 
         Assert.Equal("[5,7]", json); // id 0 空槽被跳过
     }
@@ -39,10 +39,10 @@ public class PaletteSerializationTests
         palette.IdFor(wall);
         palette.IdFor(floor);
 
-        var json = Compact(JsonConvert.SerializeObject(palette, Settings.JsonSerialization));
+        var json = Compact(JsonSerializer.Serialize(palette, Settings.JsonSerialization));
 
         // 与 LayoutChunkCodec 相同的 Guid 引用约定：载荷不依赖实体表顺序
-        Assert.Equal($"[{JsonConvert.ToString(wall.Id)},{JsonConvert.ToString(floor.Id)}]", json);
+        Assert.Equal(JsonSerializer.Serialize(new[] { wall.Id, floor.Id }), json);
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public class PaletteSerializationTests
     {
         // Entity 引用需实体表解析，读由存储层用 Palette.FromValues 完成
         Assert.Throws<NotSupportedException>(() =>
-            JsonConvert.DeserializeObject<Palette<int>>("[1,2]"));
+            JsonSerializer.Deserialize<Palette<int>>("[1,2]"));
     }
 
     [Fact]
@@ -98,12 +98,12 @@ public class PaletteSerializationTests
         container[new Int3(15, 15, 15)] = wall;
 
         // 拆成三列载荷：palette_json + bits + data BLOB
-        var paletteJson = Compact(JsonConvert.SerializeObject(container.Palette, Settings.JsonSerialization));
+        var paletteJson = Compact(JsonSerializer.Serialize(container.Palette, Settings.JsonSerialization));
         var bits = container.Storage.Bits;
         var data = container.Storage.ToBytes();
 
         // 存储层恢复：palette 的 Guid 引用解析到实体表
-        var ids = JsonConvert.DeserializeObject<Guid[]>(paletteJson)!;
+        var ids = JsonSerializer.Deserialize<Guid[]>(paletteJson)!;
         var byId = new[] { wall, floor }.ToDictionary(e => e.Id);
         var restored = new PalettedContainer<Int3, Entity>(
             new Palette<Entity>.Int3ChunkStrategy(size, 4),

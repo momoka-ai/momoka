@@ -4,44 +4,34 @@
     ],
     "shape": {
         "kind": "box",
-        "data": {
-            "size_x": 1,
-            "size_y": 2,
-            "size_z": 1
-        }
+        "size_x": 1,
+        "size_y": 2,
+        "size_z": 1
     },
     "properties": [
         {
             "type": "literals",
-            "data": {
-                "key": "ai_mode",
-                "values": [
-                    "disabled",
-                    "skyscreen_mode",
-                    "no_direct_wind_mode",
-                    "fast_cooling_mode"
-                ],
-                "value": "disabled"
-            }
+            "key": "ai_mode",
+            "values": [
+                "disabled",
+                "skyscreen_mode",
+                "no_direct_wind_mode",
+                "fast_cooling_mode"
+            ],
+            "value": "disabled"
         },
         {
             "type": "boolean",
-            "data": {
-                "key": "clean_mode"
-            }
+            "key": "clean_mode"
         },
         {
             "type": "boolean",
-            "data": {
-                "key": "display"
-            }
+            "key": "display"
         },
         {
             "type": "string",
-            "data": {
-                "key": "texture",
-                "value": "texture.midea.air_conditioner.ac_1523"
-            }
+            "key": "texture",
+            "value": "texture.midea.air_conditioner.ac_1523"
         }
     ],
     "components": [
