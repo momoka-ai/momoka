@@ -7,9 +7,9 @@ namespace Momoka.Home.Levels.Volumes;
 /// multi-part structures (L/U/C/T plans, house + garage, bay windows).
 /// </summary>
 [JsonTypeName("composite")]
-public class Composite3D : Volume
+public class Composite : Volume
 {
-    public List<CompositeChild3D> Children { get; set; } = new();
+    public List<CompositeChild> Children { get; set; } = new();
 
     public override IEnumerable<Int3> Cells3D()
     {
@@ -26,8 +26,8 @@ public class Composite3D : Volume
     }
 }
 
-/// <summary>A child volume of a <see cref="Composite3D"/> at a local offset.</summary>
-public class CompositeChild3D
+/// <summary>A child volume of a <see cref="Composite"/> at a local offset.</summary>
+public class CompositeChild
 {
     public Volume Shape { get; set; } = null!;
     public Int3 Offset { get; set; }

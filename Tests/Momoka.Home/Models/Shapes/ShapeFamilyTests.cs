@@ -12,7 +12,7 @@ public class ShapeFamilyTests
     [Fact]
     public void Extruded3D_RectSectionTimesHeight_IsPrismVolume()
     {
-        var prism = new Extruded3D(new[]
+        var prism = new Extruded(new[]
         {
             new Int2(0, 0), new Int2(1, 0),
             new Int2(0, 1), new Int2(1, 1),
@@ -27,7 +27,7 @@ public class ShapeFamilyTests
     [Fact]
     public void Polygon3D_ConcaveL_OmitsTheMissingCorner()
     {
-        var poly = new Polygon3D(new[]
+        var poly = new Polygon(new[]
         {
             new Int2(0, 0), new Int2(3, 0), new Int2(3, 1),
             new Int2(1, 1), new Int2(1, 3), new Int2(0, 3),
@@ -44,8 +44,8 @@ public class ShapeFamilyTests
     [Fact]
     public void Circle3D_And_Cylinder3D_SameVolume()
     {
-        var circle = new Circle3D(3, 5);
-        var cylinder = new Cylinder3D(3, 5);
+        var circle = new Circle(3, 5);
+        var cylinder = new Cylinder(3, 5);
 
         Assert.Equal(circle.Cells3D().Count(), cylinder.Cells3D().Count());
         Assert.True(circle.Cells3D().Any());
@@ -54,9 +54,9 @@ public class ShapeFamilyTests
     [Fact]
     public void Composite3D_UnionsChildrenAtOffsets()
     {
-        var composite = new Composite3D();
-        composite.Children.Add(new CompositeChild3D { Shape = new Box3D { SizeX = 2, SizeY = 1, SizeZ = 2 }, Offset = Int3.Zero });
-        composite.Children.Add(new CompositeChild3D { Shape = new Box3D { SizeX = 1, SizeY = 1, SizeZ = 1 }, Offset = new Int3(3, 0, 0) });
+        var composite = new Composite();
+        composite.Children.Add(new CompositeChild { Shape = new Box { SizeX = 2, SizeY = 1, SizeZ = 2 }, Offset = Int3.Zero });
+        composite.Children.Add(new CompositeChild { Shape = new Box { SizeX = 1, SizeY = 1, SizeZ = 1 }, Offset = new Int3(3, 0, 0) });
 
         var cells = composite.Cells3D().ToHashSet();
 
@@ -69,8 +69,8 @@ public class ShapeFamilyTests
     [Fact]
     public void Curve3D_ZeroCurvature_MatchesStraightLine()
     {
-        var line = new Line3D { Start = Float3.Zero, End = new Float3(6, 0, 0), Thickness = 1 };
-        var curve = new Curve3D { Start = Float3.Zero, End = new Float3(6, 0, 0), Curvature = 0, Thickness = 1 };
+        var line = new Line { Start = Float3.Zero, End = new Float3(6, 0, 0), Thickness = 1 };
+        var curve = new Curve { Start = Float3.Zero, End = new Float3(6, 0, 0), Curvature = 0, Thickness = 1 };
 
         var expected = line.Cells3D().Distinct().OrderBy(c => c.X).ThenBy(c => c.Z);
         var actual = curve.Cells3D().Distinct().OrderBy(c => c.X).ThenBy(c => c.Z);
@@ -81,7 +81,7 @@ public class ShapeFamilyTests
     [Fact]
     public void Curve3D_PositiveCurvature_BowsAwayFromChord()
     {
-        var curve = new Curve3D { Start = Float3.Zero, End = new Float3(6, 0, 0), Curvature = 2, Thickness = 1 }.Cells3D().ToHashSet();
+        var curve = new Curve { Start = Float3.Zero, End = new Float3(6, 0, 0), Curvature = 2, Thickness = 1 }.Cells3D().ToHashSet();
 
         Assert.Contains(new Int3(0, 0, 0), curve); // 起点
         Assert.Contains(new Int3(6, 0, 0), curve); // 终点
@@ -92,7 +92,7 @@ public class ShapeFamilyTests
     [Fact]
     public void Cone3D_TapersToApex()
     {
-        var cone = new Cone3D(3, 4);
+        var cone = new Cone(3, 4);
         var cells = cone.Cells3D().ToList();
 
         Assert.Contains(cells, c => c.Y == 0 && c.X == 0 && c.Z == 0); // 底心
@@ -102,7 +102,7 @@ public class ShapeFamilyTests
     [Fact]
     public void Pyramid3D_BaseMatchesBaseCells()
     {
-        var pyramid = new Pyramid3D(4, 4, 3);
+        var pyramid = new Pyramid(4, 4, 3);
         var baseCells = pyramid.Cells3D().Where(c => c.Y == 0).Select(c => c.Xz).ToHashSet();
 
         Assert.Equal(4 * 4, baseCells.Count);
@@ -111,7 +111,7 @@ public class ShapeFamilyTests
     [Fact]
     public void Sphere3D_CellsWithinRadius()
     {
-        var sphere = new Sphere3D(2);
+        var sphere = new Sphere(2);
         var cells = sphere.Cells3D().ToList();
 
         Assert.All(cells, c => Assert.True(c.X * c.X + c.Y * c.Y + c.Z * c.Z <= 4));

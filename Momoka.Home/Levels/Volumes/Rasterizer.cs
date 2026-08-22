@@ -2,7 +2,7 @@ using Momoka.Home.Primitives;
 namespace Momoka.Home.Levels.Volumes;
 
 /// <summary>
-/// 2D 截面光栅化助手：为 <see cref="Extruded3D"/> 族的剖面生成格数据（Int2[]）。
+/// 2D 截面光栅化助手：为 <see cref="Extruded"/> 族的剖面生成格数据（Int2[]）。
 /// 只产出数据、不构成几何类型——2D 不再有独立的形状类型体系。
 /// </summary>
 internal static class Rasterizer

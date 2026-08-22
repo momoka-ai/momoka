@@ -4,13 +4,13 @@ namespace Momoka.Home.Levels.Volumes;
 
 /// <summary>Vertical cone: circular base shrinking linearly to an apex (roofs, spires).</summary>
 [JsonTypeName("cone")]
-public class Cone3D : Volume
+public class Cone : Volume
 {
     public int Radius { get; set; } = 1;
     public int Height { get; set; } = 1;
 
-    public Cone3D() { }
-    public Cone3D(int radius, int height)
+    public Cone() { }
+    public Cone(int radius, int height)
     {
         Radius = radius;
         Height = height;
@@ -36,14 +36,14 @@ public class Cone3D : Volume
 
 /// <summary>Vertical pyramid: rectangular base shrinking linearly to an apex (gable/pyramid roofs).</summary>
 [JsonTypeName("pyramid")]
-public class Pyramid3D : Volume
+public class Pyramid : Volume
 {
     public int SizeX { get; set; } = 1;
     public int SizeZ { get; set; } = 1;
     public int Height { get; set; } = 1;
 
-    public Pyramid3D() { }
-    public Pyramid3D(int sizeX, int sizeZ, int height)
+    public Pyramid() { }
+    public Pyramid(int sizeX, int sizeZ, int height)
     {
         SizeX = sizeX;
         SizeZ = sizeZ;

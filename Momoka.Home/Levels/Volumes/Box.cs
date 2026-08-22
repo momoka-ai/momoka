@@ -4,7 +4,7 @@ using Momoka.Home.Data.Json;
 namespace Momoka.Home.Levels.Volumes;
 
 [JsonTypeName("box")]
-public class Box3D : Volume
+public class Box : Volume
 {
     public int SizeX { get; set; } = 1;
     public int SizeY { get; set; } = 1;

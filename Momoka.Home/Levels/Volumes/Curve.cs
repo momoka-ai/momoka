@@ -3,14 +3,14 @@ using Momoka.Home.Data.Json;
 namespace Momoka.Home.Levels.Volumes;
 
 /// <summary>
-/// A curved wall segment: a quadratic Bézier arc through <see cref="Line3D.Start"/>,
-/// <see cref="Line3D.End"/> and a bowed midpoint (Start+End)/2 + perpendicular·Curvature.
-/// Curvature = 0 degenerates to a straight line (same as <see cref="Line3D"/>);
+/// A curved wall segment: a quadratic Bézier arc through <see cref="Line.Start"/>,
+/// <see cref="Line.End"/> and a bowed midpoint (Start+End)/2 + perpendicular·Curvature.
+/// Curvature = 0 degenerates to a straight line (same as <see cref="Line"/>);
 /// positive/negative bows to either side. Rasterized by sampling the curve and
-/// expanding by <see cref="Line3D.Thickness"/>.
+/// expanding by <see cref="Line.Thickness"/>.
 /// </summary>
 [JsonTypeName("curve")]
-public class Curve3D : Line3D
+public class Curve : Line
 {
     /// <summary>Signed bow distance (cells) at the midpoint, perpendicular to the chord.</summary>
     public float Curvature { get; set; }

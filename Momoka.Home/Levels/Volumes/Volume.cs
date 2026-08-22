@@ -14,15 +14,6 @@ public abstract class Volume
     public abstract IEnumerable<Int3> Cells3D();
 
     /// <summary>
-    /// A bare volume has no host identity, so it cannot place itself into an entity
-    /// grid. Place the host instead: <c>LevelLayout.Add(entity, position)</c>.
-    /// <see cref="LevelLayout"/> implements the real placement contract
-    /// (Add/Remove).
-    /// </summary>
-    public void PlaceAt(VoxelLayout<Entity> target, Int3 at) =>
-        throw new NotSupportedException("A bare volume has no host identity — place it via LevelLayout.Add(entity, position).");
-
-    /// <summary>
     /// 两个体积是否重叠：本形状锚定在 <paramref name="anchor"/>、other 锚定在
     /// <paramref name="otherAnchor"/>（均为格坐标），占用格交集非空即重叠。
     /// 纯几何判定——实体对碰撞（<c>LevelLayout.IsCollided</c>）即委托本方法。
@@ -32,8 +23,4 @@ public abstract class Volume
         var cells = other.Cells3D().Select(c => otherAnchor + c).ToHashSet();
         return Cells3D().Any(c => cells.Contains(anchor + c));
     }
-
-    /// <inheritdoc cref="PlaceAt"/>
-    public void DestroyAt(VoxelLayout<Entity> target, Int3 at) =>
-        throw new NotSupportedException("A bare volume has no host identity — remove it via LevelLayout.Remove(entity).");
 }

@@ -4,7 +4,7 @@ using Momoka.Home.Data.Json;
 namespace Momoka.Home.Levels.Volumes;
 
 [JsonTypeName("line")]
-public class Line3D : Volume
+public class Line : Volume
 {
     /// <summary>Start of the segment, in the host entity's LOCAL frame (relative to Coords).</summary>
     public Float3 Start { get; set; }

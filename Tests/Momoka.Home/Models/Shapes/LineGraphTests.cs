@@ -6,13 +6,13 @@ using Momoka.Home.Levels.Volumes;
 using Momoka.Home.Primitives;
 namespace Momoka.Home.Tests.Models.Shapes;
 
-/// <summary>LineGraph3D：线图墙体积的几何、节点/边表与序列化。</summary>
+/// <summary>LineGraph：线图墙体积的几何、节点/边表与序列化。</summary>
 public class LineGraph3DTests
 {
     [Fact]
     public void SingleSegment_ProducesWallBox()
     {
-        var wall = new LineGraph3D { Height = 29 };
+        var wall = new LineGraph { Height = 29 };
         wall.AddSegment(new Int3(0, 0, 0), new Int3(9, 0, 0), thickness: 1);
 
         var cells = wall.Cells3D().ToList();
@@ -24,13 +24,13 @@ public class LineGraph3DTests
         Assert.Equal(2, wall.Nodes.Count);
         Assert.Single(wall.Edges);
         Assert.Single(wall.Children);
-        Assert.All(wall.Children, c => Assert.IsType<Line3D>(c.Shape));
+        Assert.All(wall.Children, c => Assert.IsType<Line>(c.Shape));
     }
 
     [Fact]
     public void LShape_SharesCornerNode_UnionConnected()
     {
-        var wall = new LineGraph3D { Height = 10 };
+        var wall = new LineGraph { Height = 10 };
         wall.AddSegment(new Int3(0, 0, 0), new Int3(4, 0, 0), 1); // X 方向
         wall.AddSegment(new Int3(4, 0, 0), new Int3(4, 0, 4), 1); // Z 方向（共享转角节点）
 
@@ -49,7 +49,7 @@ public class LineGraph3DTests
     [Fact]
     public void AddSegment_DedupsSharedNode_IndicesAlignWithChildren()
     {
-        var wall = new LineGraph3D();
+        var wall = new LineGraph();
         wall.AddSegment(new Int3(0, 0, 0), new Int3(5, 0, 0), 1);
         wall.AddSegment(new Int3(5, 0, 0), new Int3(9, 0, 0), 1);
         wall.AddSegment(new Int3(5, 0, 0), new Int3(5, 0, 5), 1);
@@ -63,19 +63,19 @@ public class LineGraph3DTests
     [Fact]
     public void RoundTrips_ThroughJson_WithGraphTable()
     {
-        var wall = new LineGraph3D { Height = 29 };
+        var wall = new LineGraph { Height = 29 };
         wall.AddSegment(new Int3(0, 0, 0), new Int3(9, 0, 0), 1);
         wall.AddSegment(new Int3(9, 0, 0), new Int3(9, 0, 6), 2);
 
         var json = JsonConvert.SerializeObject(wall, Settings.JsonSerialization);
         Assert.Contains("line_graph", json);
 
-        var back = JsonConvert.DeserializeObject<LineGraph3D>(json, Settings.JsonSerialization)!;
+        var back = JsonConvert.DeserializeObject<LineGraph>(json, Settings.JsonSerialization)!;
         Assert.Equal(29, back.Height);
         Assert.Equal(wall.Nodes, back.Nodes);
         Assert.Equal(wall.Edges, back.Edges);
         Assert.Equal(2, back.Children.Count);
-        Assert.All(back.Children, c => Assert.IsType<Line3D>(c.Shape));
+        Assert.All(back.Children, c => Assert.IsType<Line>(c.Shape));
         Assert.Equal(wall.Cells3D().ToHashSet(), back.Cells3D().ToHashSet());
     }
 }

@@ -8,14 +8,14 @@ namespace Momoka.Home.Levels.Volumes;
 /// (circle section), polygon buildings, and more. 截面为格数据而非独立 2D 类型。
 /// </summary>
 [JsonTypeName("extruded")]
-public class Extruded3D : Volume
+public class Extruded : Volume
 {
     /// <summary>截面占用格（局部 XZ，相对体积原点）；Cells3D = 截面按 Height 挤出。</summary>
     public List<Int2> SectionCells { get; set; } = new();
     public int Height { get; set; } = 1;
 
-    public Extruded3D() { }
-    public Extruded3D(IEnumerable<Int2> sectionCells, int height)
+    public Extruded() { }
+    public Extruded(IEnumerable<Int2> sectionCells, int height)
     {
         SectionCells = sectionCells.ToList();
         Height = height;

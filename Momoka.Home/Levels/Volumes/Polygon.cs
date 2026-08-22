@@ -4,11 +4,11 @@ namespace Momoka.Home.Levels.Volumes;
 
 /// <summary>多边形棱柱：任意多边形截面 × 高度（异形建筑）。</summary>
 [JsonTypeName("polygon")]
-public class Polygon3D : Extruded3D
+public class Polygon : Extruded
 {
-    public Polygon3D() : base(Array.Empty<Int2>(), 1) { }
+    public Polygon() : base(Array.Empty<Int2>(), 1) { }
 
-    public Polygon3D(IEnumerable<Int2> vertices, int height)
+    public Polygon(IEnumerable<Int2> vertices, int height)
         : base(Rasterizer.FilledPolygon(vertices), height)
     {
     }
