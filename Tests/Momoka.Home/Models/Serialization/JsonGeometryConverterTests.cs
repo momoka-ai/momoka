@@ -52,7 +52,7 @@ public class JsonGeometryConverterTests
     {
         var triangle = RoundTrip(new Triangle(new Int2(0, 0), new Int2(2, 0), new Int2(0, 2), 3));
         Assert.Equal(3, triangle.Height);
-        Assert.Equal(3, triangle.Cells3D().Count()); // 1-cell footprint × 3 height (boundary excluded)
+        Assert.Equal(3, triangle.GetVoxelSet().Count()); // 1-cell footprint × 3 height (boundary excluded)
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public class JsonGeometryConverterTests
     {
         var polygon = RoundTrip(new Polygon(new[] { new Int2(0, 0), new Int2(2, 0), new Int2(2, 2), new Int2(0, 2) }, 2));
         Assert.Equal(2, polygon.Height);
-        Assert.Equal(8, polygon.Cells3D().Count()); // 4-cell footprint × 2 height
+        Assert.Equal(8, polygon.GetVoxelSet().Count()); // 4-cell footprint × 2 height
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public class JsonGeometryConverterTests
         }, 4)); // 2×3 截面
         Assert.Equal(4, extruded.Height);
         Assert.Equal(6, extruded.SectionCells.Count);
-        Assert.Equal(2 * 3 * 4, extruded.Cells3D().Count());
+        Assert.Equal(2 * 3 * 4, extruded.GetVoxelSet().Count());
     }
 
     [Fact]
@@ -145,7 +145,7 @@ public class JsonGeometryConverterTests
     {
         var extruded = RoundTrip(new Extruded());
         Assert.Empty(extruded.SectionCells);
-        Assert.Empty(extruded.Cells3D());
+        Assert.Empty(extruded.GetVoxelSet());
     }
 
     [Fact]

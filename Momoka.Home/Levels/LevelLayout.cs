@@ -141,7 +141,7 @@ public sealed class LevelLayout : IEntitySource, IVoxelSource<Entity>, IEntityRe
 
         entity.Transform = entity.Transform with { Position = position.Absolute() };
         var anchor = position.Rescale(Voxels.Length).AsInt3();
-        foreach (var cell in entity.Volume.Cells3D())
+        foreach (var cell in entity.Volume.GetVoxelSet())
             Voxels[anchor + cell] = entity;
         Entities.Add(entity);
         return true;
@@ -218,7 +218,7 @@ public sealed class LevelLayout : IEntitySource, IVoxelSource<Entity>, IEntityRe
 
         Entities.Remove(entity);
         var cs = Voxels.GetAsRelative(entity.Transform.Position);
-        foreach (var cell in entity.Volume.Cells3D())
+        foreach (var cell in entity.Volume.GetVoxelSet())
         {
             var pos = cs + cell;
             if (Voxels[pos] == entity)
@@ -354,7 +354,7 @@ public sealed class LevelLayout : IEntitySource, IVoxelSource<Entity>, IEntityRe
         var cleared = new List<(Entity Entity, Int3 Pos)>();
         foreach (var (e, oldAnchor, _) in moves)
         {
-            foreach (var cell in e.Volume.Cells3D())
+            foreach (var cell in e.Volume.GetVoxelSet())
             {
                 var pos = oldAnchor + cell;
                 if (Voxels[pos] == e)
@@ -369,7 +369,7 @@ public sealed class LevelLayout : IEntitySource, IVoxelSource<Entity>, IEntityRe
         bool Collides(Int3 pos) => Voxels[pos] is { } v && !groupSet.Contains(v);
         foreach (var (e, _, newAnchor) in moves)
         {
-            foreach (var cell in e.Volume.Cells3D())
+            foreach (var cell in e.Volume.GetVoxelSet())
             {
                 var pos = newAnchor + cell;
                 if (!Bound.IsValid(pos.ToFloat3()) || Collides(pos))
@@ -385,7 +385,7 @@ public sealed class LevelLayout : IEntitySource, IVoxelSource<Entity>, IEntityRe
         foreach (var (e, oldAnchor, newAnchor) in moves)
         {
             e.Transform = e.Transform with { Position = Voxels.GetAsAbsolute(newAnchor) };
-            foreach (var cell in e.Volume.Cells3D())
+            foreach (var cell in e.Volume.GetVoxelSet())
                 Voxels[newAnchor + cell] = e;
         }
 
@@ -423,7 +423,7 @@ public sealed class LevelLayout : IEntitySource, IVoxelSource<Entity>, IEntityRe
         foreach (var entity in Entities)
         {
             var cs = Voxels.GetAsRelative(entity.Transform.Position);
-            foreach (var cell in entity.Volume.Cells3D())
+            foreach (var cell in entity.Volume.GetVoxelSet())
             {
                 Voxels[cs + cell] = entity;
             }

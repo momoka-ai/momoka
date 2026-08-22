@@ -16,7 +16,7 @@ public class Cone : Volume
         Height = height;
     }
 
-    public override IEnumerable<Int3> Cells3D()
+    public override IEnumerable<Int3> GetVoxelSet()
     {
         for (var y = 0; y < Height; y++)
         {
@@ -50,7 +50,7 @@ public class Pyramid : Volume
         Height = height;
     }
 
-    public override IEnumerable<Int3> Cells3D()
+    public override IEnumerable<Int3> GetVoxelSet()
     {
         for (var y = 0; y < Height; y++)
         {

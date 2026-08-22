@@ -13,7 +13,7 @@ public class Line : Volume
     public int Thickness { get; set; } = 1;
 
     /// <summary>Rasterizes the straight line (with thickness) into grid cells.</summary>
-    public override IEnumerable<Int3> Cells3D()
+    public override IEnumerable<Int3> GetVoxelSet()
     {
         var dx = End.X - Start.X;
         var dz = End.Z - Start.Z;

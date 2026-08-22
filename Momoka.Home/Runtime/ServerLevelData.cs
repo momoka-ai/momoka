@@ -198,7 +198,7 @@ public sealed class ServerLevelData : LevelData
             if (entity.Volume is null)
                 continue;
             var anchor = layout.Voxels.GetAsRelative(entity.Transform.Position);
-            foreach (var cell in entity.Volume.Cells3D())
+            foreach (var cell in entity.Volume.GetVoxelSet())
             {
                 var p = layout.Voxels.GetAsAbsolute(anchor + cell);
                 if (p.X < minX) minX = p.X;

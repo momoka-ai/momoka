@@ -15,7 +15,7 @@ public class Box : Volume
     /// host entity's Coords (world = Coords + cell). The shape carries no
     /// position; it only describes its own geometry.
     /// </summary>
-    public override IEnumerable<Int3> Cells3D()
+    public override IEnumerable<Int3> GetVoxelSet()
     {
         for (var dy = 0; dy < SizeY; dy++)
         {

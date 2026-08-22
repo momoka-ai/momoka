@@ -131,7 +131,7 @@ public sealed class ClientLevelData : LevelData, IVoxelSource<Entity>
         foreach (var entity in Placed)
         {
             var anchor = grid.GetAsRelative(entity.Transform.Position);
-            foreach (var cell in entity.Volume.Cells3D())
+            foreach (var cell in entity.Volume.GetVoxelSet())
                 grid[anchor + cell] = entity;
         }
         Grid = grid;
@@ -140,14 +140,14 @@ public sealed class ClientLevelData : LevelData, IVoxelSource<Entity>
     private void WriteCells(Entity entity)
     {
         var anchor = Grid.GetAsRelative(entity.Transform.Position);
-        foreach (var cell in entity.Volume.Cells3D())
+        foreach (var cell in entity.Volume.GetVoxelSet())
             Grid[anchor + cell] = entity;
     }
 
     private void ClearCells(Entity entity)
     {
         var anchor = Grid.GetAsRelative(entity.Transform.Position);
-        foreach (var cell in entity.Volume.Cells3D())
+        foreach (var cell in entity.Volume.GetVoxelSet())
         {
             var pos = anchor + cell;
             if (Grid[pos] == entity)
@@ -163,7 +163,7 @@ public sealed class ClientLevelData : LevelData, IVoxelSource<Entity>
             (int)Math.Round(transform.Position.X / Grid.Length, MidpointRounding.AwayFromZero),
             (int)Math.Round(transform.Position.Y / Grid.Length, MidpointRounding.AwayFromZero),
             (int)Math.Round(transform.Position.Z / Grid.Length, MidpointRounding.AwayFromZero));
-        foreach (var cell in volume.Cells3D())
+        foreach (var cell in volume.GetVoxelSet())
         {
             var pos = anchor + cell;
             dirty.Add(new Int2(pos.X >> 4, pos.Z >> 4));

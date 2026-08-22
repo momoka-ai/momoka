@@ -40,7 +40,7 @@ public sealed class BuildOpeningCommand : IEditorCommand
 
         // 洞盒必须完整落在墙体内（含幅界校验）
         var openingVolume = new Box { SizeX = _openingSize.X, SizeY = _openingSize.Y, SizeZ = _openingSize.Z };
-        foreach (var cell in openingVolume.Cells3D())
+        foreach (var cell in openingVolume.GetVoxelSet())
         {
             var p = _openingOrigin + cell;
             if (!LayoutHelpers.InWorldExtent(p))
@@ -53,7 +53,7 @@ public sealed class BuildOpeningCommand : IEditorCommand
             return false;
 
         // 预检：开口格仅允许被墙占用（排洞后清空——保证放置无碰撞）
-        foreach (var cell in openingVolume.Cells3D())
+        foreach (var cell in openingVolume.GetVoxelSet())
         {
             var occupant = unit.Voxels[_openingOrigin + cell];
             if (occupant is not null && occupant != wall)

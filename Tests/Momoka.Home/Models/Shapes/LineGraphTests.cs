@@ -15,7 +15,7 @@ public class LineGraph3DTests
         var wall = new LineGraph { Height = 29 };
         wall.AddSegment(new Int3(0, 0, 0), new Int3(9, 0, 0), thickness: 1);
 
-        var cells = wall.Cells3D().ToList();
+        var cells = wall.GetVoxelSet().ToList();
         Assert.Equal(10 * 29, cells.Count); // 10 长 × 29 高 × 1 厚
         Assert.Contains(new Int3(0, 0, 0), cells);
         Assert.Contains(new Int3(9, 28, 0), cells);
@@ -34,7 +34,7 @@ public class LineGraph3DTests
         wall.AddSegment(new Int3(0, 0, 0), new Int3(4, 0, 0), 1); // X 方向
         wall.AddSegment(new Int3(4, 0, 0), new Int3(4, 0, 4), 1); // Z 方向（共享转角节点）
 
-        var cells = wall.Cells3D().ToHashSet();
+        var cells = wall.GetVoxelSet().ToHashSet();
         Assert.Equal((5 + 5 - 1) * wall.Height, cells.Count); // 每层并集去重 × 高度
         Assert.Contains(new Int3(0, 0, 0), cells);
         Assert.Contains(new Int3(4, 0, 0), cells); // 转角格
@@ -76,6 +76,6 @@ public class LineGraph3DTests
         Assert.Equal(wall.Edges, back.Edges);
         Assert.Equal(2, back.Children.Count);
         Assert.All(back.Children, c => Assert.IsType<Line>(c.Shape));
-        Assert.Equal(wall.Cells3D().ToHashSet(), back.Cells3D().ToHashSet());
+        Assert.Equal(wall.GetVoxelSet().ToHashSet(), back.GetVoxelSet().ToHashSet());
     }
 }

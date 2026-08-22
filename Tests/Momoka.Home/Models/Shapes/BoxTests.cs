@@ -16,14 +16,14 @@ public class Box3DTests
         // 2(thickness) × 3(height) × 3(width)
         var cabinet = new Box { SizeX = 2, SizeY = 3, SizeZ = 3 };
 
-        Assert.Equal(2 * 3 * 3, cabinet.Cells3D().Count());
+        Assert.Equal(2 * 3 * 3, cabinet.GetVoxelSet().Count());
     }
 
     [Fact]
     public void Cabinet_FloorFootprint_IsThicknessTimesWidth()
     {
         var cabinet = new Box { SizeX = 2, SizeY = 3, SizeZ = 3 };
-        var footprint = cabinet.Cells3D().Select(c => c.Xz).Distinct();
+        var footprint = cabinet.GetVoxelSet().Select(c => c.Xz).Distinct();
 
         Assert.Equal(2 * 3, footprint.Count()); // 2×3（XZ 投影）
     }
@@ -34,14 +34,14 @@ public class Box3DTests
         // 贴墙时旋转：局部 XZ 覆盖墙面（高×宽），局部 Y 为厚度
         var wallCabinet = new Box { SizeX = 3, SizeY = 2, SizeZ = 3 };
 
-        Assert.Equal(3 * 3, wallCabinet.Cells3D().Select(c => c.Xz).Distinct().Count()); // 3×3
+        Assert.Equal(3 * 3, wallCabinet.GetVoxelSet().Select(c => c.Xz).Distinct().Count()); // 3×3
     }
 
     [Fact]
     public void Cells_AreLocal_ZeroBased()
     {
         var box = new Box { SizeX = 2, SizeY = 1, SizeZ = 2 };
-        var voxels = box.Cells3D().ToList();
+        var voxels = box.GetVoxelSet().ToList();
 
         Assert.All(voxels, v => Assert.InRange(v.X, 0, 1));
         Assert.All(voxels, v => Assert.InRange(v.Z, 0, 1));

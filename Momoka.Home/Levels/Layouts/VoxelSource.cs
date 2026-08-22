@@ -504,7 +504,7 @@ public static class VoxelSourceExtensions
     /// <typeparam name="T">体素格值类型。</typeparam>
     /// <param name="voxelSource">体素空间查询源。</param>
     /// <param name="src">体积锚点（世界 cm，对应 volume 的局部原点）。</param>
-    /// <param name="volume">要检测的体积（<see cref="Volume"/>，经 Cells3D() 提供占格）。</param>
+    /// <param name="volume">要检测的体积（<see cref="Volume"/>，经 GetVoxelSet() 提供占格）。</param>
     /// <returns>第一个重叠实体的 <see cref="Collision.Result{T}"/>；无重叠返回 null。</returns>
     public static Collision.Result<T>? IsCollidedVolume<T>(
         this IVoxelSource<T> voxelSource,
@@ -513,7 +513,7 @@ public static class VoxelSourceExtensions
     {
         var voxels = voxelSource.Voxels;
         var anchor = voxels.GetAsRelative(src.Absolute());
-        var hit = volume.Cells3D()
+        var hit = volume.GetVoxelSet()
             .Select(offset => anchor + offset)
             .Select(cell => (Cell: cell, Value: voxels[cell]))
             .FirstOrDefault(x => x.Value is not null);

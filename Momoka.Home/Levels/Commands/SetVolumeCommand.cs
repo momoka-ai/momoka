@@ -40,7 +40,7 @@ public sealed class SetVolumeCommand : IEditorCommand
 
     private static void Clear(LevelLayout unit, Entity entity, Int3 anchor, Volume volume)
     {
-        foreach (var cell in volume.Cells3D())
+        foreach (var cell in volume.GetVoxelSet())
         {
             var pos = anchor + cell;
             if (unit.Voxels[pos] == entity)
@@ -50,7 +50,7 @@ public sealed class SetVolumeCommand : IEditorCommand
 
     private static void Write(LevelLayout unit, Entity entity, Int3 anchor, Volume volume)
     {
-        foreach (var cell in volume.Cells3D())
+        foreach (var cell in volume.GetVoxelSet())
             unit.Voxels[anchor + cell] = entity;
     }
 }

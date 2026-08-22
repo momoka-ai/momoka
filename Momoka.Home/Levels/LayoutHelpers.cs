@@ -21,7 +21,7 @@ public static class LayoutHelpers
         var maxY = int.MinValue;
         var maxZ = int.MinValue;
         var any = false;
-        foreach (var cell in volume.Cells3D())
+        foreach (var cell in volume.GetVoxelSet())
         {
             var p = anchor + cell;
             if (p.X < minX) minX = p.X;

@@ -15,7 +15,7 @@ public class Curve : Line
     /// <summary>Signed bow distance (cells) at the midpoint, perpendicular to the chord.</summary>
     public float Curvature { get; set; }
 
-    public override IEnumerable<Int3> Cells3D()
+    public override IEnumerable<Int3> GetVoxelSet()
     {
         var dx = End.X - Start.X;
         var dz = End.Z - Start.Z;

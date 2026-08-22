@@ -17,8 +17,8 @@ public static class VolumePunch
     public static Volume? Punch(Volume wallVolume, Int3 wallAnchor, Int3 openingOrigin, Int3 openingSize)
     {
         var holeBox = new Box { SizeX = openingSize.X, SizeY = openingSize.Y, SizeZ = openingSize.Z };
-        var holeCells = holeBox.Cells3D().Select(c => openingOrigin + c).ToHashSet();
-        var wallCells = wallVolume.Cells3D().Select(c => wallAnchor + c).ToHashSet();
+        var holeCells = holeBox.GetVoxelSet().Select(c => openingOrigin + c).ToHashSet();
+        var wallCells = wallVolume.GetVoxelSet().Select(c => wallAnchor + c).ToHashSet();
         if (holeCells.Any(c => !wallCells.Contains(c)))
             return null;
 

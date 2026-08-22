@@ -11,12 +11,12 @@ public class Composite : Volume
 {
     public List<CompositeChild> Children { get; set; } = new();
 
-    public override IEnumerable<Int3> Cells3D()
+    public override IEnumerable<Int3> GetVoxelSet()
     {
         var seen = new HashSet<Int3>();
         foreach (var child in Children)
         {
-            foreach (var cell in child.Shape.Cells3D())
+            foreach (var cell in child.Shape.GetVoxelSet())
             {
                 var p = cell + child.Offset;
                 if (seen.Add(p))

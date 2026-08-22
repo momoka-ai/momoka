@@ -10,7 +10,7 @@ namespace Momoka.Home.Levels.Volumes;
 [JsonTypeName("extruded")]
 public class Extruded : Volume
 {
-    /// <summary>截面占用格（局部 XZ，相对体积原点）；Cells3D = 截面按 Height 挤出。</summary>
+    /// <summary>截面占用格（局部 XZ，相对体积原点）；GetVoxelSet = 截面按 Height 挤出。</summary>
     public List<Int2> SectionCells { get; set; } = new();
     public int Height { get; set; } = 1;
 
@@ -21,7 +21,7 @@ public class Extruded : Volume
         Height = height;
     }
 
-    public override IEnumerable<Int3> Cells3D()
+    public override IEnumerable<Int3> GetVoxelSet()
     {
         foreach (var cell in SectionCells)
             for (var y = 0; y < Height; y++)

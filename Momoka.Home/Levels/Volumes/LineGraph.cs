@@ -23,7 +23,7 @@ public class LineGraph : Composite
     /// <summary>边表：节点索引对（第 i 条边 = <c>Children[i]</c> 的 Line）。</summary>
     public List<EdgeIndex> Edges { get; set; } = new();
 
-    public override IEnumerable<Int3> Cells3D()
+    public override IEnumerable<Int3> GetVoxelSet()
     {
         var seen = new HashSet<Int3>();
         for (var i = 0; i < Children.Count; i++)
@@ -31,7 +31,7 @@ public class LineGraph : Composite
             if (Children[i].Shape is not Line line)
                 continue;
             var offset = Children[i].Offset;
-            foreach (var cell in line.Cells3D())
+            foreach (var cell in line.GetVoxelSet())
             {
                 for (var y = 0; y < Height; y++)
                 {

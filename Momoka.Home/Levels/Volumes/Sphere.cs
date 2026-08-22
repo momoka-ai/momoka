@@ -11,7 +11,7 @@ public class Sphere : Volume
     public Sphere() { }
     public Sphere(int radius) => Radius = radius;
 
-    public override IEnumerable<Int3> Cells3D()
+    public override IEnumerable<Int3> GetVoxelSet()
     {
         var r = Radius;
         for (var x = -r; x <= r; x++)
@@ -39,7 +39,7 @@ public class Ellipsoid : Volume
         RadiusZ = radiusZ;
     }
 
-    public override IEnumerable<Int3> Cells3D()
+    public override IEnumerable<Int3> GetVoxelSet()
     {
         var a = RadiusX;
         var b = RadiusY;

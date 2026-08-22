@@ -247,7 +247,7 @@ public sealed class Region
         {
             if (entity.Volume is null)
                 continue;
-            foreach (var cell in entity.Volume.Cells3D())
+            foreach (var cell in entity.Volume.GetVoxelSet())
             {
                 var p = entity.Transform.Position + cell.ToFloat3();
                 if (p.X < minX) minX = p.X;

@@ -77,9 +77,9 @@ public class StructureCommandTests
         var wall = session.Layout.Find(midWall)!;
         // 墙体积已分段（Composite：左段 + 右段 + 过梁）
         var composite = Assert.IsType<Composite>(wall.Volume);
-        Assert.True(composite.Cells3D().Any());
+        Assert.True(composite.GetVoxelSet().Any());
         // 洞口局部格（y<20 且 z∈{3,4}）已从墙体排除
-        Assert.DoesNotContain(composite.Cells3D(), c => c.Y < 20 && c.Z is 3 or 4);
+        Assert.DoesNotContain(composite.GetVoxelSet(), c => c.Y < 20 && c.Z is 3 or 4);
 
         // 门实体占据洞口格（is_open=true，挂宿主墙）
         var door = session.Layout.Entities.Single(e => e.Key == new Key("door"));
