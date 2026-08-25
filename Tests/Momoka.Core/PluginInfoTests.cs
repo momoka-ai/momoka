@@ -3,11 +3,18 @@ using Momoka.Core.Plugins;
 
 namespace Momoka.Core.Tests;
 
-/// <summary>manifest 解析与依赖图纯函数：解析/缺字段/重复名/未知依赖/依赖环/排序。</summary>
-public sealed class ManifestTests
+/// <summary>PluginInfo（plugin.toml 直接反序列化）与依赖图纯函数：解析/缺字段/重复名/未知依赖/依赖环/排序。</summary>
+public sealed class PluginInfoTests
 {
     private static PluginInfo Plugin(string name, params string[] dependsOn) =>
-        new(name, "1.0.0", $"{name}.Entry, Fake", dependsOn, new DirectoryInfo("."));
+        new()
+        {
+            Name = name,
+            Version = "1.0.0",
+            Entry = $"{name}.Entry, Fake",
+            DependsOn = dependsOn,
+            Location = new DirectoryInfo("."),
+        };
 
     private static HashSet<string> NoDisabled => new(StringComparer.Ordinal);
 
@@ -21,12 +28,12 @@ public sealed class ManifestTests
             dependsOn = ["ai", "sense"]
             """;
 
-        var manifest = PluginManifest.Parse(toml, "plugin.toml");
+        var info = PluginInfo.Parse(toml, "plugin.toml");
 
-        Assert.Equal("home", manifest.Name);
-        Assert.Equal("1.2.3", manifest.Version);
-        Assert.Equal("Momoka.Home.HomePlugin, Momoka.Home", manifest.Entry);
-        Assert.Equal(new[] { "ai", "sense" }, manifest.DependsOn);
+        Assert.Equal("home", info.Name);
+        Assert.Equal("1.2.3", info.Version);
+        Assert.Equal("Momoka.Home.HomePlugin, Momoka.Home", info.Entry);
+        Assert.Equal(new[] { "ai", "sense" }, info.DependsOn);
     }
 
     [Fact]
@@ -38,9 +45,26 @@ public sealed class ManifestTests
             entry = "Momoka.Home.HomePlugin, Momoka.Home"
             """;
 
-        var manifest = PluginManifest.Parse(toml, "plugin.toml");
+        var info = PluginInfo.Parse(toml, "plugin.toml");
 
-        Assert.Empty(manifest.DependsOn);
+        Assert.Empty(info.DependsOn);
+    }
+
+    [Fact]
+    public void Parse_IgnoresNonManifestKeys()
+    {
+        const string toml = """
+            name = "home"
+            version = "1.0.0"
+            entry = "Momoka.Home.HomePlugin, Momoka.Home"
+            settings = { anything = 1 }
+            """;
+
+        var info = PluginInfo.Parse(toml, "plugin.toml");
+
+        Assert.Equal("home", info.Name);
+        Assert.Equal(PluginState.Discovered, info.State);
+        Assert.Null(info.Location);
     }
 
     [Theory]
@@ -50,13 +74,13 @@ public sealed class ManifestTests
     [InlineData("name = \"\"\nversion = \"1\"\nentry = \"a.b\"\n")]
     public void Parse_MissingRequiredField_Throws(string toml)
     {
-        Assert.Throws<PluginLoadException>(() => PluginManifest.Parse(toml, "plugin.toml"));
+        Assert.Throws<PluginLoadException>(() => PluginInfo.Parse(toml, "plugin.toml"));
     }
 
     [Fact]
     public void Parse_InvalidSyntax_Throws()
     {
-        Assert.Throws<PluginLoadException>(() => PluginManifest.Parse("name = [", "plugin.toml"));
+        Assert.Throws<PluginLoadException>(() => PluginInfo.Parse("name = [", "plugin.toml"));
     }
 
     [Fact]
@@ -68,7 +92,7 @@ public sealed class ManifestTests
             entry = "a.b"
             """;
 
-        Assert.Throws<PluginLoadException>(() => PluginManifest.Parse(toml, "plugin.toml"));
+        Assert.Throws<PluginLoadException>(() => PluginInfo.Parse(toml, "plugin.toml"));
     }
 
     [Fact]

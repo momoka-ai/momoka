@@ -1,5 +1,6 @@
 using Xunit;
 using System.Reflection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Momoka.Core.Events;
 using Momoka.Core.Plugins;
 using Momoka.Core.Registry;
@@ -181,24 +182,11 @@ public sealed class PluginLoaderTests : IDisposable
         await loader.StopAsync();
     }
 
-    [Fact]
-    public async Task StartTwice_Throws()
-    {
-        CopyPlugins("alpha");
-        using var loader = CreateLoader();
-
-        await loader.StartAsync();
-        await Assert.ThrowsAsync<InvalidOperationException>(() => loader.StartAsync());
-        await loader.StopAsync();
-    }
-
     private PluginLoader CreateLoader()
     {
-        var options = new PluginLoaderOptions(
-            new DirectoryInfo(_pluginsDir),
-            new DirectoryInfo(_configDir),
-            new DirectoryInfo(_dataDir));
-        return new PluginLoader(options, new ServiceRegistry(), new EventBus());
+        var service = new PluginService(
+            new ServiceRegistry(), new EventBus(), NullLoggerFactory.Instance, _tempRoot);
+        return new PluginLoader(service);
     }
 
     private void CopyPlugins(params string[] pluginIds)

@@ -47,9 +47,9 @@ Momoka.Core/
 ├── Momoka.Core.csproj              # Microsoft.AspNetCore.App + Tomlyn（无子模块引用）
 ├── Plugins/                        # 插件子系统
 │   ├── IPlugin.cs / CorePlugin.cs
-│   ├── PluginInfo.cs / PluginState.cs
-│   ├── PluginLoader.cs / PluginLoaderOptions.cs / PluginLoadException.cs
-│   └── PluginManifest.cs           # plugin.toml 绑定 + 依赖图/排序/校验纯函数
+│   ├── PluginInfo.cs / PluginService.cs / PluginState.cs
+│   ├── PluginLoader.cs / PluginLoadException.cs
+│   └── PluginInfo.cs               # plugin.toml 直接反序列化 + 依赖图/排序/校验纯函数
 ├── Events/                         # DispatchMode / IEventBus / EventBus
 └── Registry/                       # IServiceRegistry / ServiceRegistry
 ```
@@ -76,25 +76,32 @@ public interface IPlugin
 ```csharp
 public abstract class CorePlugin : IPlugin
 {
-    public string Name { get; internal set; }        // Loader 按 manifest 回填
-    public string Version { get; internal set; }
+    public PluginInfo Info { get; }                 // 插件信息（manifest + 状态，注入时回填）
+    public string Name => Info.Name;                // 由 Info 提供
+    public string Version => Info.Version;
 
-    protected PluginService Plugin { get; }          // 宿主能力束（唯一注入点）
-    protected virtual void OnLoad() { }              // 初始化钩子
-    internal void InjectHost(PluginService service); // Loader 注入
-    internal void Load();                            // 非虚：PluginState 守卫 + OnLoad
+    protected PluginService Plugin { get; }         // 宿主能力束（唯一注入点）
+    protected virtual void OnLoad() { }             // 初始化钩子
+    internal void InjectHost(PluginInfo info, PluginService service); // Loader 注入
+    internal void Load();                           // 非虚：PluginState 守卫 + OnLoad
 }
 ```
 
 ```csharp
-public sealed class PluginService          // 宿主注入的能力束
+public sealed class PluginService
 {
-    public string Name { get; }
+    // 宿主级（DI 注入 PluginLoader）：Services / Events / LoggerFactory / 三目录
     public IServiceRegistry Services { get; }
     public IEventBus Events { get; }
-    public ILogger Logger { get; }                 // 类别 = 插件名（{Plugin: name} 前缀语义）
-    public DirectoryInfo GetPluginFolder();        // Data/Plugins/<name>/，按需即时生成
-    public FileInfo GetPluginConfig();             // Config/Plugins/<name>.toml，按需即时生成
+    public ILoggerFactory LoggerFactory { get; }
+    public DirectoryInfo PluginsDirectory { get; }   // <base>/Plugins
+    public DirectoryInfo ConfigDirectory { get; }     // <base>/Config
+    public DirectoryInfo DataDirectory { get; }       // <base>/Data
+    // 插件级（ForPlugin 派生，注入 CorePlugin）：
+    public string Name { get; }
+    public ILogger Logger { get; }                   // 类别 = 插件名（{Plugin: name} 前缀语义）
+    public DirectoryInfo GetPluginFolder();          // Data/Plugins/<name>/，按需即时生成
+    public FileInfo GetPluginConfig();               // Config/Plugins/<name>.toml，按需即时生成
 }
 ```
 
@@ -110,8 +117,8 @@ dependsOn = ["ai"]       # 可选，插件名数组，默认空
 ```
 
 - **无 `settings`、无 `enabled`**——运行态与可写内容一律不进 manifest（`enabled` 走宿主配置、设置走 `GetPluginConfig()`、数据走 `GetPluginFolder()`）。
-- 解析：Tomlyn `TomlSerializer.Deserialize<TomlTable>`；嵌入：`<EmbeddedResource Include="plugin.toml" />`；约定名 `plugin.toml`。
-- 无 manifest 的 DLL 视为**依赖库跳过**；有但解析错误 → **fail-fast**（`PluginLoadException`）。
+- 解析：Tomlyn `TomlSerializer.Deserialize<PluginInfo>` **直接反序列化到类型**（`[TomlRequired]` 必填 / `[TomlIgnore]` 运行时字段 / `[TomlPropertyName("dependsOn")]`）；嵌入：`<EmbeddedResource Include="plugin.toml" />`；约定名 `plugin.toml`。
+- 无 manifest 的 DLL 视为**依赖库跳过**；有但解析错误 / 缺必填字段 → **fail-fast**（`PluginLoadException`）。
 - 用途：Loader 在实例化**之前**完成识别、入口解析、依赖图构建、排序、校验（避免先实例化再校验）。
 
 ### 5.3 可写配置与数据目录
@@ -122,23 +129,23 @@ dependsOn = ["ai"]       # 可选，插件名数组，默认空
 | 插件设置 | `Config/Plugins/<name>.toml` | `GetPluginConfig()` 按需即时生成；后续 Configurations 提供类型化/版本化访问 |
 | 插件数据 | `Data/Plugins/<name>/` | `GetPluginFolder()` 按需即时生成；数据库/缓存等 |
 
-目录名遵循大驼峰约定（UE 风格 `Plugins` / `Config` / `Data`）。`PluginLoaderOptions`：`PluginDirectory` / `ConfigDirectory` / `DataDirectory`（默认 `<base>/Plugins`、`<base>/Config`、`<base>/Data`），目录启动时自动创建。
+目录名遵循大驼峰约定（UE 风格 `Plugins` / `Config` / `Data`）。三个路径**硬编码**于基目录（`AppContext.BaseDirectory`，可经配置 `Plugins:BaseDirectory` 覆写）之下，由 `PluginService` 持有；目录启动时自动创建。无 `PluginLoaderOptions`。
 
 ### 5.4 PluginLoader 流程
 
 **StartAsync**：
 
-1. 递归扫描 `PluginDirectory` 内 `*.dll` → `Assembly.LoadFrom`（默认 ALC）→ 读内嵌 `plugin.toml`；无 → 跳过（依赖库）；解析错误 → fail-fast
-2. 读 `config/plugins.toml` 得 `enabled` 覆盖，过滤启用插件；**重复 name → fail-fast**
+1. 递归扫描 `PluginsDirectory` 内 `*.dll` → `Assembly.LoadFrom`（默认 ALC）→ 读内嵌 `plugin.toml`；无 → 跳过（依赖库）；解析错误 → fail-fast
+2. 读 `Config/plugins.toml` 得 `enabled` 覆盖，过滤启用插件；**重复 name → fail-fast**
 3. 构建插件名依赖图：dependsOn 引用未知/禁用插件 → fail-fast；**检测环 → fail-fast**
 4. 拓扑排序（Kahn）→ Load/Start 顺序
-5. 实例化 entry（public 无参构造器）并校验为 `CorePlugin` 子类；type 不存在 / 抽象 / 非 CorePlugin → fail-fast；Name/Version 回填后与 manifest **交叉校验**，不一致 → fail-fast
-6. 构造 `PluginService`（Services/Events/插件日志器 + 数据/配置基目录）→ `InjectHost` → `Load()`（OnLoad）→ 依序 `StartAsync`
+5. 实例化 entry（public 无参构造器）并校验为 `CorePlugin` 子类；type 不存在 / 抽象 / 非 CorePlugin → fail-fast
+6. `InjectHost(Info, ForPlugin(Name))` → `Load()`（OnLoad）→ 依序 `StartAsync`
 7. **失败回滚**：Load/Start 任一失败 → 逆序 Stop 已 Started 插件（best-effort）→ 宿主 `Failed` 态抛 `PluginLoadException`（inner 原始异常；`PluginLoadException` 原样上抛保留具体信息）
 
-**StopAsync**：逆序 `StopAsync`（best-effort，异常聚合记录，不抛出）。状态机 `Discovered→Loaded→Started→Stopped/Failed`；重复 Start/Stop → `InvalidOperationException`；单次运行。
+**StopAsync**：逆序 `StopAsync`（best-effort，异常聚合记录，不抛出）。状态推进 `Discovered→Loaded→Started→Stopped/Failed` 记于 `PluginInfo.State`。加载器无内置状态机，**生命周期与主程序同步**。
 
-**实现约定**：`AssemblyResolve` 兜底探询**所有插件子目录**（跨插件引用与插件本地依赖解析）；启动打印插件图（名称/版本/依赖/顺序）；`PluginLoader` 构造器接受可选 `ILoggerFactory`（缺省 Null）便于测试。
+**实现约定**：`AssemblyResolve` 兜底探询**所有插件子目录**（跨插件引用与插件本地依赖解析）；启动打印插件图（名称/版本/依赖/顺序）；`PluginLoader` 构造器注入宿主级 `PluginService`。
 
 ### 5.5 打包约定
 
@@ -148,7 +155,7 @@ dependsOn = ["ai"]       # 可选，插件名数组，默认空
 
 ### 5.6 校验规则汇总（全部 fail-fast）
 
-manifest 解析错误 / 重复插件名 / entry 类型不存在 / entry 非 CorePlugin / Name·Version 与 manifest 不一致 / dependsOn 引用未知或禁用插件 / 依赖环 / 重复服务注册 / 重复 Start 或 Stop / Load·Start 失败（回滚后抛 `PluginLoadException`）。
+manifest 解析错误 / 缺必填字段 / 重复插件名 / entry 类型不存在 / entry 非 CorePlugin / dependsOn 引用未知或禁用插件 / 依赖环 / 重复服务注册 / 重复 Load / Load·Start 失败（回滚后抛 `PluginLoadException`）。
 
 ## 6. 服务注册表（Registry）
 

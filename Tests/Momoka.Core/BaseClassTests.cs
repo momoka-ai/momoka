@@ -46,32 +46,26 @@ public sealed class BaseClassTests : IDisposable
     {
         var registry = new ServiceRegistry();
         var bus = new EventBus();
-        var service = CreateService("test", registry, bus);
 
-        var plugin = new TestPlugin
-        {
-            Name = "test",
-            Version = "1.0.0",
-        };
-        plugin.InjectHost(service);
+        var plugin = new TestPlugin();
+        plugin.InjectHost(CreateInfo("test"), CreateService("test", registry, bus));
         plugin.Load();
 
         Assert.True(plugin.Loaded);
         Assert.Same(registry, plugin.ServicesPublic);
         Assert.Same(bus, plugin.EventsPublic);
         Assert.NotNull(plugin.LoggerPublic);
-        Assert.NotNull(plugin.Name);
-        Assert.NotNull(plugin.Version);
+        Assert.Equal("test", plugin.Name);
+        Assert.Equal("1.0.0", plugin.Version);
     }
 
     [Fact]
     public void Load_Twice_Throws()
     {
-        var registry = new ServiceRegistry();
-        var bus = new EventBus();
-
-        var plugin = new TestPlugin { Name = "test", Version = "1.0.0" };
-        plugin.InjectHost(CreateService("test", registry, bus));
+        var plugin = new TestPlugin();
+        plugin.InjectHost(
+            CreateInfo("test"),
+            CreateService("test", new ServiceRegistry(), new EventBus()));
         plugin.Load();
 
         var ex = Assert.Throws<InvalidOperationException>(() => plugin.Load());
@@ -140,20 +134,26 @@ public sealed class BaseClassTests : IDisposable
     {
         folder = new DirectoryInfo(Path.Combine(_tempRoot, "Data", "Plugins", "test"));
         config = new FileInfo(Path.Combine(_tempRoot, "Config", "Plugins", "test.toml"));
-        var plugin = new TestPlugin { Name = "test", Version = "1.0.0" };
-        plugin.InjectHost(CreateService("test", new ServiceRegistry(), new EventBus()));
+        var plugin = new TestPlugin();
+        plugin.InjectHost(
+            CreateInfo("test"),
+            CreateService("test", new ServiceRegistry(), new EventBus()));
         return plugin;
     }
 
+    private static PluginInfo CreateInfo(string name) =>
+        new()
+        {
+            Name = name,
+            Version = "1.0.0",
+            Entry = $"{name}.Entry, Fake",
+            Location = new DirectoryInfo("."),
+        };
+
     private PluginService CreateService(string name, IServiceRegistry registry, IEventBus bus)
     {
-        return new PluginService(
-            name,
-            registry,
-            bus,
-            NullLogger.Instance,
-            new DirectoryInfo(Path.Combine(_tempRoot, "Data", "Plugins")),
-            new DirectoryInfo(Path.Combine(_tempRoot, "Config", "Plugins")));
+        var host = new PluginService(registry, bus, NullLoggerFactory.Instance, _tempRoot);
+        return host.ForPlugin(name);
     }
 
     /// <summary>内联测试插件：暴露 CorePlugin 的 protected 成员供测试访问。</summary>

@@ -10,7 +10,9 @@ namespace Momoka.Core;
 
 /// <summary>
 /// 插件宿主入口：Generic Host 底座（后续换 WebApplication 底座）——
-/// 读插件目录配置 → 启动插件（扫描/排序/校验/注入）→ 打印插件图 → 运行 → 逆序停止。
+/// 启动插件（扫描/排序/校验/注入）→ 打印插件图 → 运行 → 逆序停止。
+/// 插件目录硬编码于基目录（可经配置 Plugins:BaseDirectory 覆写）下的
+/// Plugins / Config / Data。
 /// </summary>
 public static class Program
 {
@@ -21,11 +23,12 @@ public static class Program
         builder.Logging.AddConsole();
         builder.Services.AddSingleton<IServiceRegistry, ServiceRegistry>();
         builder.Services.AddSingleton<IEventBus, EventBus>();
-        builder.Services.AddSingleton(sp => new PluginLoader(
-            CreateLoaderOptions(builder.Configuration),
+        builder.Services.AddSingleton(sp => new PluginService(
             sp.GetRequiredService<IServiceRegistry>(),
             sp.GetRequiredService<IEventBus>(),
-            sp.GetRequiredService<ILoggerFactory>()));
+            sp.GetRequiredService<ILoggerFactory>(),
+            ReadBaseDirectory(builder.Configuration)));
+        builder.Services.AddSingleton(sp => new PluginLoader(sp.GetRequiredService<PluginService>()));
 
         using var host = builder.Build();
         var loader = host.Services.GetRequiredService<PluginLoader>();
@@ -41,15 +44,9 @@ public static class Program
         }
     }
 
-    private static PluginLoaderOptions CreateLoaderOptions(IConfiguration configuration)
+    private static string? ReadBaseDirectory(IConfiguration configuration)
     {
-        string baseDir = AppContext.BaseDirectory;
-        return new PluginLoaderOptions(
-            new DirectoryInfo(ResolvePath(configuration["Plugins:PluginDirectory"], Path.Combine(baseDir, "Plugins"))),
-            new DirectoryInfo(ResolvePath(configuration["Plugins:ConfigDirectory"], Path.Combine(baseDir, "Config"))),
-            new DirectoryInfo(ResolvePath(configuration["Plugins:DataDirectory"], Path.Combine(baseDir, "Data"))));
+        string? configured = configuration["Plugins:BaseDirectory"];
+        return string.IsNullOrWhiteSpace(configured) ? null : configured;
     }
-
-    private static string ResolvePath(string? configured, string fallback)
-        => string.IsNullOrWhiteSpace(configured) ? fallback : configured;
 }

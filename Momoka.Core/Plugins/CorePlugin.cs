@@ -1,20 +1,25 @@
 namespace Momoka.Core.Plugins;
 
 /// <summary>
-/// 插件抽象基类：宿主能力经单一 <see cref="PluginService"/> 注入（统一管理服务注册表 /
-/// 事件总线 / 日志器 / 数据与配置目录），插件直接经 <see cref="Plugin"/> 访问。
-/// 插件构造器须轻量无副作用；业务服务用服务定位（<c>Plugin.Services</c>）获取。
+/// 插件抽象基类：包含自身 <see cref="Info"/>（PluginInfo，含 manifest 身份与运行时状态），
+/// 宿主能力经单一 <see cref="PluginService"/> 注入（统一管理服务注册表 / 事件总线 / 日志器 /
+/// 数据与配置目录）。插件构造器须轻量无副作用；业务服务用服务定位（<c>Plugin.Services</c>）获取。
 /// </summary>
 public abstract class CorePlugin : IPlugin
 {
+    private PluginInfo? _info;
     private PluginService? _pluginService;
     private PluginState _state = PluginState.Discovered;
 
-    /// <inheritdoc />
-    public string Name { get; internal set; } = null!;
+    /// <summary>插件信息（manifest + 运行时状态，注入时回填）。未注入前访问抛 <see cref="InvalidOperationException"/>。</summary>
+    public PluginInfo Info => _info
+        ?? throw new InvalidOperationException("Plugin host has not been injected yet.");
 
     /// <inheritdoc />
-    public string Version { get; internal set; } = null!;
+    public string Name => Info.Name;
+
+    /// <inheritdoc />
+    public string Version => Info.Version;
 
     /// <summary>宿主能力束（注入）。未注入前访问抛 <see cref="InvalidOperationException"/>。</summary>
     protected PluginService Plugin => _pluginService
@@ -26,11 +31,13 @@ public abstract class CorePlugin : IPlugin
     }
 
     /// <summary>
-    /// 宿主注入能力束。仅供 <see cref="PluginLoader"/> 调用。
+    /// 宿主注入插件信息与能力束。仅供 <see cref="PluginLoader"/> 调用。
     /// </summary>
-    internal void InjectHost(PluginService pluginService)
+    internal void InjectHost(PluginInfo info, PluginService pluginService)
     {
+        ArgumentNullException.ThrowIfNull(info);
         ArgumentNullException.ThrowIfNull(pluginService);
+        _info = info;
         _pluginService = pluginService;
     }
 
