@@ -74,13 +74,13 @@ public sealed class PluginInfoTests
     [InlineData("name = \"\"\nversion = \"1\"\nentry = \"a.b\"\n")]
     public void Parse_MissingRequiredField_Throws(string toml)
     {
-        Assert.Throws<PluginLoadException>(() => PluginInfo.Parse(toml, "plugin.toml"));
+        Assert.Throws<InvalidInfoException>(() => PluginInfo.Parse(toml, "plugin.toml"));
     }
 
     [Fact]
     public void Parse_InvalidSyntax_Throws()
     {
-        Assert.Throws<PluginLoadException>(() => PluginInfo.Parse("name = [", "plugin.toml"));
+        Assert.Throws<InvalidInfoException>(() => PluginInfo.Parse("name = [", "plugin.toml"));
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public sealed class PluginInfoTests
             entry = "a.b"
             """;
 
-        Assert.Throws<PluginLoadException>(() => PluginInfo.Parse(toml, "plugin.toml"));
+        Assert.Throws<InvalidInfoException>(() => PluginInfo.Parse(toml, "plugin.toml"));
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public sealed class PluginInfoTests
     {
         var plugins = new[] { Plugin("alpha"), Plugin("alpha") };
 
-        var ex = Assert.Throws<PluginLoadException>(() => PluginDependencyGraph.Order(plugins, NoDisabled));
+        var ex = Assert.Throws<InvalidPluginException>(() => PluginDependencyGraph.Order(plugins, NoDisabled));
         Assert.Contains("Duplicate", ex.Message);
     }
 
@@ -124,7 +124,7 @@ public sealed class PluginInfoTests
     {
         var plugins = new[] { Plugin("beta", "missing") };
 
-        var ex = Assert.Throws<PluginLoadException>(() => PluginDependencyGraph.Order(plugins, NoDisabled));
+        var ex = Assert.Throws<UnknownDependencyException>(() => PluginDependencyGraph.Order(plugins, NoDisabled));
         Assert.Contains("unknown plugin 'missing'", ex.Message);
     }
 
@@ -133,7 +133,7 @@ public sealed class PluginInfoTests
     {
         var plugins = new[] { Plugin("alpha", "beta"), Plugin("beta", "alpha") };
 
-        var ex = Assert.Throws<PluginLoadException>(() => PluginDependencyGraph.Order(plugins, NoDisabled));
+        var ex = Assert.Throws<InvalidPluginException>(() => PluginDependencyGraph.Order(plugins, NoDisabled));
         Assert.Contains("Cyclic", ex.Message);
     }
 
@@ -142,7 +142,7 @@ public sealed class PluginInfoTests
     {
         var plugins = new[] { Plugin("alpha", "alpha") };
 
-        Assert.Throws<PluginLoadException>(() => PluginDependencyGraph.Order(plugins, NoDisabled));
+        Assert.Throws<InvalidPluginException>(() => PluginDependencyGraph.Order(plugins, NoDisabled));
     }
 
     [Fact]
@@ -162,7 +162,7 @@ public sealed class PluginInfoTests
         var plugins = new[] { Plugin("alpha"), Plugin("beta", "alpha") };
         var disabled = new HashSet<string>(StringComparer.Ordinal) { "alpha" };
 
-        var ex = Assert.Throws<PluginLoadException>(() => PluginDependencyGraph.Order(plugins, disabled));
+        var ex = Assert.Throws<UnknownDependencyException>(() => PluginDependencyGraph.Order(plugins, disabled));
         Assert.Contains("disabled plugin 'alpha'", ex.Message);
     }
 }

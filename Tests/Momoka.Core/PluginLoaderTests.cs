@@ -104,7 +104,7 @@ public sealed class PluginLoaderTests : IDisposable
         CopyPlugins("alpha", "beta");
         using var loader = CreateLoader();
 
-        var ex = await Assert.ThrowsAsync<PluginLoadException>(() => loader.StartAsync());
+        var ex = await Assert.ThrowsAsync<UnknownDependencyException>(() => loader.StartAsync());
         Assert.Contains("disabled plugin", ex.Message);
     }
 
@@ -114,7 +114,7 @@ public sealed class PluginLoaderTests : IDisposable
         CopyPlugins("bad");
         using var loader = CreateLoader();
 
-        var ex = await Assert.ThrowsAsync<PluginLoadException>(() => loader.StartAsync());
+        var ex = await Assert.ThrowsAsync<InvalidPluginException>(() => loader.StartAsync());
         Assert.Contains("was not found", ex.Message);
     }
 
@@ -124,7 +124,7 @@ public sealed class PluginLoaderTests : IDisposable
         CopyPlugins("plain");
         using var loader = CreateLoader();
 
-        var ex = await Assert.ThrowsAsync<PluginLoadException>(() => loader.StartAsync());
+        var ex = await Assert.ThrowsAsync<InvalidPluginException>(() => loader.StartAsync());
         Assert.Contains("CorePlugin", ex.Message);
     }
 
@@ -135,7 +135,8 @@ public sealed class PluginLoaderTests : IDisposable
         SetStaticBool(ExplodePath(), "ThrowOnLoad", true);
         using var loader = CreateLoader();
 
-        await Assert.ThrowsAsync<PluginLoadException>(() => loader.StartAsync());
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => loader.StartAsync());
+        Assert.Contains("simulated load failure", ex.Message);
 
         Assert.Contains(loader.Plugins, p => p.Name == "alpha" && p.State == PluginState.Stopped);
         Assert.Contains(loader.Plugins, p => p.Name == "explode" && p.State == PluginState.Failed);
@@ -148,7 +149,8 @@ public sealed class PluginLoaderTests : IDisposable
         SetStaticBool(ExplodePath(), "ThrowOnStart", true);
         using var loader = CreateLoader();
 
-        await Assert.ThrowsAsync<PluginLoadException>(() => loader.StartAsync());
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => loader.StartAsync());
+        Assert.Contains("simulated start failure", ex.Message);
 
         Assert.Contains(loader.Plugins, p => p.Name == "alpha" && p.State == PluginState.Stopped);
         Assert.Contains(loader.Plugins, p => p.Name == "explode" && p.State == PluginState.Failed);

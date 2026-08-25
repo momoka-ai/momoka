@@ -8,8 +8,8 @@ namespace Momoka.Core.Plugins;
 /// <summary>
 /// 插件宿主加载器：扫描插件目录 → 反序列化内嵌 plugin.toml → 过滤（Config/plugins.toml 的
 /// enabled）→ 依赖校验/拓扑排序 → 实例化/校验 entry → 注入/加载/依序启动；
-/// Load 或 Start 任一失败 → 逆序 Stop 已 Started 插件（best-effort）→ 抛
-/// <see cref="PluginLoadException"/>。生命周期与主程序同步，无内置状态机。
+/// Load 或 Start 任一失败 → 逆序 Stop 已 Started 插件（best-effort）→ 原样上抛。
+/// 生命周期与主程序同步，无内置状态机。
 /// </summary>
 public sealed partial class PluginLoader : IDisposable
 {
@@ -18,7 +18,6 @@ public sealed partial class PluginLoader : IDisposable
     private readonly object _gate = new();
     private readonly List<PluginInfo> _pluginInfos = new();
     private readonly List<CorePlugin> _plugins = new();
-    private readonly List<DirectoryInfo> _probeDirectories = new();
 
     /// <summary>创建插件加载器（注入宿主级 <see cref="PluginService"/>）。</summary>
     public PluginLoader(PluginService pluginService)
@@ -60,7 +59,11 @@ public sealed partial class PluginLoader : IDisposable
             _pluginInfos.AddRange(discovered.Select(d => d.Info));
         }
 
-        LogPluginGraph(ordered);
+        foreach (var info in ordered)
+        {
+            string deps = info.DependsOn.Count == 0 ? "none" : string.Join(", ", info.DependsOn);
+            LogPluginGraphEntry(info.Name, info.Version, deps);
+        }
 
         var startedPlugins = new List<CorePlugin>();
         PluginInfo? failingPlugin = null;
@@ -83,7 +86,7 @@ public sealed partial class PluginLoader : IDisposable
                 LogPluginStarted(pluginInfo.Name);
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             if (failingPlugin is not null
                 && failingPlugin.State is not (PluginState.Started or PluginState.Stopped))
@@ -92,13 +95,7 @@ public sealed partial class PluginLoader : IDisposable
             }
 
             await RollbackAsync(startedPlugins).ConfigureAwait(false);
-            if (ex is PluginLoadException)
-            {
-                throw;
-            }
-
-            throw new PluginLoadException(
-                "Plugin host failed to start; started plugins have been rolled back.", ex);
+            throw;
         }
     }
 
@@ -156,15 +153,6 @@ public sealed partial class PluginLoader : IDisposable
         }
     }
 
-    private void LogPluginGraph(IReadOnlyList<PluginInfo> ordered)
-    {
-        foreach (var info in ordered)
-        {
-            string deps = info.DependsOn.Count == 0 ? "none" : string.Join(", ", info.DependsOn);
-            LogPluginGraphEntry(info.Name, info.Version, deps);
-        }
-    }
-
     private HashSet<string> ReadDisabledPluginNames()
     {
         var configFile = new FileInfo(Path.Combine(_pluginService.ConfigDirectory.FullName, "plugins.toml"));
@@ -180,7 +168,7 @@ public sealed partial class PluginLoader : IDisposable
         }
         catch (Exception ex)
         {
-            throw new PluginLoadException($"Failed to read host plugin config '{configFile.FullName}'.", ex);
+            throw new InvalidOperationException($"Failed to read host plugin config '{configFile.FullName}'.", ex);
         }
 
         TomlTable table;
@@ -188,11 +176,11 @@ public sealed partial class PluginLoader : IDisposable
         {
             table = TomlSerializer.Deserialize<TomlTable>(
                     text, new TomlSerializerOptions { SourceName = configFile.FullName })
-                ?? throw new PluginLoadException($"Failed to parse host plugin config '{configFile.FullName}'.");
+                ?? throw new InvalidOperationException($"Failed to parse host plugin config '{configFile.FullName}'.");
         }
         catch (TomlException ex)
         {
-            throw new PluginLoadException($"Failed to parse host plugin config '{configFile.FullName}'.", ex);
+            throw new InvalidOperationException($"Failed to parse host plugin config '{configFile.FullName}'.", ex);
         }
 
         var disabled = new HashSet<string>(StringComparer.Ordinal);
@@ -213,7 +201,6 @@ public sealed partial class PluginLoader : IDisposable
     private List<DiscoveredPlugin> DiscoverManifests()
     {
         var discovered = new List<DiscoveredPlugin>();
-        var probeDirectories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var dllFile in _pluginService.PluginsDirectory.EnumerateFiles("*.dll", SearchOption.AllDirectories))
         {
@@ -224,28 +211,17 @@ public sealed partial class PluginLoader : IDisposable
             }
             catch (Exception ex)
             {
-                throw new PluginLoadException($"Failed to load assembly '{dllFile.FullName}'.", ex);
+                throw new InvalidPluginException($"Failed to load assembly '{dllFile.FullName}'.", ex);
             }
 
             PluginInfo? info = TryReadManifest(assembly);
             if (info is null)
             {
-                continue;
-            }
-
-            if (dllFile.DirectoryName is not null)
-            {
-                probeDirectories.Add(dllFile.DirectoryName);
+                continue; // 无 plugin.toml 的 DLL 视为依赖库
             }
 
             info.Location = dllFile.Directory ?? _pluginService.PluginsDirectory;
             discovered.Add(new DiscoveredPlugin(info, assembly));
-        }
-
-        lock (_gate)
-        {
-            _probeDirectories.Clear();
-            _probeDirectories.AddRange(probeDirectories.Select(d => new DirectoryInfo(d)));
         }
 
         return discovered;
@@ -260,25 +236,20 @@ public sealed partial class PluginLoader : IDisposable
             return null;
         }
 
-        string toml;
-        using (var stream = assembly.GetManifestResourceStream(resourceName))
+        using var stream = assembly.GetManifestResourceStream(resourceName);
+        if (stream is null)
         {
-            if (stream is null)
-            {
-                return null;
-            }
-
-            using var reader = new StreamReader(stream);
-            toml = reader.ReadToEnd();
+            throw new InvalidInfoException($"Plugin manifest '{resourceName}' is missing or unreadable.");
         }
 
-        return PluginInfo.Parse(toml, resourceName);
+        using var reader = new StreamReader(stream);
+        return PluginInfo.Parse(reader.ReadToEnd(), resourceName);
     }
 
     private CorePlugin CreateAndLoad(DiscoveredPlugin discovered)
     {
         PluginInfo info = discovered.Info;
-        Type type = ResolveEntryType(discovered);
+        Type type = ResolveEntryType(info, discovered.Assembly);
 
         CorePlugin instance;
         try
@@ -287,28 +258,18 @@ public sealed partial class PluginLoader : IDisposable
         }
         catch (Exception ex)
         {
-            throw new PluginLoadException(
+            throw new InvalidPluginException(
                 $"Plugin '{info.Name}' entry type '{type.FullName}' could not be instantiated.", ex);
         }
 
         instance.InjectHost(info, _pluginService.ForPlugin(info.Name));
-
-        try
-        {
-            instance.Load();
-        }
-        catch (Exception ex)
-        {
-            throw new PluginLoadException($"Plugin '{info.Name}' failed to load.", ex);
-        }
-
+        instance.Load();
         info.State = PluginState.Loaded;
         return instance;
     }
 
-    private static Type ResolveEntryType(DiscoveredPlugin discovered)
+    private static Type ResolveEntryType(PluginInfo info, Assembly assembly)
     {
-        PluginInfo info = discovered.Info;
         string entryTypeName = info.Entry;
         int comma = entryTypeName.IndexOf(',');
         if (comma >= 0)
@@ -318,29 +279,29 @@ public sealed partial class PluginLoader : IDisposable
 
         if (string.IsNullOrWhiteSpace(entryTypeName))
         {
-            throw new PluginLoadException($"Plugin '{info.Name}' manifest 'entry' is not a valid type name.");
+            throw new InvalidPluginException($"Plugin '{info.Name}' manifest 'entry' is not a valid type name.");
         }
 
         Type? type;
         try
         {
-            type = discovered.Assembly.GetType(entryTypeName);
+            type = assembly.GetType(entryTypeName);
         }
         catch (Exception ex)
         {
-            throw new PluginLoadException(
+            throw new InvalidPluginException(
                 $"Plugin '{info.Name}' entry type '{entryTypeName}' could not be resolved.", ex);
         }
 
         if (type is null)
         {
-            throw new PluginLoadException(
-                $"Plugin '{info.Name}' entry type '{entryTypeName}' was not found in assembly '{discovered.Assembly.GetName().Name}'.");
+            throw new InvalidPluginException(
+                $"Plugin '{info.Name}' entry type '{entryTypeName}' was not found in assembly '{assembly.GetName().Name}'.");
         }
 
         if (type.IsAbstract || type.IsInterface || !typeof(CorePlugin).IsAssignableFrom(type))
         {
-            throw new PluginLoadException(
+            throw new InvalidPluginException(
                 $"Plugin '{info.Name}' entry type '{entryTypeName}' must be a concrete {nameof(CorePlugin)} subclass.");
         }
 
@@ -355,31 +316,23 @@ public sealed partial class PluginLoader : IDisposable
             return null;
         }
 
-        List<DirectoryInfo> probeDirectories;
-        lock (_gate)
+        FileInfo? candidate = _pluginService.PluginsDirectory
+            .EnumerateFiles(assemblyName + ".dll", SearchOption.AllDirectories)
+            .FirstOrDefault();
+        if (candidate is null)
         {
-            probeDirectories = _probeDirectories.ToList();
+            return null;
         }
 
-        foreach (var directory in probeDirectories)
+        try
         {
-            string candidate = Path.Combine(directory.FullName, assemblyName + ".dll");
-            if (!File.Exists(candidate))
-            {
-                continue;
-            }
-
-            try
-            {
-                return Assembly.LoadFrom(candidate);
-            }
-            catch (Exception ex)
-            {
-                LogDependencyLoadFailed(ex, assemblyName, candidate);
-            }
+            return Assembly.LoadFrom(candidate.FullName);
         }
-
-        return null;
+        catch (Exception ex)
+        {
+            LogDependencyLoadFailed(ex, assemblyName, candidate.FullName);
+            return null;
+        }
     }
 
     [LoggerMessage(

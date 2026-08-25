@@ -35,7 +35,7 @@ public sealed class PluginInfo
 
     /// <summary>
     /// 解析 plugin.toml 文本为 <see cref="PluginInfo"/>（Tomlyn 直接反序列化到类型）；
-    /// 语法错误 / 缺必填字段 / 类型不符抛 <see cref="PluginLoadException"/>（fail-fast）。
+    /// 语法错误 / 缺必填字段 / 类型不符抛 <see cref="InvalidInfoException"/>（fail-fast）。
     /// </summary>
     public static PluginInfo Parse(string toml, string sourceName)
     {
@@ -47,18 +47,18 @@ public sealed class PluginInfo
         {
             info = TomlSerializer.Deserialize<PluginInfo>(
                     toml, new TomlSerializerOptions { SourceName = sourceName, PropertyNameCaseInsensitive = true })
-                ?? throw new PluginLoadException($"Failed to parse plugin manifest '{sourceName}'.");
+                ?? throw new InvalidInfoException($"Failed to parse plugin manifest '{sourceName}'.");
         }
         catch (TomlException ex)
         {
-            throw new PluginLoadException($"Failed to parse plugin manifest '{sourceName}'.", ex);
+            throw new InvalidInfoException($"Failed to parse plugin manifest '{sourceName}'.", ex);
         }
 
         if (string.IsNullOrWhiteSpace(info.Name)
             || string.IsNullOrWhiteSpace(info.Version)
             || string.IsNullOrWhiteSpace(info.Entry))
         {
-            throw new PluginLoadException($"Plugin manifest '{sourceName}' is missing required field.");
+            throw new InvalidInfoException($"Plugin manifest '{sourceName}' is missing required field.");
         }
 
         return info;
@@ -67,13 +67,14 @@ public sealed class PluginInfo
 
 /// <summary>
 /// 插件依赖图纯函数：校验（重复名 / 未知依赖 / 禁用依赖 / 依赖环）与拓扑排序。
-/// 排序结果即 Load / Start 顺序；校验失败全部 fail-fast（抛 <see cref="PluginLoadException"/>）。
+/// 排序结果即 Load / Start 顺序；校验失败全部 fail-fast（抛
+/// <see cref="InvalidPluginException"/> / <see cref="UnknownDependencyException"/>）。
 /// </summary>
 internal static class PluginDependencyGraph
 {
     /// <summary>
     /// 过滤禁用插件后按依赖拓扑排序。禁用插件被跳过（其依赖不参与校验）；
-    /// 启用插件的 dependsOn 引用未知或禁用插件 → fail-fast。
+    /// 启用插件的 dependsOn 引用未知或禁用插件 → <see cref="UnknownDependencyException"/>。
     /// </summary>
     public static List<PluginInfo> Order(IEnumerable<PluginInfo> plugins, IReadOnlySet<string> disabledNames)
     {
@@ -85,7 +86,7 @@ internal static class PluginDependencyGraph
         {
             if (!byName.TryAdd(plugin.Name, plugin))
             {
-                throw new PluginLoadException($"Duplicate plugin name '{plugin.Name}'.");
+                throw new InvalidPluginException($"Duplicate plugin name '{plugin.Name}'.");
             }
         }
 
@@ -101,13 +102,13 @@ internal static class PluginDependencyGraph
             {
                 if (!byName.ContainsKey(dependency))
                 {
-                    throw new PluginLoadException(
+                    throw new UnknownDependencyException(
                         $"Plugin '{plugin.Name}' depends on unknown plugin '{dependency}'.");
                 }
 
                 if (disabledNames.Contains(dependency))
                 {
-                    throw new PluginLoadException(
+                    throw new UnknownDependencyException(
                         $"Plugin '{plugin.Name}' depends on disabled plugin '{dependency}'.");
                 }
             }
@@ -161,7 +162,7 @@ internal static class PluginDependencyGraph
 
         if (sorted.Count != enabled.Count)
         {
-            throw new PluginLoadException("Cyclic dependency detected among plugins.");
+            throw new InvalidPluginException("Cyclic dependency detected among plugins.");
         }
 
         return sorted;

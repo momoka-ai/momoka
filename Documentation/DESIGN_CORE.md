@@ -48,7 +48,7 @@ Momoka.Core/
 ├── Plugins/                        # 插件子系统
 │   ├── IPlugin.cs / CorePlugin.cs
 │   ├── PluginInfo.cs / PluginService.cs / PluginState.cs
-│   ├── PluginLoader.cs / PluginLoadException.cs
+│   ├── PluginLoader.cs / PluginExceptions.cs
 │   └── PluginInfo.cs               # plugin.toml 直接反序列化 + 依赖图/排序/校验纯函数
 ├── Events/                         # DispatchMode / IEventBus / EventBus
 └── Registry/                       # IServiceRegistry / ServiceRegistry
@@ -118,7 +118,7 @@ dependsOn = ["ai"]       # 可选，插件名数组，默认空
 
 - **无 `settings`、无 `enabled`**——运行态与可写内容一律不进 manifest（`enabled` 走宿主配置、设置走 `GetPluginConfig()`、数据走 `GetPluginFolder()`）。
 - 解析：Tomlyn `TomlSerializer.Deserialize<PluginInfo>` **直接反序列化到类型**（`[TomlRequired]` 必填 / `[TomlIgnore]` 运行时字段 / `[TomlPropertyName("dependsOn")]`）；嵌入：`<EmbeddedResource Include="plugin.toml" />`；约定名 `plugin.toml`。
-- 无 manifest 的 DLL 视为**依赖库跳过**；有但解析错误 / 缺必填字段 → **fail-fast**（`PluginLoadException`）。
+- 无 manifest 的 DLL 视为**依赖库跳过**；有但解析错误 / 缺必填字段 → **fail-fast**（`InvalidInfoException`）。
 - 用途：Loader 在实例化**之前**完成识别、入口解析、依赖图构建、排序、校验（避免先实例化再校验）。
 
 ### 5.3 可写配置与数据目录
@@ -141,7 +141,7 @@ dependsOn = ["ai"]       # 可选，插件名数组，默认空
 4. 拓扑排序（Kahn）→ Load/Start 顺序
 5. 实例化 entry（public 无参构造器）并校验为 `CorePlugin` 子类；type 不存在 / 抽象 / 非 CorePlugin → fail-fast
 6. `InjectHost(Info, ForPlugin(Name))` → `Load()`（OnLoad）→ 依序 `StartAsync`
-7. **失败回滚**：Load/Start 任一失败 → 逆序 Stop 已 Started 插件（best-effort）→ 宿主 `Failed` 态抛 `PluginLoadException`（inner 原始异常；`PluginLoadException` 原样上抛保留具体信息）
+7. **失败回滚**：Load/Start 任一失败 → 逆序 Stop 已 Started 插件（best-effort）→ 原样上抛（校验类抛 `InvalidPluginException` / `InvalidInfoException` / `UnknownDependencyException`；运行期异常不包装）
 
 **StopAsync**：逆序 `StopAsync`（best-effort，异常聚合记录，不抛出）。状态推进 `Discovered→Loaded→Started→Stopped/Failed` 记于 `PluginInfo.State`。加载器无内置状态机，**生命周期与主程序同步**。
 
@@ -153,9 +153,15 @@ dependsOn = ["ai"]       # 可选，插件名数组，默认空
 - 仓库根 `Directory.Build.targets`：IsPlugin 项目拷贝 `$(OutDir)` 产物到 `Plugins/<PluginId>/`（子目录避免同名依赖冲突）
 - `Plugins/` / `Config/` / `Data/` 目录入 `.gitignore`（Config 含可写运行时配置）
 
-### 5.6 校验规则汇总（全部 fail-fast）
+### 5.6 校验规则与异常（全部 fail-fast）
 
-manifest 解析错误 / 缺必填字段 / 重复插件名 / entry 类型不存在 / entry 非 CorePlugin / dependsOn 引用未知或禁用插件 / 依赖环 / 重复服务注册 / 重复 Load / Load·Start 失败（回滚后抛 `PluginLoadException`）。
+| 异常 | 场景 |
+|------|------|
+| `InvalidPluginException` | 插件结构不合法：DLL 不可加载 / entry 类型不存在、非 `CorePlugin` 或无法实例化 / 重复插件名 / 依赖环 / 签名校验失败 |
+| `InvalidInfoException` | 插件信息不合法：plugin.toml 缺失或不可读 / TOML 格式非法 / 缺关键字段 / 类型不符 |
+| `UnknownDependencyException` | dependsOn 引用未知或当前不可用（禁用）的插件 |
+
+另：重复服务注册、重复 `Load` 抛 `InvalidOperationException`；运行期 Load/Start 失败不包装，原样上抛。
 
 ## 6. 服务注册表（Registry）
 
@@ -223,7 +229,7 @@ Core 网关设施 · **单路由**（通用操作路由）：一个通用路由�
 ## 11. 设计原则
 
 - **SOLID**：接口 + 抽象基类 + 单一职责子模块
-- **fail-fast**：校验一律前置、错误信息清晰、`PluginLoadException` 统一出口
+- **fail-fast**：校验一律前置、错误信息清晰、细分异常（InvalidPlugin / InvalidInfo / UnknownDependency）统一出口
 - **零业务语义**：Core 只提供机制，语义全在模块
 - **服务定位 vs DI 分工**：宿主设施走 DI，插件服务走 Registry
 - **编译期统一**：同解决方案编译期类型安全；Roslyn 运行期编译 / 第三方动态加载 / 热插拔推迟（待插件生态需要时再评估）
