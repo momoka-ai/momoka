@@ -27,31 +27,29 @@
 | Momoka.Ui | 🔴 <10% | 仅 GDExtension 入口骨架 |
 | Momoka.Stage | 🔴 <5% | 仅目录与占位 README |
 | Momoka.Voice | 🟡 ~20% | HTTP 骨架完成；TTS 引擎未集成 |
-| Momoka.Ai / Core / Sense | 🔴 <10% | 仅程序入口骨架 |
+| Momoka.Core | 🟡 ~25% | 插件宿主内核一期完成（Plugins + Events + Registry，54 测试全绿）；Configurations/Commands/其余设施与 Ui 网关后续 |
+| Momoka.Ai / Sense | 🔴 <10% | 仅程序入口骨架 |
 | 测试 / CI | 🟢 ~80% | 383 个测试全绿；CI = dotnet 构建+测试 / Godot 检查 / Python ruff |
 
 ---
 
 ## 架构决策（2026-08）
 
-> 系统拓扑与模块通信的既定决策，落地时参照。**当前主做 Home 模块；Core 仅建了 SignalR 网关存根（`HomeService`/`IHomeClient`），宿主待 Phase 5。**
+> 系统拓扑与模块通信的既定决策，落地时参照。**当前主做 Home 模块；Core 一期已落地插件宿主内核（Plugins + Events + Registry，见 Phase 5）。**
 
-- **Momoka.Core = 插件宿主**：通过 `AssemblyLoadContext` 加载模块（每次启动加载 / 运行期热插拔），反射发现 `IMomokaModule`
-- **Core 只认识通用自描述契约** `IMomokaModule`（能力表 / 事件 / 依赖 / 生命周期）；**不内置任何模块能力契约**
-- **模块契约由模块自声明**：每个模块的源码包含 `contract.cs`（接口 + DTO + 事件），Core 零编写；模块对外只暴露门面接口（如 `IHomeService`），内部实现 `internal`
-- **类型安全分层**：
-  - 全源码模块（官方 / 核心）：Core 启动时 Roslyn 一次编译「全部契约 + 全部模块」→ 类型统一、编译期安全；编译结果缓存 DLL（源码哈希未变直接加载缓存，变了重编译）
-  - 仅契约源码模块（第三方）：Roslyn 编译契约做参考类型 + 加载时逐成员签名校验 + 动态适配器转发 → 调用时安全（fail-fast，拒绝加载不合规模块）
-  - 黑盒二进制模块：拒绝加载（或退回 schema 校验）
-- **类型身份陷阱规避**：不"重编译接口制造类型副本"；契约程序集与模块在同一编译批次内统一
-- **通信 = 本地函数调用**：模块间通过服务接口直接调用，事件走内存发布/订阅；无序列化、无状态副本
-- **Core 零业务状态**：只维护「服务注册表 + 事件订阅表」两张表，数据全在模块内
-- **Security 内嵌 Core**：危险命令（燃气/门锁/高压）拦截逻辑与 Core 强耦合，不作为可裁剪插件
-- **Agentic 独立模块**：LLM 推理/意图/工具调用/记忆独立于 Core（或并入 Momoka.Ai）；Core 不依赖 LLM
-- **Ui = 唯一远程边界**：Godot C# .NET 客户端经 **SignalR**（强类型 `Hub<IHomeClient>`）连 Core 的 Ui 网关（网关本身也按模块注册）；客户端调用端强类型安全用自写门面（`nameof` 对齐 Hub 方法名）
+- **Momoka.Core = 插件宿主 + 核心能力库**（2026-08-24）：`IPlugin`（`CorePlugin` 子类）契约 + `PluginLoader` 生命周期；**编译期统一**（同解决方案），推迟 Roslyn 运行期编译 / 第三方动态加载 / `AssemblyLoadContext` 热插拔
+- **Core 只认识通用契约** `IPlugin`（Name/Version + Start/Stop）；**不内置任何模块能力契约**；插件能力经服务注册表 / 事件订阅表 Load 时自填充（**能力不声明**）
+- **模块契约由模块自声明**：接口 + DTO + 事件类型定义在模块内，Core 零编写；模块对外只暴露门面接口（如 `IHomeService`）
+- **类型安全（2026-08-24 修订）**：编译期统一——模块与 Core 同解决方案编译，类型一致；第三方动态加载（Roslyn 契约编译 / 二进制校验）推迟至插件生态需要时再评估
+- **类型身份陷阱规避**：不"重编译接口制造类型副本"；同解决方案内编译期统一，动态加载路径不引入契约类型副本
+- **通信 = 本地函数调用**：插件间经服务注册表直接调用（服务定位），事件走内存发布/订阅（`EventBus`）；无序列化、无状态副本
+- **Core 零业务语义（2026-08-24 修订）**：设施可持有不透明数据（注册表/状态表/调度表/档案），**不解释业务语义**；语义全在模块
+- **Security**：机制在 Core（`ISecurityGuard`），规则由插件注册（2026-08-24 修订，取代「Security 内嵌 Core 不可裁剪」）
+- **Agentic 独立模块**：LLM 推理/意图/工具调用/记忆归 Momoka.Ai；Core 不依赖 LLM
+- **Ui = 唯一远程边界**：Godot C# .NET 客户端经 Core 的 Ui 网关连接（网关设施位于 Core，下一期：单路由通用操作路由 + 连接身份/角色/token 鉴权）
 - **Sense 数据不属 Home**：心率/体温/心情等用户状态仅供 LLM 推理决策，不写入 Home 孪生模型
-- **Home = 纯模型库**：零外部依赖、零网络，作为模块由 Core 托管
-- **互操作 = SignalR（2026-08-20 定案）**：强类型 `Hub<IHomeClient>`（方式一：单 Hub + 组合客户端契约 + 服务端操作服务类）；**不手写传输中间件**——`Envelope` / `FrameRegistry` / 帧事件 / `ISubscriber` 已全部删除；跨语言非目标（C# 主语言，Ui = Godot C# .NET）
+- **Home = 纯模型库**：零外部依赖、零网络；将实现 `CorePlugin`（`HomePlugin`）作为插件由 Core 托管（适配器下一期，当前 Plugins/ 由测试插件占位）
+- **互操作（2026-08-20 定案 + 2026-08-24 修订）**：SignalR 强类型——**不手写传输中间件**定案不变（中间件不放进插件；网关设施属 Core 宿主设施）；「单 Hub + 组合客户端契约」读法由 **Core 网关设施 · 单路由（通用操作路由）** 取代，下一期实现；跨语言非目标（C# 主语言，Ui = Godot C# .NET）
 - **C# 主语言（2026-08-20 定案）**：Godot C# .NET 版可用——GDExtension（C++）插件与 C# 共存；Live2D 用自写 Cubism GDExtension 胶水（Phase 4），不阻塞选型
 - **撤销 = 客户端本地（2026-08-20 定案）**：历史归客户端（记录操作参数 + 重发逆操作请求，逐个回滚、无合并），服务器不记录不重放；`CommandHistory` / `CoalescedCommand` 已删除
 - **命令层 → 模型操作（方向）**：叶子命令（validate-then-apply）是模型操作的中间形态；GraphLine3D 落地时溶解为 `LevelData` / `LevelLayout` 方法（如 `BuildWall → SetVolume`）
@@ -155,17 +153,20 @@
 - [ ] 与终端建立 SignalR 通信（Godot C# .NET 客户端）
 - [ ] 终端侧配套（Momoka.Ui）：Live2D 渲染（Cubism → GDExtension）、情绪参数 → 动画映射、VAD、ASR（whisper.cpp）、摄像头 / 人脸检测（ONNX）、音频 I/O（miniaudio）
 
-## Phase 5 — Momoka.Core 中枢 / 插件宿主（未开始 · 在 Home 完成后实施）
+## Phase 5 — Momoka.Core 中枢 / 插件宿主（进行中）
 
-> 依据「架构决策（2026-08）」：Core 是插件宿主 + 服务注册 + 事件总线，不再承担 Agent 逻辑（Agentic 独立）。
+> 依据「架构决策（2026-08）」：Core 是插件宿主 + 核心能力库 + 服务注册 + 事件总线，不再承担 Agent 逻辑（Agentic 独立归 Ai）。2026-08-24 一期已落地插件内核（Plugins + Events + Registry）。
 
-- [ ] `IMomokaModule` 契约 + `ModuleHost`：`AssemblyLoadContext` 加载模块 DLL，反射发现，生命周期管理（启动 / 停止 / 热插拔）
-- [ ] 共享 Contracts 层：能力接口（`IHomeService` / `IAgenticService` / ...）+ 消息 DTO + 事件类型
-- [ ] 服务注册表 + 事件订阅表（内存发布 / 订阅，本地函数调用）
-- [ ] Ui 网关：**SignalR**（`HomeService : Hub<IHomeClient>`，按模块注册；`HomeService` / `IHomeClient` 存根已建在 `Momoka.Core/Gateway`），函数实现 + 宿主接线（`AddSignalR` + `MapHub`）待 Phase 5
-- [ ] Security 内嵌：危险命令拦截（规则评估）
+- [x] **插件内核（2026-08-24）**：`IPlugin` / `CorePlugin` 契约 + `plugin.toml` 只读 manifest + `PluginLoader`（扫描/拓扑排序/校验/生命周期/AssemblyResolve 兜底/失败回滚）+ 服务注册表 + 事件总线；测试 54 个全绿，详见 `Documentation/DESIGN_CORE.md`
+- [ ] 共享 Contracts 层：能力接口（`IHomeService` / `IAgenticService` / ...）+ 消息 DTO + 事件类型（由模块自声明，Core 零编写）
+- [ ] 生产适配器：`HomePlugin` / `AiPlugin` / `SensePlugin` 实现 `CorePlugin` 由宿主托管（当前 Plugins/ 由测试插件占位）
+- [ ] Configurations：统一配置 + 版本迁移（契约已定义，见 DESIGN_CORE §8）
+- [ ] Commands：指令注册/解析/调用，内置 `help`/`plugins`/`status`（契约已定义，见 DESIGN_CORE §8）
+- [ ] Scheduling / Notifications / Profiles / State / Security：逐期实现（契约已定义，见 DESIGN_CORE §8；Security 机制在 Core、规则由插件注册）
+- [ ] Ui 网关：Core 网关设施 · 单路由（通用操作路由）+ 连接身份/角色/token 鉴权；宿主接线（`AddSignalR` + `MapHub`）
 - [ ] 会话 / 身份 / 鉴权：Ui 连接鉴权、用户会话
 - [ ] Agentic 模块（或并入 Ai）：意图识别（Ollama）、快慢通道、Agent 推理循环、工具集成（MCP 风格）、知识记忆（LiteDB）
+- [ ] 第三方动态加载（Roslyn / ALC 热插拔）：待插件生态需要时再评估（推迟）
 
 ## Phase 6 — Momoka.Sense 后台感知层（未开始 · AI 伴侣阶段）
 
