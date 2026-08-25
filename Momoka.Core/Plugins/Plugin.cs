@@ -9,7 +9,7 @@ namespace Momoka.Core.Plugins;
 /// <see cref="OnEnable"/>（注册服务/订阅事件）；DisableAsync 调用 <see cref="OnDisable"/>
 /// （清理由插件自行完成）。插件构造器须轻量无副作用。
 /// </summary>
-public abstract class Plugin : IPlugin
+public abstract class Plugin
 {
     private PluginInfo? _info;
     private PluginService? _host;
@@ -19,10 +19,10 @@ public abstract class Plugin : IPlugin
     public PluginInfo Info => _info
         ?? throw new InvalidOperationException("Plugin host has not been injected yet.");
 
-    /// <inheritdoc />
+    /// <summary>插件名（全局唯一，与 manifest.name 一致）。</summary>
     public string Name => Info.Name;
 
-    /// <inheritdoc />
+    /// <summary>插件版本（与 manifest.version 一致）。</summary>
     public string Version => Info.Version;
 
     /// <summary>生命周期状态（由 <see cref="PluginLoader"/> 推进）。</summary>

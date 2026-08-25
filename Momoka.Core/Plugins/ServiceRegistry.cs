@@ -15,7 +15,7 @@ public sealed class ServiceRegistry
     public void Register<TService>(
         TService instance,
         ServicePriority priority = ServicePriority.Normal,
-        IPlugin? plugin = null)
+        Plugin? plugin = null)
         where TService : class
     {
         ArgumentNullException.ThrowIfNull(instance);
@@ -27,7 +27,7 @@ public sealed class ServiceRegistry
         Type serviceType,
         object instance,
         ServicePriority priority = ServicePriority.Normal,
-        IPlugin? plugin = null)
+        Plugin? plugin = null)
     {
         ArgumentNullException.ThrowIfNull(serviceType);
         ArgumentNullException.ThrowIfNull(instance);
@@ -109,7 +109,7 @@ public sealed class ServiceRegistry
     }
 
     /// <summary>枚举指定来源插件注册的全部服务。</summary>
-    public IEnumerable<ServiceSource<TService>> GetRegistrations<TService>(IPlugin plugin)
+    public IEnumerable<ServiceSource<TService>> GetRegistrations<TService>(Plugin plugin)
         where TService : class
     {
         ArgumentNullException.ThrowIfNull(plugin);
@@ -152,7 +152,7 @@ public sealed class ServiceRegistry
 
     private sealed class ServiceEntry
     {
-        public ServiceEntry(Type serviceType, object instance, ServicePriority priority, IPlugin? plugin, long sequence)
+        public ServiceEntry(Type serviceType, object instance, ServicePriority priority, Plugin? plugin, long sequence)
         {
             ServiceType = serviceType;
             Instance = instance;
@@ -167,7 +167,7 @@ public sealed class ServiceRegistry
 
         public ServicePriority Priority { get; }
 
-        public IPlugin? Plugin { get; }
+        public Plugin? Plugin { get; }
 
         public long Sequence { get; }
     }

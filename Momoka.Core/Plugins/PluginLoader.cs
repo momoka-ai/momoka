@@ -240,7 +240,7 @@ public sealed partial class PluginLoader : IDisposable
     }
 
     /// <summary>按名称查找已加载插件；未找到返回 null。</summary>
-    public IPlugin? GetPlugin(string name)
+    public Plugin? GetPlugin(string name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         lock (_gate)
@@ -250,7 +250,7 @@ public sealed partial class PluginLoader : IDisposable
     }
 
     /// <summary>该插件依赖的已加载插件（硬前置 + 可解析的软前置）。</summary>
-    public IReadOnlyCollection<IPlugin> GetPluginDependencies(IPlugin plugin)
+    public IReadOnlyCollection<Plugin> GetPluginDependencies(Plugin plugin)
     {
         ArgumentNullException.ThrowIfNull(plugin);
         lock (_gate)
@@ -258,7 +258,7 @@ public sealed partial class PluginLoader : IDisposable
             Plugin? source = _plugins.FirstOrDefault(p => ReferenceEquals(p, plugin) || p.Name == plugin.Name);
             if (source is null)
             {
-                return Array.Empty<IPlugin>();
+                return Array.Empty<Plugin>();
             }
 
             var byName = _plugins.ToDictionary(p => p.Name, StringComparer.Ordinal);
@@ -271,7 +271,7 @@ public sealed partial class PluginLoader : IDisposable
     }
 
     /// <summary>依赖该插件的全部已加载插件（反向依赖）。</summary>
-    public IReadOnlyCollection<IPlugin> GetPluginDependents(IPlugin plugin)
+    public IReadOnlyCollection<Plugin> GetPluginDependents(Plugin plugin)
     {
         ArgumentNullException.ThrowIfNull(plugin);
         lock (_gate)
@@ -479,4 +479,7 @@ public sealed partial class PluginLoader : IDisposable
         Level = LogLevel.Error,
         Message = "Failed to load dependency '{AssemblyName}' from '{Path}'.")]
     private partial void LogDependencyLoadFailed(Exception exception, string assemblyName, string path);
+
+    /// <summary>已加载插件文件的记录（文件级元数据，与 <see cref="Plugin"/> 实例一一对应）。</summary>
+    public sealed record PluginAssembly(string Path, PluginInfo Info, Assembly Assembly);
 }

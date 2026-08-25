@@ -6,7 +6,7 @@
 
 Core 提供一组**通用机制**（机制在 Core、业务语义在模块），支撑「AI 协助/接管用户生活」：
 
-- **Plugins**：插件契约（`IPlugin` / `Plugin` 基类，生命周期 `OnEnable` / `OnDisable`）+ `plugin.toml` 直接反序列化到 `PluginInfo` + 加载/启停/依赖图（`PluginLoader`）
+- **Plugins**：插件契约（`Plugin` 基类，生命周期 `OnEnable` / `OnDisable`）+ `plugin.toml` 直接反序列化到 `PluginInfo` + 加载/启停/依赖图（`PluginLoader`）
 - **Events**：事件中心 `EventHub`（订阅级 Sequential / Parallel / Background，异常隔离）
 - **Registry**：插件间服务发现表（同类型多注册、优先级/来源插件追踪）
 - **Configurations / Commands / Scheduling / Notifications / Profiles / State / Security**：后续迭代（契约见 `Documentation/DESIGN_CORE.md` §8）

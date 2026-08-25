@@ -6,7 +6,7 @@ Momoka.Core 是**插件宿主 + 核心能力库**：提供一组**通用机制**
 
 | 子系统 | 职责 | 状态 |
 |--------|------|------|
-| **Plugins** | 插件契约（IPlugin / Plugin 基类，OnEnable/OnDisable）、manifest、加载/启停/依赖图（PluginLoader） | ✅ 本期完成 |
+| **Plugins** | 插件契约（`Plugin` 基类，OnEnable/OnDisable）、manifest、加载/启停/依赖图（PluginLoader） | ✅ 本期完成 |
 | **Events** | 事件中心（EventHub）：订阅表分桶、快照分发、订阅级三种分发模式、异常隔离 | ✅ 本期完成 |
 | **Registry** | 插件间服务发现表：同类型多注册、优先级/来源插件追踪 | ✅ 本期完成 |
 | **Configurations** | 统一配置 + 版本迁移（默认<文件<环境<覆写） | 📋 后续迭代（契约见 §8） |
@@ -27,7 +27,7 @@ Momoka.Core 是**插件宿主 + 核心能力库**：提供一组**通用机制**
 
 | 词 | 含义 | 形态 |
 |----|------|------|
-| **插件 Plugin** | 运行期扩展单元 | `Plugin` 子类（实现 `IPlugin` 只读契约），经 manifest 声明 |
+| **插件 Plugin** | 运行期扩展单元 | `Plugin` 子类，经 manifest 声明 |
 | **模块 Module** | 静态子工程 | 如 `Momoka.Home` / `Momoka.Ai` / `Momoka.Sense`，实现插件契约即被宿主托管 |
 | **服务 Service** | 能力接口 | 插件注册进服务注册表，供其它插件解析调用 |
 
@@ -46,9 +46,8 @@ Momoka.Core/
 ├── Program.cs                      # 宿主入口：Generic Host + PluginLoader
 ├── Momoka.Core.csproj              # Microsoft.AspNetCore.App + Tomlyn（无子模块引用）
 ├── Plugins/                        # 插件子系统
-│   ├── IPlugin.cs / Plugin.cs / PluginAssembly.cs
-│   ├── PluginInfo.cs / PluginState.cs / PluginService.cs
-│   ├── PluginLoader.cs / PluginExceptions.cs
+│   ├── Plugin.cs / PluginState.cs / PluginService.cs
+│   ├── PluginInfo.cs / PluginLoader.cs / PluginExceptions.cs
 │   ├── ServiceRegistry.cs / ServiceSource.cs / ServicePriority.cs
 │   └── PluginInfo.cs               # plugin.toml 直接反序列化 + 依赖图/排序/校验纯函数
 ├── Events/                         # DispatchMode / EventHub
@@ -56,23 +55,15 @@ Momoka.Core/
 
 ## 5. 插件系统
 
-### 5.1 契约：`IPlugin` + `Plugin` 基类
+### 5.1 契约：`Plugin` 基类
 
-```csharp
-public interface IPlugin
-{
-    string Name { get; }                      // 与 manifest.name 交叉校验（宿主回填）
-    string Version { get; }                   // 与 manifest.version 交叉校验（宿主回填）
-}
-```
-
-- `IPlugin` 为**只读契约**；**宿主能力经共享 `PluginService` 注入 `Plugin` 基类**（统一管理服务注册表 / 事件中心 / 日志工厂 / 插件根目录，全插件共用同一实例）；插件专属能力（日志器 / 插件目录 / 配置）由 `Plugin` 按自身名称派生，插件代码访问 `Host.Services` / `Host.Events` / `Logger` / `GetPluginFolder()`。
+- **宿主能力经共享 `PluginService` 注入 `Plugin` 基类**（统一管理服务注册表 / 事件中心 / 日志工厂 / 插件根目录，全插件共用同一实例）；插件专属能力（日志器 / 插件目录 / 配置）由 `Plugin` 按自身名称派生，插件代码访问 `Host.Services` / `Host.Events` / `Logger` / `GetPluginFolder()`。
 - 插件构造器须**轻量无副作用**；业务服务用**服务定位**（`Host.Services.Resolve<T>()`，缺失报清晰错误）。
 - 预留扩展点（**不加空方法**）：`RegisterOperation<TReq,TRes>`（网关设施期）、指令/CLI 注册（Commands 期）。
 - 守卫：`Host` 注入前访问抛 `InvalidOperationException`。
 
 ```csharp
-public abstract class Plugin : IPlugin
+public abstract class Plugin
 {
     public PluginInfo Info { get; }                 // 插件信息（manifest，注入时回填）
     public string Name => Info.Name;                // 由 Info 提供
@@ -179,19 +170,19 @@ Plugins/                          # 唯一运行时根目录（<base>/Plugins，
 ```csharp
 public sealed class ServiceRegistry
 {
-    void Register<TService>(TService instance, ServicePriority priority = Normal, IPlugin? plugin = null);
-    void Register(Type serviceType, object instance, ServicePriority priority = Normal, IPlugin? plugin = null);
+    void Register<TService>(TService instance, ServicePriority priority = Normal, Plugin? plugin = null);
+    void Register(Type serviceType, object instance, ServicePriority priority = Normal, Plugin? plugin = null);
     TService Resolve<TService>() where TService : class;   // 最高优先级；缺失抛 InvalidOperationException（fail-fast）
     TService? TryResolve<TService>() where TService : class;
     TService? GetService<TService>() where TService : class;   // = TryResolve
     bool TryGetService<TService>(out TService? value) where TService : class;
     IEnumerable<ServiceSource<TService>> GetRegistrations<TService>();                  // 全部（优先级降序）
     IEnumerable<ServiceSource<TService>> GetRegistrations<TService>(Type serviceType);  // 指定注册键
-    IEnumerable<ServiceSource<TService>> GetRegistrations<TService>(IPlugin plugin);    // 指定来源插件
+    IEnumerable<ServiceSource<TService>> GetRegistrations<TService>(Plugin plugin);    // 指定来源插件
     bool IsRegistered(Type serviceType);
 }
 
-public readonly record struct ServiceSource<T>(Type Service, T Source, ServicePriority Priority, IPlugin? Plugin);
+public readonly record struct ServiceSource<T>(Type Service, T Source, ServicePriority Priority, Plugin? Plugin);
 public enum ServicePriority { Highest, High, Normal, Low, Lowest }
 ```
 

@@ -5,5 +5,5 @@ public readonly record struct ServiceSource<T>(
     Type Service,
     T Source,
     ServicePriority Priority,
-    IPlugin? Plugin
+    Plugin? Plugin
 );

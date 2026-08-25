@@ -37,8 +37,8 @@
 
 > 系统拓扑与模块通信的既定决策，落地时参照。**当前主做 Home 模块；Core 一期已落地插件宿主内核（Plugins + Events + Registry，见 Phase 5）。**
 
-- **Momoka.Core = 插件宿主 + 核心能力库**（2026-08-24）：`IPlugin` / `Plugin` 子类契约 + `PluginLoader` 生命周期（Load/EnableAsync/DisableAsync）；**编译期统一**（同解决方案），推迟 Roslyn 运行期编译 / 第三方动态加载 / `AssemblyLoadContext` 热插拔
-- **Core 只认识通用契约** `IPlugin`（Name/Version + Start/Stop）；**不内置任何模块能力契约**；插件能力经服务注册表 / 事件订阅表 Load 时自填充（**能力不声明**）
+- **Momoka.Core = 插件宿主 + 核心能力库**（2026-08-24）：`Plugin` 子类契约 + `PluginLoader` 生命周期（Load/EnableAsync/DisableAsync）；**编译期统一**（同解决方案），推迟 Roslyn 运行期编译 / 第三方动态加载 / `AssemblyLoadContext` 热插拔
+- **Core 只认识通用契约** `Plugin` 基类（Name/Version + OnEnable/OnDisable）；**不内置任何模块能力契约**；插件能力经服务注册表 / 事件订阅表启用时自填充（**能力不声明**）
 - **模块契约由模块自声明**：接口 + DTO + 事件类型定义在模块内，Core 零编写；模块对外只暴露门面接口（如 `IHomeService`）
 - **类型安全（2026-08-24 修订）**：编译期统一——模块与 Core 同解决方案编译，类型一致；第三方动态加载（Roslyn 契约编译 / 二进制校验）推迟至插件生态需要时再评估
 - **类型身份陷阱规避**：不"重编译接口制造类型副本"；同解决方案内编译期统一，动态加载路径不引入契约类型副本
@@ -157,7 +157,7 @@
 
 > 依据「架构决策（2026-08）」：Core 是插件宿主 + 核心能力库 + 服务注册 + 事件总线，不再承担 Agent 逻辑（Agentic 独立归 Ai）。2026-08-24 一期已落地插件内核（Plugins + Events + Registry）。
 
-- [x] **插件内核（2026-08-24）**：`IPlugin` / `Plugin` 契约 + `plugin.toml` 只读 manifest + `PluginLoader`（扫描/拓扑排序/校验/生命周期/AssemblyResolve 兜底/失败回滚）+ 服务注册表 + 事件总线；测试 54 个全绿，详见 `Documentation/DESIGN_CORE.md`
+- [x] **插件内核（2026-08-24）**：`Plugin` 契约 + `plugin.toml` 只读 manifest + `PluginLoader`（扫描/拓扑排序/校验/生命周期/AssemblyResolve 兜底/失败回滚）+ 服务注册表 + 事件总线；测试 54 个全绿，详见 `Documentation/DESIGN_CORE.md`
 - [ ] 共享 Contracts 层：能力接口（`IHomeService` / `IAgenticService` / ...）+ 消息 DTO + 事件类型（由模块自声明，Core 零编写）
 - [ ] 生产适配器：`HomePlugin` / `AiPlugin` / `SensePlugin` 实现 `Plugin` 由宿主托管（当前 Plugins/ 由测试插件占位）
 - [ ] Configurations：统一配置 + 版本迁移（契约已定义，见 DESIGN_CORE §8）

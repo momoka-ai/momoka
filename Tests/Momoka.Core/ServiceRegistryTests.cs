@@ -18,13 +18,8 @@ public sealed class ServiceRegistryTests
     {
     }
 
-    private sealed class FakePlugin : IPlugin
+    private sealed class FakePlugin : Plugin
     {
-        public FakePlugin(string name) => Name = name;
-
-        public string Name { get; }
-
-        public string Version => "1.0.0";
     }
 
     [Fact]
@@ -151,8 +146,8 @@ public sealed class ServiceRegistryTests
     public void GetRegistrations_ByPlugin_ReturnsOnlyThatPluginsServices()
     {
         var registry = new ServiceRegistry();
-        var alpha = new FakePlugin("alpha");
-        var beta = new FakePlugin("beta");
+        var alpha = new FakePlugin();
+        var beta = new FakePlugin();
         var alphaService = new FooService();
         var betaService = new FooService();
 
