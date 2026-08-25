@@ -7,9 +7,27 @@ namespace Momoka.Core.Plugins;
 /// </summary>
 public abstract class CorePlugin : IPlugin
 {
+    /// <summary>插件生命周期状态机：Discovered → Loaded → Started → Stopped / Failed。</summary>
+    public enum PluginState
+    {
+        /// <summary>已从程序集发现（manifest 已解析）。</summary>
+        Discovered = 0,
+
+        /// <summary>已实例化并 Load（<c>OnLoad</c> 已运行）。</summary>
+        Loaded = 1,
+
+        /// <summary>已 <c>StartAsync</c>。</summary>
+        Started = 2,
+
+        /// <summary>已 <c>StopAsync</c>。</summary>
+        Stopped = 3,
+
+        /// <summary>生命周期失败（启动失败回滚或停止失败）。</summary>
+        Failed = 4,
+    }
+
     private PluginInfo? _info;
     private PluginService? _pluginService;
-    private PluginState _state = PluginState.Discovered;
 
     /// <summary>插件信息（manifest + 运行时状态，注入时回填）。未注入前访问抛 <see cref="InvalidOperationException"/>。</summary>
     public PluginInfo Info => _info
@@ -43,17 +61,17 @@ public abstract class CorePlugin : IPlugin
 
     /// <summary>
     /// 加载插件（非虚）：重复 Load 抛 <see cref="InvalidOperationException"/>（以
-    /// <see cref="PluginState"/> 守卫），随后调用 <see cref="OnLoad"/>。
+    /// <see cref="Info"/> 上的 <see cref="PluginState"/> 守卫），随后调用 <see cref="OnLoad"/>。
     /// 仅供 <see cref="PluginLoader"/> 调用。
     /// </summary>
     internal void Load()
     {
-        if (_state != PluginState.Discovered)
+        if (Info.State != PluginState.Discovered)
         {
             throw new InvalidOperationException($"Plugin '{Name}' has already been loaded.");
         }
 
-        _state = PluginState.Loaded;
+        Info.State = PluginState.Loaded;
         OnLoad();
     }
 

@@ -61,7 +61,7 @@ public sealed partial class PluginLoader : IDisposable
 
         foreach (var info in ordered)
         {
-            string deps = info.DependsOn.Count == 0 ? "none" : string.Join(", ", info.DependsOn);
+            string deps = info.Dependency.Count == 0 ? "none" : string.Join(", ", info.Dependency);
             LogPluginGraphEntry(info.Name, info.Version, deps);
         }
 
@@ -81,7 +81,7 @@ public sealed partial class PluginLoader : IDisposable
                 }
 
                 await instance.StartAsync(cancellationToken).ConfigureAwait(false);
-                pluginInfo.State = PluginState.Started;
+                pluginInfo.State = CorePlugin.PluginState.Started;
                 startedPlugins.Add(instance);
                 LogPluginStarted(pluginInfo.Name);
             }
@@ -89,9 +89,9 @@ public sealed partial class PluginLoader : IDisposable
         catch (Exception)
         {
             if (failingPlugin is not null
-                && failingPlugin.State is not (PluginState.Started or PluginState.Stopped))
+                && failingPlugin.State is not (CorePlugin.PluginState.Started or CorePlugin.PluginState.Stopped))
             {
-                failingPlugin.State = PluginState.Failed;
+                failingPlugin.State = CorePlugin.PluginState.Failed;
             }
 
             await RollbackAsync(startedPlugins).ConfigureAwait(false);
@@ -112,7 +112,7 @@ public sealed partial class PluginLoader : IDisposable
 
         foreach (var plugin in ((IEnumerable<CorePlugin>)snapshot).Reverse())
         {
-            if (plugin.Info.State != PluginState.Started)
+            if (plugin.Info.State != CorePlugin.PluginState.Started)
             {
                 continue;
             }
@@ -120,12 +120,12 @@ public sealed partial class PluginLoader : IDisposable
             try
             {
                 await plugin.StopAsync(cancellationToken).ConfigureAwait(false);
-                plugin.Info.State = PluginState.Stopped;
+                plugin.Info.State = CorePlugin.PluginState.Stopped;
                 LogPluginStopped(plugin.Info.Name);
             }
             catch (Exception ex)
             {
-                plugin.Info.State = PluginState.Failed;
+                plugin.Info.State = CorePlugin.PluginState.Failed;
                 LogPluginStopFailed(ex, plugin.Info.Name);
             }
         }
@@ -144,11 +144,11 @@ public sealed partial class PluginLoader : IDisposable
             try
             {
                 await plugin.StopAsync(CancellationToken.None).ConfigureAwait(false);
-                plugin.Info.State = PluginState.Stopped;
+                plugin.Info.State = CorePlugin.PluginState.Stopped;
             }
             catch
             {
-                plugin.Info.State = PluginState.Failed;
+                plugin.Info.State = CorePlugin.PluginState.Failed;
             }
         }
     }
@@ -220,8 +220,7 @@ public sealed partial class PluginLoader : IDisposable
                 continue; // 无 plugin.toml 的 DLL 视为依赖库
             }
 
-            info.Location = dllFile.Directory ?? _pluginService.PluginsDirectory;
-            discovered.Add(new DiscoveredPlugin(info, assembly));
+                        discovered.Add(new DiscoveredPlugin(info, assembly));
         }
 
         return discovered;
@@ -249,7 +248,7 @@ public sealed partial class PluginLoader : IDisposable
     private CorePlugin CreateAndLoad(DiscoveredPlugin discovered)
     {
         PluginInfo info = discovered.Info;
-        Type type = ResolveEntryType(info, discovered.Assembly);
+        Type type = ResolveMainType(info, discovered.Assembly);
 
         CorePlugin instance;
         try
@@ -259,50 +258,49 @@ public sealed partial class PluginLoader : IDisposable
         catch (Exception ex)
         {
             throw new InvalidPluginException(
-                $"Plugin '{info.Name}' entry type '{type.FullName}' could not be instantiated.", ex);
+                $"Plugin '{info.Name}' main type '{type.FullName}' could not be instantiated.", ex);
         }
 
         instance.InjectHost(info, _pluginService.ForPlugin(info.Name));
         instance.Load();
-        info.State = PluginState.Loaded;
         return instance;
     }
 
-    private static Type ResolveEntryType(PluginInfo info, Assembly assembly)
+    private static Type ResolveMainType(PluginInfo info, Assembly assembly)
     {
-        string entryTypeName = info.Entry;
-        int comma = entryTypeName.IndexOf(',');
+        string mainTypeName = info.Main;
+        int comma = mainTypeName.IndexOf(',');
         if (comma >= 0)
         {
-            entryTypeName = entryTypeName[..comma].Trim();
+            mainTypeName = mainTypeName[..comma].Trim();
         }
 
-        if (string.IsNullOrWhiteSpace(entryTypeName))
+        if (string.IsNullOrWhiteSpace(mainTypeName))
         {
-            throw new InvalidPluginException($"Plugin '{info.Name}' manifest 'entry' is not a valid type name.");
+            throw new InvalidPluginException($"Plugin '{info.Name}' manifest 'main' is not a valid type name.");
         }
 
         Type? type;
         try
         {
-            type = assembly.GetType(entryTypeName);
+            type = assembly.GetType(mainTypeName);
         }
         catch (Exception ex)
         {
             throw new InvalidPluginException(
-                $"Plugin '{info.Name}' entry type '{entryTypeName}' could not be resolved.", ex);
+                $"Plugin '{info.Name}' main type '{mainTypeName}' could not be resolved.", ex);
         }
 
         if (type is null)
         {
             throw new InvalidPluginException(
-                $"Plugin '{info.Name}' entry type '{entryTypeName}' was not found in assembly '{assembly.GetName().Name}'.");
+                $"Plugin '{info.Name}' main type '{mainTypeName}' was not found in assembly '{assembly.GetName().Name}'.");
         }
 
         if (type.IsAbstract || type.IsInterface || !typeof(CorePlugin).IsAssignableFrom(type))
         {
             throw new InvalidPluginException(
-                $"Plugin '{info.Name}' entry type '{entryTypeName}' must be a concrete {nameof(CorePlugin)} subclass.");
+                $"Plugin '{info.Name}' main type '{mainTypeName}' must be a concrete {nameof(CorePlugin)} subclass.");
         }
 
         return type;

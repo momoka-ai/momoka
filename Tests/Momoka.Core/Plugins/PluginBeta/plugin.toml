@@ -1,4 +1,4 @@
 name = "beta"
 version = "2.0.0"
-entry = "Momoka.Core.Tests.Plugins.Beta.BetaPlugin, PluginBeta"
-dependsOn = ["alpha"]
+main = "Momoka.Core.Tests.Plugins.Beta.BetaPlugin, PluginBeta"
+dependency = ["alpha"]

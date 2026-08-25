@@ -91,8 +91,8 @@ public sealed class PluginLoaderTests : IDisposable
 
         await loader.StartAsync();
 
-        Assert.Contains(loader.Plugins, p => p.Name == "alpha" && p.State == PluginState.Discovered);
-        Assert.DoesNotContain(loader.Plugins, p => p.State == PluginState.Started);
+        Assert.Contains(loader.Plugins, p => p.Name == "alpha" && p.State == CorePlugin.PluginState.Discovered);
+        Assert.DoesNotContain(loader.Plugins, p => p.State == CorePlugin.PluginState.Started);
         await loader.StopAsync();
     }
 
@@ -138,8 +138,8 @@ public sealed class PluginLoaderTests : IDisposable
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => loader.StartAsync());
         Assert.Contains("simulated load failure", ex.Message);
 
-        Assert.Contains(loader.Plugins, p => p.Name == "alpha" && p.State == PluginState.Stopped);
-        Assert.Contains(loader.Plugins, p => p.Name == "explode" && p.State == PluginState.Failed);
+        Assert.Contains(loader.Plugins, p => p.Name == "alpha" && p.State == CorePlugin.PluginState.Stopped);
+        Assert.Contains(loader.Plugins, p => p.Name == "explode" && p.State == CorePlugin.PluginState.Failed);
     }
 
     [Fact]
@@ -152,8 +152,8 @@ public sealed class PluginLoaderTests : IDisposable
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => loader.StartAsync());
         Assert.Contains("simulated start failure", ex.Message);
 
-        Assert.Contains(loader.Plugins, p => p.Name == "alpha" && p.State == PluginState.Stopped);
-        Assert.Contains(loader.Plugins, p => p.Name == "explode" && p.State == PluginState.Failed);
+        Assert.Contains(loader.Plugins, p => p.Name == "alpha" && p.State == CorePlugin.PluginState.Stopped);
+        Assert.Contains(loader.Plugins, p => p.Name == "explode" && p.State == CorePlugin.PluginState.Failed);
     }
 
     [Fact]

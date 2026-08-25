@@ -1,4 +1,4 @@
 name = "explode"
 version = "1.0.0"
-entry = "Momoka.Core.Tests.Plugins.Explode.ExplodePlugin, PluginExplode"
-dependsOn = ["alpha"]
+main = "Momoka.Core.Tests.Plugins.Explode.ExplodePlugin, PluginExplode"
+dependency = ["alpha"]

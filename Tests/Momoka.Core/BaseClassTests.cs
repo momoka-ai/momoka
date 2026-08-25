@@ -146,8 +146,7 @@ public sealed class BaseClassTests : IDisposable
         {
             Name = name,
             Version = "1.0.0",
-            Entry = $"{name}.Entry, Fake",
-            Location = new DirectoryInfo("."),
+            Main = $"{name}.Entry, Fake",
         };
 
     private PluginService CreateService(string name, IServiceRegistry registry, IEventBus bus)
