@@ -1,9 +1,9 @@
 using Xunit;
-using Momoka.Core.Registry;
+using Momoka.Core.Plugins;
 
 namespace Momoka.Core.Tests;
 
-/// <summary>服务注册表：注册/解析/缺失/类型校验/重复注册/并发冒烟。</summary>
+/// <summary>服务注册表（富 API）：注册/优先级解析/多注册枚举（按类型·按插件）/缺失/类型校验/并发冒烟。</summary>
 public sealed class ServiceRegistryTests
 {
     private interface IFooService
@@ -16,6 +16,19 @@ public sealed class ServiceRegistryTests
 
     private sealed class FooService : IFooService
     {
+    }
+
+    private sealed class FakePlugin : IPlugin
+    {
+        public FakePlugin(string name) => Name = name;
+
+        public string Name { get; }
+
+        public string Version => "1.0.0";
+
+        public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     [Fact]
@@ -41,6 +54,32 @@ public sealed class ServiceRegistryTests
     }
 
     [Fact]
+    public void Resolve_HighestPriority_Wins()
+    {
+        var registry = new ServiceRegistry();
+        var normal = new FooService();
+        var highest = new FooService();
+
+        registry.Register<IFooService>(normal, ServicePriority.Normal);
+        registry.Register<IFooService>(highest, ServicePriority.Highest);
+
+        Assert.Same(highest, registry.Resolve<IFooService>());
+    }
+
+    [Fact]
+    public void Resolve_SamePriority_FirstRegisteredWins()
+    {
+        var registry = new ServiceRegistry();
+        var first = new FooService();
+        var second = new FooService();
+
+        registry.Register<IFooService>(first);
+        registry.Register<IFooService>(second);
+
+        Assert.Same(first, registry.Resolve<IFooService>());
+    }
+
+    [Fact]
     public void TryResolve_Missing_ReturnsNull()
     {
         var registry = new ServiceRegistry();
@@ -58,6 +97,22 @@ public sealed class ServiceRegistryTests
     }
 
     [Fact]
+    public void GetService_TryGetService_ReturnHighestPriority()
+    {
+        var registry = new ServiceRegistry();
+        var high = new FooService();
+        registry.Register<IFooService>(new FooService(), ServicePriority.Low);
+        registry.Register<IFooService>(high, ServicePriority.High);
+
+        Assert.Same(high, registry.GetService<IFooService>());
+        Assert.True(registry.TryGetService<IFooService>(out var value));
+        Assert.Same(high, value);
+
+        Assert.Null(registry.GetService<IBarService>());
+        Assert.False(registry.TryGetService<IBarService>(out _));
+    }
+
+    [Fact]
     public void Register_InstanceNotAssignable_ThrowsArgumentException()
     {
         var registry = new ServiceRegistry();
@@ -66,12 +121,61 @@ public sealed class ServiceRegistryTests
     }
 
     [Fact]
-    public void Register_Duplicate_ThrowsInvalidOperationException()
+    public void GetRegistrations_ReturnsAll_OrderedByPriority()
+    {
+        var registry = new ServiceRegistry();
+        var normal = new FooService();
+        var high = new FooService();
+
+        registry.Register<IFooService>(normal, ServicePriority.Normal);
+        registry.Register<IFooService>(high, ServicePriority.High);
+
+        var registrations = registry.GetRegistrations<IFooService>().ToList();
+
+        Assert.Equal(2, registrations.Count);
+        Assert.Same(high, registrations[0].Source);
+        Assert.Same(normal, registrations[1].Source);
+        Assert.Equal(ServicePriority.High, registrations[0].Priority);
+    }
+
+    [Fact]
+    public void GetRegistrations_ByRuntimeType_ReturnsMatchingEntries()
+    {
+        var registry = new ServiceRegistry();
+        registry.Register(typeof(FooService), new FooService());
+        registry.Register(typeof(IFooService), new FooService());
+
+        var registrations = registry.GetRegistrations<IFooService>(typeof(FooService)).ToList();
+
+        Assert.Single(registrations);
+        Assert.Equal(typeof(FooService), registrations[0].Service);
+    }
+
+    [Fact]
+    public void GetRegistrations_ByPlugin_ReturnsOnlyThatPluginsServices()
+    {
+        var registry = new ServiceRegistry();
+        var alpha = new FakePlugin("alpha");
+        var beta = new FakePlugin("beta");
+        var alphaService = new FooService();
+        var betaService = new FooService();
+
+        registry.Register<IFooService>(alphaService, plugin: alpha);
+        registry.Register<IFooService>(betaService, plugin: beta);
+
+        var alphaRegistrations = registry.GetRegistrations<IFooService>(alpha).ToList();
+
+        Assert.Single(alphaRegistrations);
+        Assert.Same(alphaService, alphaRegistrations[0].Source);
+        Assert.Same(alpha, alphaRegistrations[0].Plugin);
+    }
+
+    [Fact]
+    public void GetRegistrations_UnknownType_IsEmpty()
     {
         var registry = new ServiceRegistry();
 
-        registry.Register<IFooService>(new FooService());
-        Assert.Throws<InvalidOperationException>(() => registry.Register<IFooService>(new FooService()));
+        Assert.Empty(registry.GetRegistrations<IFooService>());
     }
 
     [Fact]
@@ -104,14 +208,7 @@ public sealed class ServiceRegistryTests
             .Select(_ => Task.Run(async () =>
             {
                 await start.Task;
-                try
-                {
-                    registry.Register<IFooService>(new FooService());
-                }
-                catch (InvalidOperationException)
-                {
-                    // 并发下仅一个能注册成功，其余 fail-fast
-                }
+                registry.Register<IFooService>(new FooService());
             }))
             .ToList();
 
@@ -119,5 +216,6 @@ public sealed class ServiceRegistryTests
         await Task.WhenAll(tasks);
 
         Assert.True(registry.IsRegistered(typeof(IFooService)));
+        Assert.NotNull(registry.Resolve<IFooService>());
     }
 }

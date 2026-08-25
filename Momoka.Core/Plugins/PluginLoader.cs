@@ -1,13 +1,11 @@
 using System.Reflection;
 using Microsoft.Extensions.Logging;
-using Tomlyn;
-using Tomlyn.Model;
 
 namespace Momoka.Core.Plugins;
 
 /// <summary>
-/// 插件宿主加载器：扫描插件目录 → 反序列化内嵌 plugin.toml → 过滤（Config/plugins.toml 的
-/// enabled）→ 依赖校验/拓扑排序 → 实例化/校验 entry → 注入/加载/依序启动；
+/// 插件宿主加载器：扫描插件目录 → 反序列化内嵌 plugin.toml → 过滤（<see cref="StartAsync"/>
+/// 传入的禁用名单）→ 依赖校验/拓扑排序 → 实例化/校验 main → 注入/加载/依序启动；
 /// Load 或 Start 任一失败 → 逆序 Stop 已 Started 插件（best-effort）→ 原样上抛。
 /// 生命周期与主程序同步，无内置状态机。
 /// </summary>
@@ -38,17 +36,18 @@ public sealed partial class PluginLoader : IDisposable
         }
     }
 
-    /// <summary>扫描、排序并启动全部启用插件。</summary>
-    public async Task StartAsync(CancellationToken cancellationToken = default)
+    /// <summary>扫描、排序并启动全部启用插件。禁用名单由宿主（Core 配置）经
+    /// <paramref name="disabledNames"/> 传入。</summary>
+    public async Task StartAsync(
+        IReadOnlySet<string>? disabledNames = null,
+        CancellationToken cancellationToken = default)
     {
         _pluginService.PluginsDirectory.Create();
-        _pluginService.ConfigDirectory.Create();
-        _pluginService.DataDirectory.Create();
 
         AppDomain.CurrentDomain.AssemblyResolve -= OnAssemblyResolve;
         AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;
 
-        IReadOnlySet<string> disabled = ReadDisabledPluginNames();
+        IReadOnlySet<string> disabled = disabledNames ?? new HashSet<string>(StringComparer.Ordinal);
         List<DiscoveredPlugin> discovered = DiscoverManifests();
         List<PluginInfo> ordered = PluginDependencyGraph.Order(
             discovered.Select(d => d.Info), disabled);
@@ -153,51 +152,6 @@ public sealed partial class PluginLoader : IDisposable
         }
     }
 
-    private HashSet<string> ReadDisabledPluginNames()
-    {
-        var configFile = new FileInfo(Path.Combine(_pluginService.ConfigDirectory.FullName, "plugins.toml"));
-        if (!configFile.Exists)
-        {
-            return new HashSet<string>(StringComparer.Ordinal);
-        }
-
-        string text;
-        try
-        {
-            text = File.ReadAllText(configFile.FullName);
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException($"Failed to read host plugin config '{configFile.FullName}'.", ex);
-        }
-
-        TomlTable table;
-        try
-        {
-            table = TomlSerializer.Deserialize<TomlTable>(
-                    text, new TomlSerializerOptions { SourceName = configFile.FullName })
-                ?? throw new InvalidOperationException($"Failed to parse host plugin config '{configFile.FullName}'.");
-        }
-        catch (TomlException ex)
-        {
-            throw new InvalidOperationException($"Failed to parse host plugin config '{configFile.FullName}'.", ex);
-        }
-
-        var disabled = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var (name, value) in table)
-        {
-            if (value is TomlTable pluginSection
-                && pluginSection.TryGetValue("enabled", out var enabled)
-                && enabled is bool enabledFlag
-                && !enabledFlag)
-            {
-                disabled.Add(name);
-            }
-        }
-
-        return disabled;
-    }
-
     private List<DiscoveredPlugin> DiscoverManifests()
     {
         var discovered = new List<DiscoveredPlugin>();
@@ -261,7 +215,7 @@ public sealed partial class PluginLoader : IDisposable
                 $"Plugin '{info.Name}' main type '{type.FullName}' could not be instantiated.", ex);
         }
 
-        instance.InjectHost(info, _pluginService.ForPlugin(info.Name));
+        instance.InjectHost(info, _pluginService);
         instance.Load();
         return instance;
     }

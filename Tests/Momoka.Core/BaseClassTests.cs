@@ -3,11 +3,10 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Momoka.Core.Events;
 using Momoka.Core.Plugins;
-using Momoka.Core.Registry;
 
 namespace Momoka.Core.Tests;
 
-/// <summary>CorePlugin 基类：宿主注入直通/Subscribe 便利/守卫/目录自动创建。</summary>
+/// <summary>CorePlugin 基类：宿主注入直通/专属能力派生/守卫/目录自动创建。</summary>
 public sealed class BaseClassTests : IDisposable
 {
     private readonly string _tempRoot;
@@ -45,15 +44,15 @@ public sealed class BaseClassTests : IDisposable
     public void InjectHost_ExposesCapabilities()
     {
         var registry = new ServiceRegistry();
-        var bus = new EventBus();
+        var hub = new EventHub();
 
         var plugin = new TestPlugin();
-        plugin.InjectHost(CreateInfo("test"), CreateService("test", registry, bus));
+        plugin.InjectHost(CreateInfo("test"), CreateService(registry, hub));
         plugin.Load();
 
         Assert.True(plugin.Loaded);
         Assert.Same(registry, plugin.ServicesPublic);
-        Assert.Same(bus, plugin.EventsPublic);
+        Assert.Same(hub, plugin.EventsPublic);
         Assert.NotNull(plugin.LoggerPublic);
         Assert.Equal("test", plugin.Name);
         Assert.Equal("1.0.0", plugin.Version);
@@ -65,7 +64,7 @@ public sealed class BaseClassTests : IDisposable
         var plugin = new TestPlugin();
         plugin.InjectHost(
             CreateInfo("test"),
-            CreateService("test", new ServiceRegistry(), new EventBus()));
+            CreateService(new ServiceRegistry(), new EventHub()));
         plugin.Load();
 
         var ex = Assert.Throws<InvalidOperationException>(() => plugin.Load());
@@ -99,24 +98,24 @@ public sealed class BaseClassTests : IDisposable
     }
 
     [Fact]
-    public async Task PluginService_ExposesEventBusForSubscription()
+    public async Task PluginService_ExposesEventHubForSubscription()
     {
         var plugin = InjectedPlugin(out _, out _);
         plugin.Load();
-        var events = plugin.EventsPublic;
+        var hub = plugin.EventsPublic;
 
         var calls = 0;
-        using var token = events.Subscribe<int>(_ =>
+        using var token = hub.Subscribe<int>(_ =>
         {
             calls++;
             return Task.CompletedTask;
         });
 
-        await events.PublishAsync(1);
+        await hub.PublishAsync(1);
         Assert.Equal(1, calls);
 
         token.Dispose();
-        await events.PublishAsync(2);
+        await hub.PublishAsync(2);
         Assert.Equal(1, calls);
     }
 
@@ -132,12 +131,12 @@ public sealed class BaseClassTests : IDisposable
 
     private TestPlugin InjectedPlugin(out DirectoryInfo folder, out FileInfo config)
     {
-        folder = new DirectoryInfo(Path.Combine(_tempRoot, "Data", "Plugins", "test"));
-        config = new FileInfo(Path.Combine(_tempRoot, "Config", "Plugins", "test.toml"));
+        folder = new DirectoryInfo(Path.Combine(_tempRoot, "Plugins", "test"));
+        config = new FileInfo(Path.Combine(_tempRoot, "Plugins", "test", "config.toml"));
         var plugin = new TestPlugin();
         plugin.InjectHost(
             CreateInfo("test"),
-            CreateService("test", new ServiceRegistry(), new EventBus()));
+            CreateService(new ServiceRegistry(), new EventHub()));
         return plugin;
     }
 
@@ -149,24 +148,21 @@ public sealed class BaseClassTests : IDisposable
             Main = $"{name}.Entry, Fake",
         };
 
-    private PluginService CreateService(string name, IServiceRegistry registry, IEventBus bus)
-    {
-        var host = new PluginService(registry, bus, NullLoggerFactory.Instance, _tempRoot);
-        return host.ForPlugin(name);
-    }
+    private PluginService CreateService(ServiceRegistry registry, EventHub hub)
+        => new(registry, hub, NullLoggerFactory.Instance, _tempRoot);
 
     /// <summary>内联测试插件：暴露 CorePlugin 的 protected 成员供测试访问。</summary>
     public sealed class TestPlugin : CorePlugin
     {
-        public IServiceRegistry ServicesPublic => Plugin.Services;
+        public ServiceRegistry ServicesPublic => Plugin.Services;
 
-        public IEventBus EventsPublic => Plugin.Events;
+        public EventHub EventsPublic => Plugin.Events;
 
-        public ILogger LoggerPublic => Plugin.Logger;
+        public ILogger LoggerPublic => Logger;
 
-        public DirectoryInfo Folder => Plugin.GetPluginFolder();
+        public DirectoryInfo Folder => GetPluginFolder();
 
-        public FileInfo Config => Plugin.GetPluginConfig();
+        public FileInfo Config => GetPluginConfig();
 
         public bool Loaded { get; private set; }
 

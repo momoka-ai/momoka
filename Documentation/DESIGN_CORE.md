@@ -7,8 +7,8 @@ Momoka.Core 是**插件宿主 + 核心能力库**：提供一组**通用机制**
 | 子系统 | 职责 | 状态 |
 |--------|------|------|
 | **Plugins** | 插件契约（IPlugin / CorePlugin）、manifest、扫描/排序/校验/生命周期（PluginLoader） | ✅ 本期完成 |
-| **Events** | 强类型事件总线：订阅表分桶、快照分发、三种分发模式、异常隔离 | ✅ 本期完成 |
-| **Registry** | 插件间服务发现表：每类型单实例、fail-fast | ✅ 本期完成 |
+| **Events** | 事件中心（EventHub）：订阅表分桶、快照分发、订阅级三种分发模式、异常隔离 | ✅ 本期完成 |
+| **Registry** | 插件间服务发现表：同类型多注册、优先级/来源插件追踪 | ✅ 本期完成 |
 | **Configurations** | 统一配置 + 版本迁移（默认<文件<环境<覆写） | 📋 后续迭代（契约见 §8） |
 | **Commands** | 指令注册/解析/调用（`help`/`plugins`/`status` 内置） | 📋 后续迭代（契约见 §8） |
 | **Scheduling / Notifications / Profiles / State / Security** | 定时 / 通知 / 家庭成员 / 状态发布订阅 / 安全守卫 | 📋 后续迭代（契约见 §8） |
@@ -18,7 +18,7 @@ Momoka.Core 是**插件宿主 + 核心能力库**：提供一组**通用机制**
 ## 2. 定位与边界
 
 - **插件宿主**：加载运行期扩展单元（插件），管理生命周期与插件间通信机制。
-- **能力库**：提供通用设施（注册表/事件总线/后续的配置/指令/调度/通知/档案/状态/安全）。
+- **能力库**：提供通用设施（注册表/事件中心/后续的配置/指令/调度/通知/档案/状态/安全）。
 - **Core 零业务语义**（2026-08 修订）：设施可持有不透明数据（注册表/状态表/调度表/档案），但**不解释业务语义**；语义全在模块。不持有零业务状态的承诺——改为语义边界。
 - **不进 Core 的清单**：Agentic / Memory / LLM（归 Momoka.Ai）；家庭模型与设备语义（归 Home）；感知采集（归 Sense）；传输网关（下一期）。
 - **通信 = 本地函数调用**：模块间通过服务接口直接调用（服务注册表解析），事件走内存发布/订阅；无序列化、无状态副本。
@@ -31,7 +31,7 @@ Momoka.Core 是**插件宿主 + 核心能力库**：提供一组**通用机制**
 | **模块 Module** | 静态子工程 | 如 `Momoka.Home` / `Momoka.Ai` / `Momoka.Sense`，实现插件契约即被宿主托管 |
 | **服务 Service** | 能力接口 | 插件注册进服务注册表，供其它插件解析调用 |
 
-命名空间规划：本期 `Momoka.Core.Plugins` / `Momoka.Core.Events` / `Momoka.Core.Registry`；目标另含 `Configurations` / `Commands` / `Scheduling` / `Notifications` / `Profiles` / `State` / `Security`。
+命名空间规划：本期 `Momoka.Core.Plugins`（含服务注册表）/ `Momoka.Core.Events`；目标另含 `Configurations` / `Commands` / `Scheduling` / `Notifications` / `Profiles` / `State` / `Security`。
 
 ## 4. 依赖方向与工程结构
 
@@ -49,9 +49,9 @@ Momoka.Core/
 │   ├── IPlugin.cs / CorePlugin.cs
 │   ├── PluginInfo.cs / PluginService.cs
 │   ├── PluginLoader.cs / PluginExceptions.cs
+│   ├── ServiceRegistry.cs / ServiceSource.cs / ServicePriority.cs
 │   └── PluginInfo.cs               # plugin.toml 直接反序列化 + 依赖图/排序/校验纯函数
-├── Events/                         # DispatchMode / IEventBus / EventBus
-└── Registry/                       # IServiceRegistry / ServiceRegistry
+├── Events/                         # DispatchMode / EventHub
 ```
 
 ## 5. 插件系统
@@ -68,7 +68,7 @@ public interface IPlugin
 }
 ```
 
-- `IPlugin` 无 `Load`；**宿主能力经单一 `PluginService` 注入 `CorePlugin` 基类**（统一管理服务注册表 / 事件总线 / 日志器 / 数据与配置目录），插件一律经 `Plugin.*` 直接访问；`CorePlugin` **不提供任何快捷成员**（Services/Events/Logger/Subscribe/GetPluginFolder 等），保持插件代码简单。
+- `IPlugin` 无 `Load`；**宿主能力经共享 `PluginService` 注入 `CorePlugin` 基类**（统一管理服务注册表 / 事件中心 / 日志工厂 / 插件根目录，全插件共用同一实例）；插件专属能力（日志器 / 插件目录 / 配置）由 `CorePlugin` 按自身名称派生，插件代码仅访问 `Plugin.Services` / `Plugin.Events` / `Logger` / `GetPluginFolder()`。
 - 插件构造器须**轻量无副作用**；业务服务用**服务定位**（`Plugin.Services.Resolve<T>()`，缺失报清晰错误）。
 - 预留扩展点（**不加空方法**）：`RegisterOperation<TReq,TRes>`（网关设施期）、指令/CLI 注册（Commands 期）。
 - 守卫：`Plugin` 注入前访问抛 `InvalidOperationException`；重复 `Load` 抛 `InvalidOperationException`（以 `Info.State`（`CorePlugin.PluginState`）守卫）。
@@ -80,7 +80,10 @@ public abstract class CorePlugin : IPlugin
     public string Name => Info.Name;                // 由 Info 提供
     public string Version => Info.Version;
 
-    protected PluginService Plugin { get; }         // 宿主能力束（唯一注入点）
+    protected PluginService Plugin { get; }         // 宿主能力束（共享实例，唯一注入点）
+    protected ILogger Logger { get; }               // 专属日志器（类别 = 插件名，懒创建）
+    protected DirectoryInfo GetPluginFolder();      // Plugins/<name>/，按需即时生成，编排由插件自行决定
+    protected FileInfo GetPluginConfig();           // Plugins/<name>/config.toml，按需即时生成
     protected virtual void OnLoad() { }             // 初始化钩子
     internal void InjectHost(PluginInfo info, PluginService service); // Loader 注入
     internal void Load();                           // 非虚：Info.State 守卫 + OnLoad
@@ -90,22 +93,15 @@ public abstract class CorePlugin : IPlugin
 ```csharp
 public sealed class PluginService
 {
-    // 宿主级（DI 注入 PluginLoader）：Services / Events / LoggerFactory / 三目录
-    public IServiceRegistry Services { get; }
-    public IEventBus Events { get; }
-    public ILoggerFactory LoggerFactory { get; }
-    public DirectoryInfo PluginsDirectory { get; }   // <base>/Plugins
-    public DirectoryInfo ConfigDirectory { get; }     // <base>/Config
-    public DirectoryInfo DataDirectory { get; }       // <base>/Data
-    // 插件级（ForPlugin 派生，注入 CorePlugin）：
-    public string Name { get; }
-    public ILogger Logger { get; }                   // 类别 = 插件名（{Plugin: name} 前缀语义）
-    public DirectoryInfo GetPluginFolder();          // Data/Plugins/<name>/，按需即时生成
-    public FileInfo GetPluginConfig();               // Config/Plugins/<name>.toml，按需即时生成
+    // 宿主级共享（DI 注册，注入 PluginLoader 与全部 CorePlugin）
+    public ServiceRegistry Services { get; }        // 服务注册表（富 API：多注册/优先级/来源插件）
+    public EventHub Events { get; }                 // 事件中心
+    public ILoggerFactory LoggerFactory { get; }    // 日志工厂
+    public DirectoryInfo PluginsDirectory { get; }  // <base>/Plugins
 }
 ```
 
-插件代码示例：`Plugin.Services.Register<ITestService>(...)`、`Plugin.Events.Subscribe<T>(...)`、`Plugin.GetPluginFolder()`。
+插件代码示例：`Plugin.Services.Register<ITestService>(...)`、`Plugin.Events.Subscribe<T>(...)`、`Logger.LogInformation(...)`、`GetPluginFolder()`。
 
 ### 5.2 plugin.toml（只读内嵌元数据，一个程序集 = 一个插件）
 
@@ -120,31 +116,40 @@ description = "..."            # 可选，可读描述
 api = "2.1"                    # 可选，开发时针对的宿主 API 版本（System.Version，默认 1.0）
 ```
 
-- **无 `settings`、无 `enabled`**——运行态与可写内容一律不进 manifest（`enabled` 走宿主配置、设置走 `GetPluginConfig()`、数据走 `GetPluginFolder()`）。
+- **无 `settings`、无 `enabled`**——运行态与可写内容一律不进 manifest（`enabled` 走 Core 自带配置、设置走 `GetPluginConfig()`、数据走 `GetPluginFolder()`）。
 - 解析：Tomlyn `TomlSerializer.Deserialize<PluginInfo>` **直接反序列化到类型**（`[TomlRequired]` 必填 / `[TomlIgnore]` 运行时字段 / `[TomlPropertyName]` 映射 `dependency`/`dependencyOptional`/`api`）；嵌入：`<EmbeddedResource Include="plugin.toml" />`；约定名 `plugin.toml`。
 - 无 manifest 的 DLL 视为**依赖库跳过**；有但解析错误 / 缺必填字段 → **fail-fast**（`InvalidInfoException`）。
 - 用途：Loader 在实例化**之前**完成识别、入口解析、依赖图构建、排序、校验（避免先实例化再校验）。
 
-### 5.3 可写配置与数据目录
+### 5.3 目录布局与启停管理
+
+```
+Plugins/                          # 唯一运行时根目录（<base>/Plugins，可经 Plugins:BaseDirectory 覆写）
+├── <name>/                       # 插件目录（全部插件数据统一挂此，编排由插件自行决定）
+│   ├── <name>.dll …             # 插件程序集及本地依赖
+│   ├── config.toml               # GetPluginConfig() 按需即时生成（插件设置）
+│   └── Data/ …                   # GetPluginFolder() 返回插件目录本身，开发者自行编排（如 Data/ 子目录）
+└── *.dll                         # 共享 native/依赖库平铺（无 manifest → 跳过）
+```
 
 | 内容 | 位置 | 说明 |
 |------|------|------|
-| 插件启用（宿主插件管理） | `Config/plugins.toml`，`[home] enabled = false` | 缺失默认 true；禁用无需重新打包 |
-| 插件设置 | `Config/Plugins/<name>.toml` | `GetPluginConfig()` 按需即时生成；后续 Configurations 提供类型化/版本化访问 |
-| 插件数据 | `Data/Plugins/<name>/` | `GetPluginFolder()` 按需即时生成；数据库/缓存等 |
+| 插件启停 | Core 自带配置 `Plugins:Disabled`（`appsettings.json` 等 IConfiguration 源） | `StartAsync` 经 `disabledNames` 传入；缺失默认全部启用；禁用无需重新打包 |
+| 插件设置 | `Plugins/<name>/config.toml` | `GetPluginConfig()` 按需即时生成；后续 Configurations 提供类型化/版本化访问 |
+| 插件数据 | `Plugins/<name>/` | `GetPluginFolder()` 按需即时生成，返回插件目录本身；数据库/缓存等由插件自行编排 |
 
-目录名遵循大驼峰约定（UE 风格 `Plugins` / `Config` / `Data`）。三个路径**硬编码**于基目录（`AppContext.BaseDirectory`，可经配置 `Plugins:BaseDirectory` 覆写）之下，由 `PluginService` 持有；目录启动时自动创建。无 `PluginLoaderOptions`。
+不再有顶层 `Config/` / `Data/` 目录；插件根目录硬编码于基目录（`AppContext.BaseDirectory`，可经配置 `Plugins:BaseDirectory` 覆写）之下，由 `PluginService` 持有；`Plugins/` 目录启动时自动创建。无 `PluginLoaderOptions`。
 
 ### 5.4 PluginLoader 流程
 
 **StartAsync**：
 
-1. 递归扫描 `PluginsDirectory` 内 `*.dll` → `Assembly.LoadFrom`（默认 ALC）→ 读内嵌 `plugin.toml`；无 → 跳过（依赖库）；解析错误 → fail-fast
-2. 读 `Config/plugins.toml` 得 `enabled` 覆盖，过滤启用插件；**重复 name → fail-fast**
+1. 创建 `Plugins/` 根目录；递归扫描其内 `*.dll` → `Assembly.LoadFrom`（默认 ALC）→ 读内嵌 `plugin.toml`；无 → 跳过（依赖库）；解析错误 → fail-fast
+2. 按宿主（Core 配置 `Plugins:Disabled`）传入的禁用名单过滤启用插件；**重复 name → fail-fast**
 3. 构建插件名依赖图：硬前置（`dependency`）引用未知/禁用插件 → fail-fast；软前置（`dependencyOptional`）缺失/禁用静默跳过、存在则同样构成排序边；**检测环 → fail-fast**
 4. 拓扑排序（Kahn）→ Load/Start 顺序
 5. 实例化 main（public 无参构造器）并校验为 `CorePlugin` 子类；type 不存在 / 抽象 / 非 CorePlugin → fail-fast
-6. `InjectHost(Info, ForPlugin(Name))` → `Load()`（OnLoad）→ 依序 `StartAsync`
+6. `InjectHost(Info, PluginService)` → `Load()`（OnLoad）→ 依序 `StartAsync`
 7. **失败回滚**：Load/Start 任一失败 → 逆序 Stop 已 Started 插件（best-effort）→ 原样上抛（校验类抛 `InvalidPluginException` / `InvalidInfoException` / `UnknownDependencyException`；运行期异常不包装）
 
 **StopAsync**：逆序 `StopAsync`（best-effort，异常聚合记录，不抛出）。状态推进 `Discovered→Loaded→Started→Stopped/Failed` 记于 `PluginInfo.State`（枚举 `CorePlugin.PluginState` 内嵌于 `CorePlugin`）。加载器无内置状态机，**生命周期与主程序同步**。
@@ -155,7 +160,7 @@ api = "2.1"                    # 可选，开发时针对的宿主 API 版本（
 
 - 插件项目：`<EmbeddedResource Include="plugin.toml" />` + `<IsPlugin>true</IsPlugin>` + `<PluginId>home</PluginId>`
 - 仓库根 `Directory.Build.targets`：IsPlugin 项目拷贝 `$(OutDir)` 产物到 `Plugins/<PluginId>/`（子目录避免同名依赖冲突）
-- `Plugins/` / `Config/` / `Data/` 目录入 `.gitignore`（Config 含可写运行时配置）
+- `Plugins/` 目录入 `.gitignore`（含可写运行时内容）
 
 ### 5.6 校验规则与异常（全部 fail-fast）
 
@@ -165,39 +170,47 @@ api = "2.1"                    # 可选，开发时针对的宿主 API 版本（
 | `InvalidInfoException` | 插件信息不合法：plugin.toml 缺失或不可读 / TOML 格式非法 / 缺关键字段 / 类型不符 |
 | `UnknownDependencyException` | `dependency`（硬前置）引用未知或当前不可用（禁用）的插件 |
 
-另：重复服务注册、重复 `Load` 抛 `InvalidOperationException`；运行期 Load/Start 失败不包装，原样上抛。
+另：重复 `Load` 抛 `InvalidOperationException`；运行期 Load/Start 失败不包装，原样上抛。
 
-## 6. 服务注册表（Registry）
+## 6. 服务注册表（Registry，位于 `Momoka.Core.Plugins`）
 
 ```csharp
-public interface IServiceRegistry
+public sealed class ServiceRegistry
 {
-    void Register<TService>(TService instance) where TService : class;
-    void Register(Type serviceType, object instance);   // 校验 IsInstanceOfType
-    TService Resolve<TService>() where TService : class; // 缺失抛 InvalidOperationException（fail-fast）
+    void Register<TService>(TService instance, ServicePriority priority = Normal, IPlugin? plugin = null);
+    void Register(Type serviceType, object instance, ServicePriority priority = Normal, IPlugin? plugin = null);
+    TService Resolve<TService>() where TService : class;   // 最高优先级；缺失抛 InvalidOperationException（fail-fast）
     TService? TryResolve<TService>() where TService : class;
+    TService? GetService<TService>() where TService : class;   // = TryResolve
+    bool TryGetService<TService>(out TService? value) where TService : class;
+    IEnumerable<ServiceSource<TService>> GetRegistrations<TService>();                  // 全部（优先级降序）
+    IEnumerable<ServiceSource<TService>> GetRegistrations<TService>(Type serviceType);  // 指定注册键
+    IEnumerable<ServiceSource<TService>> GetRegistrations<TService>(IPlugin plugin);    // 指定来源插件
     bool IsRegistered(Type serviceType);
 }
+
+public readonly record struct ServiceSource<T>(Type Service, T Source, ServicePriority Priority, IPlugin? Plugin);
+public enum ServicePriority { Highest, High, Normal, Low, Lowest }
 ```
 
-- 每类型单实例，重复注册 fail-fast；`Dictionary<Type, object>` + `lock`；Type 为**不透明键**（Core 不解释业务语义）。
+- 同类型允许多注册，每项记录来源插件与优先级；单值解析取**优先级最高**者（同级按先注册先得）；`GetRegistrations` 按优先级降序返回，可滤按注册键或来源插件。
+- `Dictionary<Type, List<Entry>>` + `lock`；Type 为**不透明键**（Core 不解释业务语义）。
 - **与 DI 容器分工**：宿主自身设施走 DI（Generic Host）；插件提供的业务服务走 Registry（插件反射实例化无法构造器注入）。
 
-## 7. 事件总线（Events）
+## 7. 事件中心（Events）
 
 ```csharp
 public enum DispatchMode { Sequential, Parallel, Background }
 
-public interface IEventBus
+public sealed class EventHub
 {
-    IDisposable Subscribe<TEvent>(Func<TEvent, Task> handler);
-    Task PublishAsync<TEvent>(TEvent @event, DispatchMode mode = DispatchMode.Sequential,
-                              CancellationToken cancellationToken = default);
+    IDisposable Subscribe<TEvent>(Func<TEvent, Task> handler, DispatchMode mode = DispatchMode.Sequential);
+    Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default);
 }
 ```
 
 - 订阅表按 `Type` 分桶 + `lock`；订阅/退订/发布线程安全；**发布时快照订阅表再分发**（分发中退订不影响本次）。
-- Sequential：按序 await，单 handler 异常隔离记日志；Parallel：`Task.WhenAll` 异常聚合；Background：`Task.Run` fire-and-forget（handler 异常各自隔离）。
+- **分发模式由订阅者声明**（发布者只 await）：Sequential 按序 await、Parallel 并发（`Task.WhenAll`）、Background 即发即忘；handler 异常一律隔离记日志，绝不向发布方传播。
 - 事件类型由插件自声明；**Core 不定义业务事件**。
 
 ## 8. 目标能力面（后续迭代契约草图）

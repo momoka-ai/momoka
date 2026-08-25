@@ -3,7 +3,6 @@ using System.Reflection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Momoka.Core.Events;
 using Momoka.Core.Plugins;
-using Momoka.Core.Registry;
 
 namespace Momoka.Core.Tests;
 
@@ -18,15 +17,11 @@ public sealed class PluginLoaderTests : IDisposable
 
     private readonly string _tempRoot;
     private readonly string _pluginsDir;
-    private readonly string _configDir;
-    private readonly string _dataDir;
 
     public PluginLoaderTests()
     {
         _tempRoot = Path.Combine(Path.GetTempPath(), "momoka-core-tests", Guid.NewGuid().ToString("N"));
         _pluginsDir = Path.Combine(_tempRoot, "Plugins");
-        _configDir = Path.Combine(_tempRoot, "Config");
-        _dataDir = Path.Combine(_tempRoot, "Data");
     }
 
     public void Dispose()
@@ -82,14 +77,13 @@ public sealed class PluginLoaderTests : IDisposable
     }
 
     [Fact]
-    public async Task DisabledPlugin_ViaHostConfig_IsSkipped()
+    public async Task DisabledPlugin_IsSkipped()
     {
-        Directory.CreateDirectory(_configDir);
-        File.WriteAllText(Path.Combine(_configDir, "plugins.toml"), "[alpha]\nenabled = false\n");
         CopyPlugins("alpha");
         using var loader = CreateLoader();
+        var disabled = new HashSet<string>(StringComparer.Ordinal) { "alpha" };
 
-        await loader.StartAsync();
+        await loader.StartAsync(disabled);
 
         Assert.Contains(loader.Plugins, p => p.Name == "alpha" && p.State == CorePlugin.PluginState.Discovered);
         Assert.DoesNotContain(loader.Plugins, p => p.State == CorePlugin.PluginState.Started);
@@ -99,12 +93,11 @@ public sealed class PluginLoaderTests : IDisposable
     [Fact]
     public async Task DependencyOnDisabledPlugin_FailsFast()
     {
-        Directory.CreateDirectory(_configDir);
-        File.WriteAllText(Path.Combine(_configDir, "plugins.toml"), "[alpha]\nenabled = false\n");
         CopyPlugins("alpha", "beta");
         using var loader = CreateLoader();
+        var disabled = new HashSet<string>(StringComparer.Ordinal) { "alpha" };
 
-        var ex = await Assert.ThrowsAsync<UnknownDependencyException>(() => loader.StartAsync());
+        var ex = await Assert.ThrowsAsync<UnknownDependencyException>(() => loader.StartAsync(disabled));
         Assert.Contains("disabled plugin", ex.Message);
     }
 
@@ -187,7 +180,7 @@ public sealed class PluginLoaderTests : IDisposable
     private PluginLoader CreateLoader()
     {
         var service = new PluginService(
-            new ServiceRegistry(), new EventBus(), NullLoggerFactory.Instance, _tempRoot);
+            new ServiceRegistry(), new EventHub(), NullLoggerFactory.Instance, _tempRoot);
         return new PluginLoader(service);
     }
 

@@ -1,5 +1,4 @@
 using Momoka.Core.Plugins;
-using Momoka.Core.Registry;
 
 namespace Momoka.Core.Tests.Plugins.Alpha;
 
