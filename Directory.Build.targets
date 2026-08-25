@@ -1,0 +1,23 @@
+<Project>
+
+  <!--
+    IsPlugin 项目（插件）构建后将产物拷贝到仓库根 Plugins/<PluginId>/ 子目录。
+    每插件一子目录，避免共享依赖（如 Tomlyn.dll）同名冲突。
+    仅对设置 <IsPlugin>true</IsPlugin> 的项目生效。
+  -->
+  <Target Name="CopyPluginOutputToPluginsDirectory"
+          AfterTargets="Build"
+          Condition="'$(IsPlugin)' == 'true' and '$(PluginId)' != ''">
+    <PropertyGroup>
+      <_PluginOutputDirectory>$(MSBuildThisFileDirectory)Plugins/$(PluginId)</_PluginOutputDirectory>
+    </PropertyGroup>
+    <ItemGroup>
+      <_PluginOutputFiles Include="$(OutDir)**\*" />
+    </ItemGroup>
+    <MakeDir Directories="$(_PluginOutputDirectory)" />
+    <Copy SourceFiles="@(_PluginOutputFiles)"
+          DestinationFiles="@(_PluginOutputFiles->'$(_PluginOutputDirectory)/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

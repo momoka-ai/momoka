@@ -72,3 +72,8 @@ vcpkg_installed/
 ## DocFX
 Documentation/Momoka.Home/_site/
 Documentation/Momoka.Home/api/
+
+## Momoka.Core 插件宿主运行时目录（仅仓库根）
+/Plugins/
+/Config/
+/Data/
