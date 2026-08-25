@@ -10,7 +10,7 @@ public sealed class BetaPlugin : CorePlugin
 {
     public override Task StartAsync(CancellationToken cancellationToken)
     {
-        Alpha.ITestService service = Services.Resolve<Alpha.ITestService>();
+        Alpha.ITestService service = Plugin.Services.Resolve<Alpha.ITestService>();
         ResolvedGreeting = service.Greeting;
         StartCount++;
         Lifecycle.Record("beta", "start");

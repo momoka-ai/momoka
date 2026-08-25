@@ -20,7 +20,7 @@ public sealed class AlphaPlugin : CorePlugin
 {
     protected override void OnLoad()
     {
-        Services.Register<ITestService>(new TestService());
+        Plugin.Services.Register<ITestService>(new TestService());
     }
 
     public override Task StartAsync(CancellationToken cancellationToken)

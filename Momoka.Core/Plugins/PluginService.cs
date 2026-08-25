@@ -42,7 +42,7 @@ public sealed class PluginService
     public ILogger Logger { get; }
 
     /// <summary>插件可写数据目录（Data/Plugins/&lt;name&gt;/，首次访问自动创建）。</summary>
-    internal DirectoryInfo GetPluginFolder()
+    public DirectoryInfo GetPluginFolder()
     {
         var folder = new DirectoryInfo(Path.Combine(_pluginsDataDirectory.FullName, Name));
         folder.Create();
@@ -50,7 +50,7 @@ public sealed class PluginService
     }
 
     /// <summary>插件可写配置文件（Config/Plugins/&lt;name&gt;.toml，首次访问自动创建）。</summary>
-    internal FileInfo GetPluginConfig()
+    public FileInfo GetPluginConfig()
     {
         var file = new FileInfo(Path.Combine(_pluginsConfigDirectory.FullName, Name + ".toml"));
         if (!file.Exists)

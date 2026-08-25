@@ -26,7 +26,7 @@ dotnet run --project Momoka.Core
 - 实现 `CorePlugin`（`Name`/`Version` 由宿主按 manifest 回填；`OnLoad` 注册服务/订阅事件）
 - 嵌入 `plugin.toml`（`name` / `version` / `entry` / `dependsOn`），无 settings / enabled
 - 项目设置 `<IsPlugin>true</IsPlugin>` + `<PluginId>name</PluginId>`，产物自动拷入 `Plugins/<name>/`
-- 业务服务用 `Services.Register/Resolve`；宿主设施（DI）与插件服务（Registry）分工
+- 宿主能力经 `Plugin` 访问：`Plugin.Services.Register/Resolve`、`Plugin.Events.Subscribe`、`Plugin.GetPluginFolder()` 等
 
 ## 验证
 

@@ -39,7 +39,6 @@ public sealed class BaseClassTests : IDisposable
         Assert.Throws<InvalidOperationException>(() => _ = plugin.LoggerPublic);
         Assert.Throws<InvalidOperationException>(() => _ = plugin.Folder);
         Assert.Throws<InvalidOperationException>(() => _ = plugin.Config);
-        Assert.Throws<InvalidOperationException>(() => plugin.SubscribePublic<int>(_ => Task.CompletedTask));
     }
 
     [Fact]
@@ -106,14 +105,14 @@ public sealed class BaseClassTests : IDisposable
     }
 
     [Fact]
-    public async Task SubscribeConvenience_ForwardsToEventBus()
+    public async Task PluginService_ExposesEventBusForSubscription()
     {
         var plugin = InjectedPlugin(out _, out _);
         plugin.Load();
         var events = plugin.EventsPublic;
 
         var calls = 0;
-        using var token = plugin.SubscribePublic<int>(_ =>
+        using var token = events.Subscribe<int>(_ =>
         {
             calls++;
             return Task.CompletedTask;
@@ -160,19 +159,17 @@ public sealed class BaseClassTests : IDisposable
     /// <summary>内联测试插件：暴露 CorePlugin 的 protected 成员供测试访问。</summary>
     public sealed class TestPlugin : CorePlugin
     {
-        public IServiceRegistry ServicesPublic => Services;
+        public IServiceRegistry ServicesPublic => Plugin.Services;
 
-        public IEventBus EventsPublic => Events;
+        public IEventBus EventsPublic => Plugin.Events;
 
-        public ILogger LoggerPublic => Logger;
+        public ILogger LoggerPublic => Plugin.Logger;
 
-        public DirectoryInfo Folder => GetPluginFolder();
+        public DirectoryInfo Folder => Plugin.GetPluginFolder();
 
-        public FileInfo Config => GetPluginConfig();
+        public FileInfo Config => Plugin.GetPluginConfig();
 
         public bool Loaded { get; private set; }
-
-        public IDisposable SubscribePublic<TEvent>(Func<TEvent, Task> handler) => Subscribe(handler);
 
         protected override void OnLoad()
         {

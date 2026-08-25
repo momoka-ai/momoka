@@ -68,10 +68,10 @@ public interface IPlugin
 }
 ```
 
-- `IPlugin` 无 `Load`；**宿主能力经单一 `PluginService` 注入 `CorePlugin` 基类**（统一管理服务注册表 / 事件总线 / 日志器），无逐项引用；插件数据目录与配置文件**按需即时生成**（首次访问自动创建），不预先存储引用。
-- 插件构造器须**轻量无副作用**；业务服务用**服务定位**（`Services.Resolve<T>()`，缺失报清晰错误）。
+- `IPlugin` 无 `Load`；**宿主能力经单一 `PluginService` 注入 `CorePlugin` 基类**（统一管理服务注册表 / 事件总线 / 日志器 / 数据与配置目录），插件一律经 `Plugin.*` 直接访问；`CorePlugin` **不提供任何快捷成员**（Services/Events/Logger/Subscribe/GetPluginFolder 等），保持插件代码简单。
+- 插件构造器须**轻量无副作用**；业务服务用**服务定位**（`Plugin.Services.Resolve<T>()`，缺失报清晰错误）。
 - 预留扩展点（**不加空方法**）：`RegisterOperation<TReq,TRes>`（网关设施期）、指令/CLI 注册（Commands 期）。
-- 守卫：宿主能力（`Plugin` / `Services` / `Events` / `Logger` / `GetPluginFolder()` / `GetPluginConfig()`）注入前访问抛 `InvalidOperationException`；重复 `Load` 抛 `InvalidOperationException`（以 `PluginState` 守卫）。
+- 守卫：`Plugin` 注入前访问抛 `InvalidOperationException`；重复 `Load` 抛 `InvalidOperationException`（以 `PluginState` 守卫）。
 
 ```csharp
 public abstract class CorePlugin : IPlugin
@@ -80,18 +80,25 @@ public abstract class CorePlugin : IPlugin
     public string Version { get; internal set; }
 
     protected PluginService Plugin { get; }          // 宿主能力束（唯一注入点）
-    protected IServiceRegistry Services => Plugin.Services;
-    protected IEventBus Events => Plugin.Events;
-    protected ILogger Logger => Plugin.Logger;       // 类别 = 插件名（{Plugin: name} 前缀语义）
-
-    protected DirectoryInfo GetPluginFolder();       // Data/Plugins/<name>/，按需即时生成
-    protected FileInfo GetPluginConfig();            // Config/Plugins/<name>.toml，按需即时生成
-    protected IDisposable Subscribe<TEvent>(Func<TEvent, Task> handler);
     protected virtual void OnLoad() { }              // 初始化钩子
     internal void InjectHost(PluginService service); // Loader 注入
     internal void Load();                            // 非虚：PluginState 守卫 + OnLoad
 }
 ```
+
+```csharp
+public sealed class PluginService          // 宿主注入的能力束
+{
+    public string Name { get; }
+    public IServiceRegistry Services { get; }
+    public IEventBus Events { get; }
+    public ILogger Logger { get; }                 // 类别 = 插件名（{Plugin: name} 前缀语义）
+    public DirectoryInfo GetPluginFolder();        // Data/Plugins/<name>/，按需即时生成
+    public FileInfo GetPluginConfig();             // Config/Plugins/<name>.toml，按需即时生成
+}
+```
+
+插件代码示例：`Plugin.Services.Register<ITestService>(...)`、`Plugin.Events.Subscribe<T>(...)`、`Plugin.GetPluginFolder()`。
 
 ### 5.2 plugin.toml（只读内嵌元数据，一个程序集 = 一个插件）
 
