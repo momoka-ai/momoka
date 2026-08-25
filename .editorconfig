@@ -26,3 +26,7 @@ dotnet_diagnostic.CA1051.severity = none
 # VoxelLayout<T>.IsEntityCollided(dest, src, cs) is a pure predicate but part of
 # the layout's instance collision API (kept non-static by design)
 dotnet_diagnostic.CA1822.severity = none
+
+# xUnit assertions with inline arrays (Assert.Equal(new[] {...}, ...)) are idiomatic in tests
+[Tests/**/*.cs]
+dotnet_diagnostic.CA1861.severity = none

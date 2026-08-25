@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Momoka.Core.Tests.Plugins.Beta</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisMode>Recommended</AnalysisMode>
+    <IsPlugin>true</IsPlugin>
+    <PluginId>beta</PluginId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../../Momoka.Core/Momoka.Core.csproj" />
+    <ProjectReference Include="../PluginAlpha/PluginAlpha.csproj" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="plugin.toml" />
+  </ItemGroup>
+
+</Project>

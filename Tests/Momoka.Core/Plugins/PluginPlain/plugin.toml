@@ -1,0 +1,3 @@
+name = "plain"
+version = "1.0.0"
+entry = "Momoka.Core.Tests.Plugins.Plain.PlainClass, PluginPlain"
