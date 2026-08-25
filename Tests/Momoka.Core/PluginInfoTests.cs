@@ -15,8 +15,6 @@ public sealed class PluginInfoTests
             Dependency = dependencies,
         };
 
-    private static HashSet<string> NoDisabled => new(StringComparer.Ordinal);
-
     [Fact]
     public void Parse_ValidManifest_ReturnsFields()
     {
@@ -74,7 +72,6 @@ public sealed class PluginInfoTests
         var info = PluginInfo.Parse(toml, "plugin.toml");
 
         Assert.Equal("home", info.Name);
-        Assert.Equal(CorePlugin.PluginState.Discovered, info.State);
     }
 
     [Theory]
@@ -115,7 +112,7 @@ public sealed class PluginInfoTests
             Plugin("gamma", "beta"),
         };
 
-        var ordered = PluginDependencyGraph.Order(plugins, NoDisabled);
+        var ordered = PluginDependencyGraph.Order(plugins);
 
         Assert.Equal(new[] { "alpha", "beta", "gamma" }, ordered.Select(p => p.Name).ToArray());
     }
@@ -130,7 +127,7 @@ public sealed class PluginInfoTests
         };
         plugins[0].DependencyOptional = new[] { "alpha" };
 
-        var ordered = PluginDependencyGraph.Order(plugins, NoDisabled);
+        var ordered = PluginDependencyGraph.Order(plugins);
 
         Assert.Equal(new[] { "alpha", "beta" }, ordered.Select(p => p.Name).ToArray());
     }
@@ -145,25 +142,9 @@ public sealed class PluginInfoTests
         };
         plugins[0].DependencyOptional = new[] { "missing" };
 
-        var ordered = PluginDependencyGraph.Order(plugins, NoDisabled);
+        var ordered = PluginDependencyGraph.Order(plugins);
 
         Assert.Equal(new[] { "beta", "alpha" }, ordered.Select(p => p.Name).ToArray());
-    }
-
-    [Fact]
-    public void Order_OptionalDependencyOnDisabled_IsIgnored()
-    {
-        var plugins = new[]
-        {
-            Plugin("beta"),
-            Plugin("gamma"),
-        };
-        plugins[0].DependencyOptional = new[] { "alpha" };
-        var disabled = new HashSet<string>(StringComparer.Ordinal) { "alpha" };
-
-        var ordered = PluginDependencyGraph.Order(plugins, disabled);
-
-        Assert.Equal(new[] { "beta", "gamma" }, ordered.Select(p => p.Name).ToArray());
     }
 
     [Fact]
@@ -171,7 +152,7 @@ public sealed class PluginInfoTests
     {
         var plugins = new[] { Plugin("alpha"), Plugin("alpha") };
 
-        var ex = Assert.Throws<InvalidPluginException>(() => PluginDependencyGraph.Order(plugins, NoDisabled));
+        var ex = Assert.Throws<InvalidPluginException>(() => PluginDependencyGraph.Order(plugins));
         Assert.Contains("Duplicate", ex.Message);
     }
 
@@ -180,7 +161,7 @@ public sealed class PluginInfoTests
     {
         var plugins = new[] { Plugin("beta", "missing") };
 
-        var ex = Assert.Throws<UnknownDependencyException>(() => PluginDependencyGraph.Order(plugins, NoDisabled));
+        var ex = Assert.Throws<UnknownDependencyException>(() => PluginDependencyGraph.Order(plugins));
         Assert.Contains("unknown plugin 'missing'", ex.Message);
     }
 
@@ -189,7 +170,7 @@ public sealed class PluginInfoTests
     {
         var plugins = new[] { Plugin("alpha", "beta"), Plugin("beta", "alpha") };
 
-        var ex = Assert.Throws<InvalidPluginException>(() => PluginDependencyGraph.Order(plugins, NoDisabled));
+        var ex = Assert.Throws<InvalidPluginException>(() => PluginDependencyGraph.Order(plugins));
         Assert.Contains("Cyclic", ex.Message);
     }
 
@@ -200,7 +181,7 @@ public sealed class PluginInfoTests
         plugins[0].DependencyOptional = new[] { "beta" };
         plugins[1].DependencyOptional = new[] { "alpha" };
 
-        var ex = Assert.Throws<InvalidPluginException>(() => PluginDependencyGraph.Order(plugins, NoDisabled));
+        var ex = Assert.Throws<InvalidPluginException>(() => PluginDependencyGraph.Order(plugins));
         Assert.Contains("Cyclic", ex.Message);
     }
 
@@ -209,27 +190,7 @@ public sealed class PluginInfoTests
     {
         var plugins = new[] { Plugin("alpha", "alpha") };
 
-        Assert.Throws<InvalidPluginException>(() => PluginDependencyGraph.Order(plugins, NoDisabled));
+        Assert.Throws<InvalidPluginException>(() => PluginDependencyGraph.Order(plugins));
     }
 
-    [Fact]
-    public void Order_DisabledPlugin_IsSkipped()
-    {
-        var plugins = new[] { Plugin("alpha"), Plugin("gamma") };
-        var disabled = new HashSet<string>(StringComparer.Ordinal) { "alpha" };
-
-        var ordered = PluginDependencyGraph.Order(plugins, disabled);
-
-        Assert.Equal(new[] { "gamma" }, ordered.Select(p => p.Name).ToArray());
-    }
-
-    [Fact]
-    public void Order_DependencyOnDisabledPlugin_Throws()
-    {
-        var plugins = new[] { Plugin("alpha"), Plugin("beta", "alpha") };
-        var disabled = new HashSet<string>(StringComparer.Ordinal) { "alpha" };
-
-        var ex = Assert.Throws<UnknownDependencyException>(() => PluginDependencyGraph.Order(plugins, disabled));
-        Assert.Contains("disabled plugin 'alpha'", ex.Message);
-    }
 }

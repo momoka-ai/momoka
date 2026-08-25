@@ -14,29 +14,23 @@ public sealed class TestService : ITestService
     public string Greeting => "hello from alpha";
 }
 
-/// <summary>正常插件：OnLoad 注册服务，Start/Stop 记录生命周期到共享文件。</summary>
-public sealed class AlphaPlugin : CorePlugin
+/// <summary>正常插件：OnEnable 注册服务，OnDisable 清理由插件自行完成，生命周期记录到共享文件。</summary>
+public sealed class AlphaPlugin : Plugin
 {
-    protected override void OnLoad()
+    public override void OnEnable()
     {
-        Plugin.Services.Register<ITestService>(new TestService());
+        EnableCount++;
+        Host.Services.Register<ITestService>(new TestService(), plugin: this);
+        Lifecycle.Record("alpha", "enable");
     }
 
-    public override Task StartAsync(CancellationToken cancellationToken)
+    public override void OnDisable()
     {
-        StartCount++;
-        Lifecycle.Record("alpha", "start");
-        return Task.CompletedTask;
+        DisableCount++;
+        Lifecycle.Record("alpha", "disable");
     }
 
-    public override Task StopAsync(CancellationToken cancellationToken)
-    {
-        StopCount++;
-        Lifecycle.Record("alpha", "stop");
-        return Task.CompletedTask;
-    }
+    public static int EnableCount { get; set; }
 
-    public static int StartCount { get; set; }
-
-    public static int StopCount { get; set; }
+    public static int DisableCount { get; set; }
 }

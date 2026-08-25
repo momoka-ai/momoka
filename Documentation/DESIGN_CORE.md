@@ -6,7 +6,7 @@ Momoka.Core 是**插件宿主 + 核心能力库**：提供一组**通用机制**
 
 | 子系统 | 职责 | 状态 |
 |--------|------|------|
-| **Plugins** | 插件契约（IPlugin / CorePlugin）、manifest、扫描/排序/校验/生命周期（PluginLoader） | ✅ 本期完成 |
+| **Plugins** | 插件契约（IPlugin / Plugin 基类，OnEnable/OnDisable）、manifest、加载/启停/依赖图（PluginLoader） | ✅ 本期完成 |
 | **Events** | 事件中心（EventHub）：订阅表分桶、快照分发、订阅级三种分发模式、异常隔离 | ✅ 本期完成 |
 | **Registry** | 插件间服务发现表：同类型多注册、优先级/来源插件追踪 | ✅ 本期完成 |
 | **Configurations** | 统一配置 + 版本迁移（默认<文件<环境<覆写） | 📋 后续迭代（契约见 §8） |
@@ -27,7 +27,7 @@ Momoka.Core 是**插件宿主 + 核心能力库**：提供一组**通用机制**
 
 | 词 | 含义 | 形态 |
 |----|------|------|
-| **插件 Plugin** | 运行期扩展单元 | `IPlugin` 实现（`CorePlugin` 子类），经 manifest 声明 |
+| **插件 Plugin** | 运行期扩展单元 | `Plugin` 子类（实现 `IPlugin` 只读契约），经 manifest 声明 |
 | **模块 Module** | 静态子工程 | 如 `Momoka.Home` / `Momoka.Ai` / `Momoka.Sense`，实现插件契约即被宿主托管 |
 | **服务 Service** | 能力接口 | 插件注册进服务注册表，供其它插件解析调用 |
 
@@ -46,8 +46,8 @@ Momoka.Core/
 ├── Program.cs                      # 宿主入口：Generic Host + PluginLoader
 ├── Momoka.Core.csproj              # Microsoft.AspNetCore.App + Tomlyn（无子模块引用）
 ├── Plugins/                        # 插件子系统
-│   ├── IPlugin.cs / CorePlugin.cs
-│   ├── PluginInfo.cs / PluginService.cs
+│   ├── IPlugin.cs / Plugin.cs / PluginAssembly.cs
+│   ├── PluginInfo.cs / PluginState.cs / PluginService.cs
 │   ├── PluginLoader.cs / PluginExceptions.cs
 │   ├── ServiceRegistry.cs / ServiceSource.cs / ServicePriority.cs
 │   └── PluginInfo.cs               # plugin.toml 直接反序列化 + 依赖图/排序/校验纯函数
@@ -56,44 +56,44 @@ Momoka.Core/
 
 ## 5. 插件系统
 
-### 5.1 契约：`IPlugin` + `CorePlugin`
+### 5.1 契约：`IPlugin` + `Plugin` 基类
 
 ```csharp
 public interface IPlugin
 {
     string Name { get; }                      // 与 manifest.name 交叉校验（宿主回填）
     string Version { get; }                   // 与 manifest.version 交叉校验（宿主回填）
-    Task StartAsync(CancellationToken cancellationToken);
-    Task StopAsync(CancellationToken cancellationToken);
 }
 ```
 
-- `IPlugin` 无 `Load`；**宿主能力经共享 `PluginService` 注入 `CorePlugin` 基类**（统一管理服务注册表 / 事件中心 / 日志工厂 / 插件根目录，全插件共用同一实例）；插件专属能力（日志器 / 插件目录 / 配置）由 `CorePlugin` 按自身名称派生，插件代码仅访问 `Plugin.Services` / `Plugin.Events` / `Logger` / `GetPluginFolder()`。
-- 插件构造器须**轻量无副作用**；业务服务用**服务定位**（`Plugin.Services.Resolve<T>()`，缺失报清晰错误）。
+- `IPlugin` 为**只读契约**；**宿主能力经共享 `PluginService` 注入 `Plugin` 基类**（统一管理服务注册表 / 事件中心 / 日志工厂 / 插件根目录，全插件共用同一实例）；插件专属能力（日志器 / 插件目录 / 配置）由 `Plugin` 按自身名称派生，插件代码访问 `Host.Services` / `Host.Events` / `Logger` / `GetPluginFolder()`。
+- 插件构造器须**轻量无副作用**；业务服务用**服务定位**（`Host.Services.Resolve<T>()`，缺失报清晰错误）。
 - 预留扩展点（**不加空方法**）：`RegisterOperation<TReq,TRes>`（网关设施期）、指令/CLI 注册（Commands 期）。
-- 守卫：`Plugin` 注入前访问抛 `InvalidOperationException`；重复 `Load` 抛 `InvalidOperationException`（以 `Info.State`（`CorePlugin.PluginState`）守卫）。
+- 守卫：`Host` 注入前访问抛 `InvalidOperationException`。
 
 ```csharp
-public abstract class CorePlugin : IPlugin
+public abstract class Plugin : IPlugin
 {
-    public PluginInfo Info { get; }                 // 插件信息（manifest + 状态，注入时回填）
+    public PluginInfo Info { get; }                 // 插件信息（manifest，注入时回填）
     public string Name => Info.Name;                // 由 Info 提供
     public string Version => Info.Version;
+    public PluginState State { get; }               // Loaded/Enabled/Disabled/Failed，由 Loader 推进
 
-    protected PluginService Plugin { get; }         // 宿主能力束（共享实例，唯一注入点）
+    protected PluginService Host { get; }           // 宿主能力束（共享实例，唯一注入点）
     protected ILogger Logger { get; }               // 专属日志器（类别 = 插件名，懒创建）
     protected DirectoryInfo GetPluginFolder();      // Plugins/<name>/，按需即时生成，编排由插件自行决定
     protected FileInfo GetPluginConfig();           // Plugins/<name>/config.toml，按需即时生成
-    protected virtual void OnLoad() { }             // 初始化钩子
-    internal void InjectHost(PluginInfo info, PluginService service); // Loader 注入
-    internal void Load();                           // 非虚：Info.State 守卫 + OnLoad
+
+    public virtual void OnEnable() { }              // 启用钩子：注册服务/订阅事件
+    public virtual void OnDisable() { }             // 停用钩子：清理由插件自行完成
+    internal void InjectHost(PluginInfo info, PluginService host); // Loader 注入
 }
 ```
 
 ```csharp
 public sealed class PluginService
 {
-    // 宿主级共享（DI 注册，注入 PluginLoader 与全部 CorePlugin）
+    // 宿主级共享（DI 注册，注入 PluginLoader 与全部 Plugin）
     public ServiceRegistry Services { get; }        // 服务注册表（富 API：多注册/优先级/来源插件）
     public EventHub Events { get; }                 // 事件中心
     public ILoggerFactory LoggerFactory { get; }    // 日志工厂
@@ -101,40 +101,39 @@ public sealed class PluginService
 }
 ```
 
-插件代码示例：`Plugin.Services.Register<ITestService>(...)`、`Plugin.Events.Subscribe<T>(...)`、`Logger.LogInformation(...)`、`GetPluginFolder()`。
+插件代码示例：`Host.Services.Register<ITestService>(...)`、`Host.Events.Subscribe<T>(...)`、`Logger.LogInformation(...)`、`GetPluginFolder()`。
 
 ### 5.2 plugin.toml（只读内嵌元数据，一个程序集 = 一个插件）
 
 ```toml
 name = "home"                  # 必填，全局唯一
 version = "1.2.3"              # 必填，SemVer 风格（string：可含预发布/构建元数据）
-main = "Momoka.Home.HomePlugin, Momoka.Home"   # 必填，CorePlugin 子类全名（string：程序集加载后惰性解析，不能用 System.Type）
-dependency = ["ai"]            # 可选，硬前置插件名数组；引用未知/禁用 → fail-fast
-dependencyOptional = ["vision"] # 可选，软前置插件名数组；缺失/禁用静默跳过，存在则参与排序
+main = "Momoka.Home.HomePlugin, Momoka.Home"   # 必填，Plugin 子类全名（string：程序集加载后惰性解析，不能用 System.Type）
+dependency = ["ai"]            # 可选，硬前置插件名数组；引用未知 → fail-fast
+dependencyOptional = ["vision"] # 可选，软前置插件名数组；缺失静默跳过，存在则参与排序
 authors = ["alice", "bob"]     # 可选，作者与贡献者
 description = "..."            # 可选，可读描述
 api = "2.1"                    # 可选，开发时针对的宿主 API 版本（System.Version，默认 1.0）
 ```
 
-- **无 `settings`、无 `enabled`**——运行态与可写内容一律不进 manifest（`enabled` 走 Core 自带配置、设置走 `GetPluginConfig()`、数据走 `GetPluginFolder()`）。
+- **无 `settings`、无 `enabled`**——运行态与可写内容一律不进 manifest（设置走 `GetPluginConfig()`、数据走 `GetPluginFolder()`）。
 - 解析：Tomlyn `TomlSerializer.Deserialize<PluginInfo>` **直接反序列化到类型**（`[TomlRequired]` 必填 / `[TomlIgnore]` 运行时字段 / `[TomlPropertyName]` 映射 `dependency`/`dependencyOptional`/`api`）；嵌入：`<EmbeddedResource Include="plugin.toml" />`；约定名 `plugin.toml`。
 - 无 manifest 的 DLL 视为**依赖库跳过**；有但解析错误 / 缺必填字段 → **fail-fast**（`InvalidInfoException`）。
 - 用途：Loader 在实例化**之前**完成识别、入口解析、依赖图构建、排序、校验（避免先实例化再校验）。
 
-### 5.3 目录布局与启停管理
+### 5.3 目录布局
 
 ```
 Plugins/                          # 唯一运行时根目录（<base>/Plugins，可经 Plugins:BaseDirectory 覆写）
 ├── <name>/                       # 插件目录（全部插件数据统一挂此，编排由插件自行决定）
 │   ├── <name>.dll …             # 插件程序集及本地依赖
 │   ├── config.toml               # GetPluginConfig() 按需即时生成（插件设置）
-│   └── Data/ …                   # GetPluginFolder() 返回插件目录本身，开发者自行编排（如 Data/ 子目录）
+│   └── Data/ …                   # 开发者自行编排（GetPluginFolder() 返回插件目录本身）
 └── *.dll                         # 共享 native/依赖库平铺（无 manifest → 跳过）
 ```
 
 | 内容 | 位置 | 说明 |
 |------|------|------|
-| 插件启停 | Core 自带配置 `Plugins:Disabled`（`appsettings.json` 等 IConfiguration 源） | `StartAsync` 经 `disabledNames` 传入；缺失默认全部启用；禁用无需重新打包 |
 | 插件设置 | `Plugins/<name>/config.toml` | `GetPluginConfig()` 按需即时生成；后续 Configurations 提供类型化/版本化访问 |
 | 插件数据 | `Plugins/<name>/` | `GetPluginFolder()` 按需即时生成，返回插件目录本身；数据库/缓存等由插件自行编排 |
 
@@ -142,19 +141,22 @@ Plugins/                          # 唯一运行时根目录（<base>/Plugins，
 
 ### 5.4 PluginLoader 流程
 
-**StartAsync**：
+**Load(path)**：加载单个插件（出错抛 `InvalidPluginException`）：
 
-1. 创建 `Plugins/` 根目录；递归扫描其内 `*.dll` → `Assembly.LoadFrom`（默认 ALC）→ 读内嵌 `plugin.toml`；无 → 跳过（依赖库）；解析错误 → fail-fast
-2. 按宿主（Core 配置 `Plugins:Disabled`）传入的禁用名单过滤启用插件；**重复 name → fail-fast**
-3. 构建插件名依赖图：硬前置（`dependency`）引用未知/禁用插件 → fail-fast；软前置（`dependencyOptional`）缺失/禁用静默跳过、存在则同样构成排序边；**检测环 → fail-fast**
-4. 拓扑排序（Kahn）→ Load/Start 顺序
-5. 实例化 main（public 无参构造器）并校验为 `CorePlugin` 子类；type 不存在 / 抽象 / 非 CorePlugin → fail-fast
-6. `InjectHost(Info, PluginService)` → `Load()`（OnLoad）→ 依序 `StartAsync`
-7. **失败回滚**：Load/Start 任一失败 → 逆序 Stop 已 Started 插件（best-effort）→ 原样上抛（校验类抛 `InvalidPluginException` / `InvalidInfoException` / `UnknownDependencyException`；运行期异常不包装）
+1. `Assembly.LoadFrom(path)`（失败 → fail-fast）
+2. 读内嵌 `plugin.toml` → `PluginInfo`；无 → 非插件程序集（fail-fast）
+3. 重复 name → fail-fast；`GetPluginMainType` 解析 main 并校验为具体 `Plugin` 子类
+4. 实例化（public 无参构造器）→ `InjectHost(Info, PluginService)` → 记录 `PluginAssembly` + `Plugin`（State=Loaded），**不调用 OnEnable**
 
-**StopAsync**：逆序 `StopAsync`（best-effort，异常聚合记录，不抛出）。状态推进 `Discovered→Loaded→Started→Stopped/Failed` 记于 `PluginInfo.State`（枚举 `CorePlugin.PluginState` 内嵌于 `CorePlugin`）。加载器无内置状态机，**生命周期与主程序同步**。
+**EnableAsync(Plugin) / DisableAsync(Plugin)**：单插件启停，返回 bool（未加载 / 已处于目标状态 → false；回调抛异常 → 置 Failed 返回 false）。
 
-**实现约定**：`AssemblyResolve` 兜底探询**所有插件子目录**（跨插件引用与插件本地依赖解析）；启动打印插件图（名称/版本/依赖/顺序）；`PluginLoader` 构造器注入宿主级 `PluginService`。
+**EnableAsync()**：构建依赖图（硬前置 `dependency` 引用未知 → fail-fast；软前置 `dependencyOptional` 可解析则构成排序边；检测环 → fail-fast）→ 拓扑排序 → 依序 `OnEnable`（State=Enabled）；任一失败 → 逆序回滚已启用插件 → 返回 false。
+
+**DisableAsync()**：逆拓扑序 `OnDisable`（State=Disabled，清理由插件自行完成）；任一失败 → 返回 false。
+
+**状态**：`Loaded → Enabled ↔ Disabled / Failed`，记于 `Plugin.State`。加载器无内置状态机，**生命周期与主程序同步**。
+
+**实现约定**：`AssemblyResolve` 兜底探询**所有插件子目录**（跨插件引用与插件本地依赖解析）；静态内省原语 `GetPluginFiles` / `GetPluginInfo` / `GetPluginResource` / `GetPluginMainType` 供宿主与外部按文件级访问；`PluginLoader` 构造器注入宿主级 `PluginService`。
 
 ### 5.5 打包约定
 
@@ -166,7 +168,7 @@ Plugins/                          # 唯一运行时根目录（<base>/Plugins，
 
 | 异常 | 场景 |
 |------|------|
-| `InvalidPluginException` | 插件结构不合法：DLL 不可加载 / main 类型不存在、非 `CorePlugin` 或无法实例化 / 重复插件名 / 依赖环 / 签名校验失败 |
+| `InvalidPluginException` | 插件结构不合法：DLL 不可加载 / main 类型不存在、非 `Plugin` 子类或无法实例化 / 重复插件名 / 依赖环 / 签名校验失败 |
 | `InvalidInfoException` | 插件信息不合法：plugin.toml 缺失或不可读 / TOML 格式非法 / 缺关键字段 / 类型不符 |
 | `UnknownDependencyException` | `dependency`（硬前置）引用未知或当前不可用（禁用）的插件 |
 
@@ -237,7 +239,7 @@ Core 网关设施 · **单路由**（通用操作路由）：一个通用路由�
 
 | 模块 | 关系 |
 |------|------|
-| **Home** | 纯模型库，实现 `CorePlugin`（`HomePlugin`）作为插件由宿主托管；适配器下一期 |
+| **Home** | 纯模型库，实现 `Plugin`（`HomePlugin`）作为插件由宿主托管；适配器下一期 |
 | **Ai** | Agentic / Memory / LLM，独立模块（不进 Core）；亦作为插件注册 |
 | **Sense** | 感知采集，输出标准化状态到 State；作为插件注册 |
 | **Voice** | Python HTTP 服务（TTS），经 Commands / 网关调用 |

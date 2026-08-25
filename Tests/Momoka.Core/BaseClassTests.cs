@@ -6,7 +6,7 @@ using Momoka.Core.Plugins;
 
 namespace Momoka.Core.Tests;
 
-/// <summary>CorePlugin 基类：宿主注入直通/专属能力派生/守卫/目录自动创建。</summary>
+/// <summary>Plugin 基类：宿主注入直通/专属能力派生/守卫/目录自动创建/生命周期钩子。</summary>
 public sealed class BaseClassTests : IDisposable
 {
     private readonly string _tempRoot;
@@ -48,34 +48,19 @@ public sealed class BaseClassTests : IDisposable
 
         var plugin = new TestPlugin();
         plugin.InjectHost(CreateInfo("test"), CreateService(registry, hub));
-        plugin.Load();
 
-        Assert.True(plugin.Loaded);
         Assert.Same(registry, plugin.ServicesPublic);
         Assert.Same(hub, plugin.EventsPublic);
         Assert.NotNull(plugin.LoggerPublic);
         Assert.Equal("test", plugin.Name);
         Assert.Equal("1.0.0", plugin.Version);
-    }
-
-    [Fact]
-    public void Load_Twice_Throws()
-    {
-        var plugin = new TestPlugin();
-        plugin.InjectHost(
-            CreateInfo("test"),
-            CreateService(new ServiceRegistry(), new EventHub()));
-        plugin.Load();
-
-        var ex = Assert.Throws<InvalidOperationException>(() => plugin.Load());
-        Assert.Contains("already been loaded", ex.Message);
+        Assert.Equal(PluginState.Loaded, plugin.State);
     }
 
     [Fact]
     public void GetPluginFolder_CreatesDirectoryOnFirstAccess()
     {
         var plugin = InjectedPlugin(out var folder, out _);
-        plugin.Load();
 
         Assert.False(folder.Exists);
         _ = plugin.Folder;
@@ -87,7 +72,6 @@ public sealed class BaseClassTests : IDisposable
     public void GetPluginConfig_CreatesFileOnFirstAccess()
     {
         var plugin = InjectedPlugin(out _, out var config);
-        plugin.Load();
 
         Assert.False(config.Exists);
         _ = plugin.Config;
@@ -101,7 +85,6 @@ public sealed class BaseClassTests : IDisposable
     public async Task PluginService_ExposesEventHubForSubscription()
     {
         var plugin = InjectedPlugin(out _, out _);
-        plugin.Load();
         var hub = plugin.EventsPublic;
 
         var calls = 0;
@@ -120,13 +103,13 @@ public sealed class BaseClassTests : IDisposable
     }
 
     [Fact]
-    public void OnLoad_IsInvokedOnLoad()
+    public void OnEnable_IsInvoked()
     {
         var plugin = InjectedPlugin(out _, out _);
 
-        Assert.False(plugin.Loaded);
-        plugin.Load();
-        Assert.True(plugin.Loaded);
+        Assert.False(plugin.Enabled);
+        plugin.OnEnable();
+        Assert.True(plugin.Enabled);
     }
 
     private TestPlugin InjectedPlugin(out DirectoryInfo folder, out FileInfo config)
@@ -151,12 +134,12 @@ public sealed class BaseClassTests : IDisposable
     private PluginService CreateService(ServiceRegistry registry, EventHub hub)
         => new(registry, hub, NullLoggerFactory.Instance, _tempRoot);
 
-    /// <summary>内联测试插件：暴露 CorePlugin 的 protected 成员供测试访问。</summary>
-    public sealed class TestPlugin : CorePlugin
+    /// <summary>内联测试插件：暴露 Plugin 的 protected 成员供测试访问。</summary>
+    public sealed class TestPlugin : Plugin
     {
-        public ServiceRegistry ServicesPublic => Plugin.Services;
+        public ServiceRegistry ServicesPublic => Host.Services;
 
-        public EventHub EventsPublic => Plugin.Events;
+        public EventHub EventsPublic => Host.Events;
 
         public ILogger LoggerPublic => Logger;
 
@@ -164,15 +147,11 @@ public sealed class BaseClassTests : IDisposable
 
         public FileInfo Config => GetPluginConfig();
 
-        public bool Loaded { get; private set; }
+        public bool Enabled { get; private set; }
 
-        protected override void OnLoad()
+        public override void OnEnable()
         {
-            Loaded = true;
+            Enabled = true;
         }
-
-        public override Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public override Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

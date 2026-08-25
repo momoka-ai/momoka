@@ -5,7 +5,7 @@ namespace Momoka.Core.Plugins;
 
 /// <summary>
 /// 插件信息：manifest 字段（name/version/main/dependency/dependencyOptional/authors/description/api，
-/// 由 plugin.toml 直接反序列化）+ 运行时字段（生命周期状态）。一个程序集 = 一个插件。
+/// 由 plugin.toml 直接反序列化）。一个程序集 = 一个插件；生命周期状态见 <see cref="PluginState"/>（由宿主推进）。
 /// </summary>
 public sealed class PluginInfo
 {
@@ -17,7 +17,7 @@ public sealed class PluginInfo
     [TomlRequired]
     public string Version { get; set; } = string.Empty;
 
-    /// <summary>入口类型全名（<c>CorePlugin</c> 子类），格式 <c>TypeFullName, AssemblyName</c>。
+    /// <summary>入口类型全名（<c>Plugin</c> 子类），格式 <c>TypeFullName, AssemblyName</c>。
     /// 程序集加载后惰性解析，故类型为字符串而非 <see cref="System.Type"/>。</summary>
     [TomlRequired]
     public string Main { get; set; } = string.Empty;
@@ -40,10 +40,6 @@ public sealed class PluginInfo
     /// <summary>插件开发时针对的宿主 API 版本（可选，默认 1.0）。</summary>
     [TomlPropertyName("api")]
     public Version Api { get; set; } = new(1, 0);
-
-    /// <summary>当前生命周期状态（由宿主推进）。</summary>
-    [TomlIgnore]
-    public CorePlugin.PluginState State { get; internal set; } = CorePlugin.PluginState.Discovered;
 
     /// <summary>
     /// 解析 plugin.toml 文本为 <see cref="PluginInfo"/>（Tomlyn 直接反序列化到类型）；
@@ -78,26 +74,25 @@ public sealed class PluginInfo
 }
 
 /// <summary>
-/// 插件依赖图纯函数：校验（重复名 / 未知或禁用的硬前置 / 依赖环）与拓扑排序。
-/// 硬前置（<see cref="PluginInfo.Dependency"/>）缺失或禁用 → fail-fast；
+/// 插件依赖图纯函数：校验（重复名 / 未知硬前置 / 依赖环）与拓扑排序。
+/// 硬前置（<see cref="PluginInfo.Dependency"/>）缺失 → fail-fast；
 /// 软前置（<see cref="PluginInfo.DependencyOptional"/>）不可解析时静默跳过，可解析则同样构成排序边。
-/// 排序结果即 Load / Start 顺序；校验失败全部 fail-fast（抛
+/// 排序结果即启用顺序；校验失败全部 fail-fast（抛
 /// <see cref="InvalidPluginException"/> / <see cref="UnknownDependencyException"/>）。
 /// </summary>
 internal static class PluginDependencyGraph
 {
     /// <summary>
-    /// 过滤禁用插件后按依赖拓扑排序。禁用插件被跳过（其依赖不参与校验）；
-    /// 启用插件的硬前置引用未知或禁用插件 → <see cref="UnknownDependencyException"/>；
-    /// 软前置仅在被引用插件存在且启用时作为排序边。
+    /// 按依赖拓扑排序。硬前置引用未知插件 → <see cref="UnknownDependencyException"/>；
+    /// 软前置仅在被引用插件存在时作为排序边。
     /// </summary>
-    public static List<PluginInfo> Order(IEnumerable<PluginInfo> plugins, IReadOnlySet<string> disabledNames)
+    public static List<PluginInfo> Order(IEnumerable<PluginInfo> plugins)
     {
         ArgumentNullException.ThrowIfNull(plugins);
-        ArgumentNullException.ThrowIfNull(disabledNames);
 
         var byName = new Dictionary<string, PluginInfo>(StringComparer.Ordinal);
-        foreach (var plugin in plugins)
+        var pluginsList = plugins.ToList();
+        foreach (var plugin in pluginsList)
         {
             if (!byName.TryAdd(plugin.Name, plugin))
             {
@@ -105,14 +100,8 @@ internal static class PluginDependencyGraph
             }
         }
 
-        var enabled = new List<PluginInfo>();
-        foreach (var plugin in plugins)
+        foreach (var plugin in pluginsList)
         {
-            if (disabledNames.Contains(plugin.Name))
-            {
-                continue;
-            }
-
             foreach (var dependency in plugin.Dependency)
             {
                 if (!byName.ContainsKey(dependency))
@@ -120,32 +109,22 @@ internal static class PluginDependencyGraph
                     throw new UnknownDependencyException(
                         $"Plugin '{plugin.Name}' depends on unknown plugin '{dependency}'.");
                 }
-
-                if (disabledNames.Contains(dependency))
-                {
-                    throw new UnknownDependencyException(
-                        $"Plugin '{plugin.Name}' depends on disabled plugin '{dependency}'.");
-                }
             }
-
-            enabled.Add(plugin);
         }
 
-        return TopologicalSort(enabled, byName, disabledNames);
+        return TopologicalSort(pluginsList, byName);
     }
 
     private static List<PluginInfo> TopologicalSort(
-        IReadOnlyList<PluginInfo> enabled,
-        Dictionary<string, PluginInfo> byName,
-        IReadOnlySet<string> disabledNames)
+        IReadOnlyList<PluginInfo> plugins,
+        Dictionary<string, PluginInfo> byName)
     {
         var remainingDependencies = new Dictionary<string, int>(StringComparer.Ordinal);
         var dependents = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-        foreach (var plugin in enabled)
+        foreach (var plugin in plugins)
         {
             var edges = new List<string>(plugin.Dependency);
-            edges.AddRange(plugin.DependencyOptional.Where(
-                d => byName.ContainsKey(d) && !disabledNames.Contains(d)));
+            edges.AddRange(plugin.DependencyOptional.Where(byName.ContainsKey));
 
             remainingDependencies[plugin.Name] = edges.Count;
             foreach (var dependency in edges)
@@ -160,8 +139,8 @@ internal static class PluginDependencyGraph
             }
         }
 
-        var ready = new Queue<PluginInfo>(enabled.Where(p => remainingDependencies[p.Name] == 0));
-        var sorted = new List<PluginInfo>(enabled.Count);
+        var ready = new Queue<PluginInfo>(plugins.Where(p => remainingDependencies[p.Name] == 0));
+        var sorted = new List<PluginInfo>(plugins.Count);
         while (ready.Count > 0)
         {
             var plugin = ready.Dequeue();
@@ -180,7 +159,7 @@ internal static class PluginDependencyGraph
             }
         }
 
-        if (sorted.Count != enabled.Count)
+        if (sorted.Count != plugins.Count)
         {
             throw new InvalidPluginException("Cyclic dependency detected among plugins.");
         }

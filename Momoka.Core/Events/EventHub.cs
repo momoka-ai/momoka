@@ -4,34 +4,38 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Momoka.Core.Events;
 
 /// <summary>
-/// 内存事件总线实现（线程安全）：订阅/退订/发布并发安全；发布时快照订阅表再分发，
-/// 分发过程中退订不影响本次快照。单 handler 异常隔离，绝不向发布方传播。
+/// 事件中心（内存、线程安全）：订阅/退订/发布并发安全；发布时快照订阅表再分发，
+/// 分发过程中退订不影响本次快照。分发模式由**订阅者**声明（发布者只 await）：
+/// Sequential 按订阅顺序依次执行、Parallel 并发执行、Background 即发即忘。
+/// handler 异常一律隔离记录，绝不向发布方传播。
 /// </summary>
-public sealed partial class EventBus : IEventBus
+public sealed partial class EventHub
 {
     private readonly object _gate = new();
     private readonly Dictionary<Type, List<Subscription>> _subscriptions = new();
-    private readonly ILogger<EventBus> _logger;
+    private readonly ILogger<EventHub> _logger;
 
-    /// <summary>创建不记日志的事件总线（测试/无日志场景）。</summary>
-    public EventBus()
-        : this(NullLogger<EventBus>.Instance)
+    /// <summary>创建不记日志的事件中心（测试/无日志场景）。</summary>
+    public EventHub()
+        : this(NullLogger<EventHub>.Instance)
     {
     }
 
-    /// <summary>创建事件总线。</summary>
-    public EventBus(ILogger<EventBus> logger)
+    /// <summary>创建事件中心。</summary>
+    public EventHub(ILogger<EventHub> logger)
     {
         ArgumentNullException.ThrowIfNull(logger);
         _logger = logger;
     }
 
-    /// <inheritdoc />
-    public IDisposable Subscribe<TEvent>(Func<TEvent, Task> handler)
+    /// <summary>订阅事件（可按订阅者声明分发模式）；返回的令牌用于退订（幂等）。</summary>
+    public IDisposable Subscribe<TEvent>(
+        Func<TEvent, Task> handler,
+        DispatchMode mode = DispatchMode.Sequential)
     {
         ArgumentNullException.ThrowIfNull(handler);
 
-        var subscription = new Subscription(this, typeof(TEvent), e => handler((TEvent)e));
+        var subscription = new Subscription(this, typeof(TEvent), mode, e => handler((TEvent)e));
         lock (_gate)
         {
             if (!_subscriptions.TryGetValue(typeof(TEvent), out var list))
@@ -46,11 +50,8 @@ public sealed partial class EventBus : IEventBus
         return subscription;
     }
 
-    /// <inheritdoc />
-    public Task PublishAsync<TEvent>(
-        TEvent @event,
-        DispatchMode mode = DispatchMode.Sequential,
-        CancellationToken cancellationToken = default)
+    /// <summary>发布事件：Sequential/Parallel 订阅者执行完毕后返回；Background 订阅者即发即忘。</summary>
+    public Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
     {
         if (@event is null)
         {
@@ -69,13 +70,51 @@ public sealed partial class EventBus : IEventBus
             return Task.CompletedTask;
         }
 
-        return mode switch
+        return DispatchAsync(snapshot, @event, cancellationToken);
+    }
+
+    private async Task DispatchAsync<TEvent>(
+        IReadOnlyList<Subscription> snapshot,
+        TEvent @event,
+        CancellationToken cancellationToken)
+    {
+        var parallelTasks = new List<Task>();
+        foreach (var subscription in snapshot)
         {
-            DispatchMode.Sequential => InvokeSequentialAsync(snapshot, @event, cancellationToken),
-            DispatchMode.Parallel => InvokeParallelAsync(snapshot, @event),
-            DispatchMode.Background => InvokeBackgroundAsync(snapshot, @event),
-            _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null),
-        };
+            switch (subscription.Mode)
+            {
+                case DispatchMode.Sequential:
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await InvokeSafelyAsync(subscription, @event).ConfigureAwait(false);
+                    break;
+                case DispatchMode.Parallel:
+                    parallelTasks.Add(InvokeSafelyAsync(subscription, @event));
+                    break;
+                case DispatchMode.Background:
+                    _ = InvokeSafelyAsync(subscription, @event);
+                    break;
+                default:
+                    throw new InvalidOperationException(
+                        $"Unsupported dispatch mode '{subscription.Mode}'.");
+            }
+        }
+
+        if (parallelTasks.Count > 0)
+        {
+            await Task.WhenAll(parallelTasks).ConfigureAwait(false);
+        }
+    }
+
+    private async Task InvokeSafelyAsync<TEvent>(Subscription subscription, TEvent @event)
+    {
+        try
+        {
+            await subscription.InvokeAsync(@event).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            LogHandlerError(ex, typeof(TEvent));
+        }
     }
 
     private void Remove(Subscription subscription)
@@ -95,77 +134,28 @@ public sealed partial class EventBus : IEventBus
         }
     }
 
-    private async Task InvokeSequentialAsync<TEvent>(
-        IReadOnlyList<Subscription> snapshot,
-        TEvent @event,
-        CancellationToken cancellationToken)
-    {
-        foreach (var subscription in snapshot)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                await subscription.InvokeAsync(@event).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                LogHandlerError(ex, typeof(TEvent));
-            }
-        }
-    }
-
-    private async Task InvokeParallelAsync<TEvent>(IReadOnlyList<Subscription> snapshot, TEvent @event)
-    {
-        var tasks = snapshot.Select(s => s.InvokeAsync(@event)).ToArray();
-        var aggregate = await Task.WhenAll(tasks)
-            .ContinueWith(t => t.Exception, TaskScheduler.Default)
-            .ConfigureAwait(false);
-        if (aggregate is not null)
-        {
-            LogAggregateHandlerError(aggregate, typeof(TEvent));
-        }
-    }
-
-    private async Task InvokeBackgroundAsync<TEvent>(IReadOnlyList<Subscription> snapshot, TEvent @event)
-    {
-        foreach (var subscription in snapshot)
-        {
-            try
-            {
-                await subscription.InvokeAsync(@event).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                LogHandlerError(ex, typeof(TEvent));
-            }
-        }
-    }
-
     [LoggerMessage(
         EventId = 1,
         Level = LogLevel.Error,
         Message = "Event handler for '{EventType}' threw an exception.")]
     private partial void LogHandlerError(Exception exception, Type eventType);
 
-    [LoggerMessage(
-        EventId = 2,
-        Level = LogLevel.Error,
-        Message = "One or more event handlers for '{EventType}' threw exceptions.")]
-    private partial void LogAggregateHandlerError(Exception exception, Type eventType);
-
     private sealed class Subscription : IDisposable
     {
-        private readonly EventBus _bus;
+        private readonly EventHub _hub;
         private int _disposed;
 
-        public Subscription(EventBus bus, Type eventType, Func<object, Task> handler)
+        public Subscription(EventHub hub, Type eventType, DispatchMode mode, Func<object, Task> handler)
         {
-            _bus = bus;
+            _hub = hub;
             EventType = eventType;
+            Mode = mode;
             Handler = handler;
         }
 
         public Type EventType { get; }
+
+        public DispatchMode Mode { get; }
 
         private Func<object, Task> Handler { get; }
 
@@ -185,7 +175,7 @@ public sealed partial class EventBus : IEventBus
         {
             if (Interlocked.Exchange(ref _disposed, 1) == 0)
             {
-                _bus.Remove(this);
+                _hub.Remove(this);
             }
         }
     }

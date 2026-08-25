@@ -3,30 +3,28 @@ using Momoka.Core.Plugins;
 namespace Momoka.Core.Tests.Plugins.Beta;
 
 /// <summary>
-/// 依赖 alpha 的插件：StartAsync 经服务注册表解析 alpha 注册的服务（跨程序集解析），
+/// 依赖 alpha 的插件：OnEnable 经服务注册表解析 alpha 注册的服务（跨程序集解析），
 /// 验证依赖拓扑排序与插件间程序集解析。
 /// </summary>
-public sealed class BetaPlugin : CorePlugin
+public sealed class BetaPlugin : Plugin
 {
-    public override Task StartAsync(CancellationToken cancellationToken)
+    public override void OnEnable()
     {
-        Alpha.ITestService service = Plugin.Services.Resolve<Alpha.ITestService>();
+        Alpha.ITestService service = Host.Services.Resolve<Alpha.ITestService>();
         ResolvedGreeting = service.Greeting;
-        StartCount++;
-        Lifecycle.Record("beta", "start");
-        return Task.CompletedTask;
+        EnableCount++;
+        Lifecycle.Record("beta", "enable");
     }
 
-    public override Task StopAsync(CancellationToken cancellationToken)
+    public override void OnDisable()
     {
-        StopCount++;
-        Lifecycle.Record("beta", "stop");
-        return Task.CompletedTask;
+        DisableCount++;
+        Lifecycle.Record("beta", "disable");
     }
 
     public static string? ResolvedGreeting { get; private set; }
 
-    public static int StartCount { get; set; }
+    public static int EnableCount { get; set; }
 
-    public static int StopCount { get; set; }
+    public static int DisableCount { get; set; }
 }

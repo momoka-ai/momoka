@@ -6,7 +6,7 @@
 
 Core 提供一组**通用机制**（机制在 Core、业务语义在模块），支撑「AI 协助/接管用户生活」：
 
-- **Plugins**：插件契约（`IPlugin` / `CorePlugin`）+ `plugin.toml` 直接反序列化到 `PluginInfo` + 扫描/排序/校验/生命周期（`PluginLoader`）
+- **Plugins**：插件契约（`IPlugin` / `Plugin` 基类，生命周期 `OnEnable` / `OnDisable`）+ `plugin.toml` 直接反序列化到 `PluginInfo` + 加载/启停/依赖图（`PluginLoader`）
 - **Events**：事件中心 `EventHub`（订阅级 Sequential / Parallel / Background，异常隔离）
 - **Registry**：插件间服务发现表（同类型多注册、优先级/来源插件追踪）
 - **Configurations / Commands / Scheduling / Notifications / Profiles / State / Security**：后续迭代（契约见 `Documentation/DESIGN_CORE.md` §8）
@@ -19,14 +19,14 @@ Core 提供一组**通用机制**（机制在 Core、业务语义在模块），
 dotnet run --project Momoka.Core
 ```
 
-默认扫描 `<base>/Plugins`（每插件一子目录，DLL + `config.toml` + 自编排数据统一挂此；无 manifest 的 DLL 平铺视为依赖库）；路径硬编码于基目录（可经 `appsettings.json` 的 `Plugins:BaseDirectory` 覆写）；插件启停由 Core 自带配置 `Plugins:Disabled` 管理。
+默认扫描 `<base>/Plugins`（每插件一子目录，DLL + `config.toml` + 自编排数据统一挂此；无 manifest 的 DLL 平铺视为依赖库）；路径硬编码于基目录（可经 `appsettings.json` 的 `Plugins:BaseDirectory` 覆写）。启动即 `Load` 全部插件并按依赖图依序 `EnableAsync()`，退出逆序 `DisableAsync()`。
 
 ## 插件开发要点
 
-- 实现 `CorePlugin`（`Info` 含 manifest 身份，由宿主注入；`OnLoad` 注册服务/订阅事件）
+- 实现 `Plugin`（`Info` 含 manifest 身份，由宿主注入；`OnEnable` 注册服务/订阅事件，`OnDisable` 清理——清理由插件自行完成）
 - 嵌入 `plugin.toml`（`name` / `version` / `main` / `dependency` / `dependencyOptional` / `authors` / `description` / `api`），无 settings / enabled
 - 项目设置 `<IsPlugin>true</IsPlugin>` + `<PluginId>name</PluginId>`，产物自动拷入 `Plugins/<name>/`
-- 宿主能力经 `Plugin` 访问共享设施（`Plugin.Services.Register/Resolve`、`Plugin.Events.Subscribe`）+ 专属派生（`Logger` / `GetPluginFolder()` / `GetPluginConfig()`）
+- 宿主能力经 `Host` 访问共享设施（`Host.Services.Register/Resolve`、`Host.Events.Subscribe`）+ 专属派生（`Logger` / `GetPluginFolder()` / `GetPluginConfig()`）
 
 ## 验证
 

@@ -9,9 +9,8 @@ namespace Momoka.Core;
 
 /// <summary>
 /// 插件宿主入口：Generic Host 底座（后续换 WebApplication 底座）——
-/// 启动插件（扫描/排序/校验/注入）→ 打印插件图 → 运行 → 逆序停止。
-/// 插件根目录硬编码于基目录（可经配置 Plugins:BaseDirectory 覆写）下的 Plugins；
-/// 插件启停由 Core 自带配置（Plugins:Disabled）管理。
+/// 扫描插件根目录 → 逐插件 Load（实例化）→ EnableAsync（按依赖图依序启用）→ 运行 → 逆序停用。
+/// 插件根目录硬编码于基目录（可经配置 Plugins:BaseDirectory 覆写）下的 Plugins。
 /// </summary>
 public static class Program
 {
@@ -31,16 +30,26 @@ public static class Program
 
         using var host = builder.Build();
         var loader = host.Services.GetRequiredService<PluginLoader>();
-        IReadOnlySet<string> disabled = ReadDisabledPlugins(builder.Configuration);
+        var pluginService = host.Services.GetRequiredService<PluginService>();
 
         try
         {
-            await loader.StartAsync(disabled);
+            foreach (string file in PluginLoader.GetPluginFiles(pluginService.PluginsDirectory.FullName))
+            {
+                if (PluginLoader.GetPluginInfo(file) is null)
+                {
+                    continue; // 依赖库（无 manifest）跳过
+                }
+
+                loader.Load(file);
+            }
+
+            await loader.EnableAsync();
             await host.RunAsync();
         }
         finally
         {
-            await loader.StopAsync();
+            await loader.DisableAsync();
         }
     }
 
@@ -48,13 +57,5 @@ public static class Program
     {
         string? configured = configuration["Plugins:BaseDirectory"];
         return string.IsNullOrWhiteSpace(configured) ? null : configured;
-    }
-
-    private static HashSet<string> ReadDisabledPlugins(ConfigurationManager configuration)
-    {
-        string[]? names = configuration.GetSection("Plugins").GetSection("Disabled").Get<string[]>();
-        return names is null
-            ? new HashSet<string>(StringComparer.Ordinal)
-            : new HashSet<string>(names, StringComparer.Ordinal);
     }
 }

@@ -1,7 +1,7 @@
 namespace Momoka.Core.Plugins;
 
 /// <summary>
-/// 插件结构不合法：DLL 不可加载 / entry 类型不存在、非 <see cref="CorePlugin"/> 或无法实例化 /
+/// 插件结构不合法：DLL 不可加载 / entry 类型不存在、非 <see cref="Plugin"/> 或无法实例化 /
 /// 重复插件名 / 依赖环 / 签名校验失败等。宿主加载期 fail-fast 抛出。
 /// </summary>
 public sealed class InvalidPluginException : Exception

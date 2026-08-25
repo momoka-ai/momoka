@@ -3,38 +3,32 @@ using Momoka.Core.Plugins;
 namespace Momoka.Core.Tests.Plugins.Explode;
 
 /// <summary>
-/// 可注入失败的插件：测试经静态开关（测试经反射设置）触发 Load / Start 失败，
-/// 验证宿主逆序回滚已启动插件。
+/// 可注入失败的插件：测试经静态开关（测试经反射设置）触发 OnEnable / OnDisable 失败，
+/// 验证宿主状态机（Failed）与批量启停回滚。
 /// </summary>
-public sealed class ExplodePlugin : CorePlugin
+public sealed class ExplodePlugin : Plugin
 {
-    protected override void OnLoad()
+    public override void OnEnable()
     {
-        if (ThrowOnLoad)
+        if (ThrowOnEnable)
         {
-            throw new InvalidOperationException("simulated load failure");
+            throw new InvalidOperationException("simulated enable failure");
         }
     }
 
-    public override Task StartAsync(CancellationToken cancellationToken)
+    public override void OnDisable()
     {
-        if (ThrowOnStart)
+        if (ThrowOnDisable)
         {
-            throw new InvalidOperationException("simulated start failure");
+            throw new InvalidOperationException("simulated disable failure");
         }
 
-        return Task.CompletedTask;
+        DisableCount++;
     }
 
-    public override Task StopAsync(CancellationToken cancellationToken)
-    {
-        StopCount++;
-        return Task.CompletedTask;
-    }
+    public static bool ThrowOnEnable { get; set; }
 
-    public static bool ThrowOnLoad { get; set; }
+    public static bool ThrowOnDisable { get; set; }
 
-    public static bool ThrowOnStart { get; set; }
-
-    public static int StopCount { get; set; }
+    public static int DisableCount { get; set; }
 }

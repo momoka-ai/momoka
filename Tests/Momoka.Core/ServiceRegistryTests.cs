@@ -25,10 +25,6 @@ public sealed class ServiceRegistryTests
         public string Name { get; }
 
         public string Version => "1.0.0";
-
-        public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     [Fact]

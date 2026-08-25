@@ -6,7 +6,7 @@ namespace Momoka.Core.Plugins;
 /// <summary>
 /// 插件宿主能力束（宿主级共享，全插件共用同一实例）：统一持有服务注册表 / 事件中心 /
 /// 日志工厂与运行时插件根目录（Plugins，硬编码于基目录之下）。
-/// 插件专属能力（日志器 / 插件目录 / 配置）由 <see cref="CorePlugin"/> 基于自身名称派生。
+/// 插件专属能力（日志器 / 插件目录 / 配置）由 <see cref="Plugin"/> 基于自身名称派生。
 /// </summary>
 public sealed class PluginService
 {
@@ -32,7 +32,7 @@ public sealed class PluginService
     /// <summary>强类型事件中心（共享）。</summary>
     public EventHub Events { get; }
 
-    /// <summary>日志工厂（共享；插件日志器经 <see cref="CorePlugin"/> 派生）。</summary>
+    /// <summary>日志工厂（共享；插件日志器经 <see cref="Plugin"/> 派生）。</summary>
     public ILoggerFactory LoggerFactory { get; }
 
     /// <summary>插件根目录（&lt;base&gt;/Plugins，插件各占一个子目录）。</summary>
