@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.Loader;
 
 namespace Momoka.Core.Plugins;
 
@@ -57,9 +58,9 @@ public sealed class PluginLoader : IDisposable
         Assembly assembly;
         try
         {
-            assembly = Assembly.LoadFrom(path);
+            assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(path);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or BadImageFormatException or FileLoadException)
         {
             throw new InvalidPluginException($"Failed to load assembly '{path}'.", ex);
         }
@@ -90,7 +91,8 @@ public sealed class PluginLoader : IDisposable
         {
             plugin = (Plugin)Activator.CreateInstance(mainType)!;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is TargetInvocationException or MemberAccessException
+            or TypeLoadException or TypeInitializationException or NotSupportedException)
         {
             throw new InvalidPluginException(
                 $"Plugin '{info.Name}' main type '{mainType.FullName}' could not be instantiated.", ex);
@@ -131,7 +133,7 @@ public sealed class PluginLoader : IDisposable
         {
             plugin.OnEnable();
         }
-        catch
+        catch (Exception)
         {
             plugin.State = PluginState.Failed;
             return false;
@@ -165,7 +167,7 @@ public sealed class PluginLoader : IDisposable
         {
             plugin.OnDisable();
         }
-        catch
+        catch (Exception)
         {
             plugin.State = PluginState.Failed;
             return false;
@@ -276,7 +278,7 @@ public sealed class PluginLoader : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentException.ThrowIfNullOrWhiteSpace(inner);
 
-        Assembly assembly = Assembly.LoadFrom(path);
+        Assembly assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(path);
         Stream? stream = assembly.GetManifestResourceStream(inner);
         return stream ?? throw new InvalidPluginException($"Resource '{inner}' was not found in assembly '{path}'.");
     }
@@ -289,9 +291,9 @@ public sealed class PluginLoader : IDisposable
         Assembly assembly;
         try
         {
-            assembly = Assembly.LoadFrom(path);
+            assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(path);
         }
-        catch
+        catch (Exception ex) when (ex is IOException or BadImageFormatException or FileLoadException)
         {
             return null;
         }
@@ -331,7 +333,8 @@ public sealed class PluginLoader : IDisposable
         {
             type = assembly.GetType(mainTypeName);
         }
-        catch
+        catch (Exception ex) when (ex is ArgumentException or TypeLoadException
+            or IOException or BadImageFormatException)
         {
             return null;
         }
@@ -383,9 +386,9 @@ public sealed class PluginLoader : IDisposable
 
         try
         {
-            return Assembly.LoadFrom(candidate.FullName);
+            return AssemblyLoadContext.Default.LoadFromAssemblyPath(candidate.FullName);
         }
-        catch
+        catch (Exception ex) when (ex is IOException or BadImageFormatException or FileLoadException)
         {
             return null;
         }

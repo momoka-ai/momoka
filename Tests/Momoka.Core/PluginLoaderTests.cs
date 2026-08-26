@@ -1,5 +1,6 @@
 using Xunit;
 using System.Reflection;
+using System.Runtime.Loader;
 using Microsoft.Extensions.Logging.Abstractions;
 using Momoka.Core.Events;
 using Momoka.Core.Plugins;
@@ -178,7 +179,7 @@ public sealed class PluginLoaderTests : IDisposable
 
         Assert.True(await loader.EnableAsync());
 
-        var betaAssembly = Assembly.LoadFrom(BetaPath());
+        var betaAssembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(BetaPath());
         var betaType = betaAssembly.GetType("Momoka.Core.Tests.Plugins.Beta.BetaPlugin", throwOnError: true)!;
         Assert.Equal("hello from alpha", betaType.GetProperty("ResolvedGreeting")!.GetValue(null));
         Assert.Equal(new[] { "alpha:enable", "beta:enable" }, ReadLifecycle());
@@ -281,7 +282,7 @@ public sealed class PluginLoaderTests : IDisposable
     public void GetPluginResource_ReturnsStream()
     {
         CopyPlugins("alpha");
-        string resourceName = Assembly.LoadFrom(AlphaPath()).GetManifestResourceNames()
+        string resourceName = AssemblyLoadContext.Default.LoadFromAssemblyPath(AlphaPath()).GetManifestResourceNames()
             .Single(n => n.EndsWith(".plugin.toml", StringComparison.OrdinalIgnoreCase));
 
         using var stream = PluginLoader.GetPluginResource(AlphaPath(), resourceName);
@@ -306,7 +307,7 @@ public sealed class PluginLoaderTests : IDisposable
     {
         CopyPlugins("alpha");
         var info = PluginLoader.GetPluginInfo(AlphaPath())!;
-        var assembly = Assembly.LoadFrom(AlphaPath());
+        var assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(AlphaPath());
 
         var type = PluginLoader.GetPluginMainType(info, assembly);
 
@@ -351,7 +352,7 @@ public sealed class PluginLoaderTests : IDisposable
 
     private static void SetStaticBool(string assemblyPath, string propertyName, bool value)
     {
-        var assembly = Assembly.LoadFrom(assemblyPath);
+        var assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(assemblyPath);
         var type = assembly.GetType("Momoka.Core.Tests.Plugins.Explode.ExplodePlugin", throwOnError: true)!;
         type.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Static)!.SetValue(null, value);
     }
