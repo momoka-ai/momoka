@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.Loader;
+using Momoka.Core.Events;
 
 namespace Momoka.Core.Plugins;
 
@@ -78,6 +79,9 @@ public sealed class PluginLoader : IDisposable
                 throw new InvalidPluginException($"Duplicate plugin name '{info.Name}'.");
             }
         }
+
+        // 扫描 [EventRouter] 类型注册进 EventHub（重复 eventId / 组合非法 → InvalidOperationException fail-fast）
+        ScanEventRouters(assembly);
 
         Type? mainType = GetPluginMainType(info, assembly);
         if (mainType is null)
@@ -368,9 +372,20 @@ public sealed class PluginLoader : IDisposable
             .ToList();
     }
 
-    private Assembly? OnAssemblyResolve(object? sender, ResolveEventArgs args)
+    /// <summary>扫描程序集内带 <see cref="EventRouterAttribute"/> 的类型并注册进 EventHub（Load 期，重复 Id fail-fast）。</summary>
+    private void ScanEventRouters(Assembly assembly)
     {
-        string? assemblyName = new AssemblyName(args.Name).Name;
+        foreach (Type type in assembly.GetTypes())
+        {
+            if (type.GetCustomAttribute<EventRouterAttribute>() is not null)
+            {
+                _pluginService.Events.RegisterEventType(type);
+            }
+        }
+    }
+
+    private Assembly? OnAssemblyResolve(object? sender, ResolveEventArgs args)
+    {        string? assemblyName = new AssemblyName(args.Name).Name;
         if (string.IsNullOrEmpty(assemblyName))
         {
             return null;
