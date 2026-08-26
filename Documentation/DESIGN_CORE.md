@@ -9,8 +9,8 @@ Momoka.Core 是**插件宿主 + 核心能力库**：提供一组**通用机制**
 | **Plugins** | 插件契约（`Plugin` 基类，OnEnable/OnDisable）、manifest、加载/启停/依赖图（PluginLoader） | ✅ 本期完成 |
 | **Events** | 事件中心（EventHub）：订阅表分桶、快照分发、订阅级三种分发模式、异常隔离 | ✅ 本期完成 |
 | **Registry** | 插件间服务发现表：同类型多注册、优先级/来源插件追踪 | ✅ 本期完成 |
-| **Configurations** | 统一配置 + 版本迁移（默认<文件<环境<覆写） | 📋 后续迭代（契约见 §8） |
-| **Commands** | 指令注册/解析/调用（`help`/`plugins`/`status` 内置） | 📋 后续迭代（契约见 §8） |
+| **Configurations** | 统一配置 + 版本迁移：不透明值树 + 版本键 + 迁移链（文件 / 二进制 / 数据库三后端） | ✅ 本期完成 |
+| **Commands** | 指令定义 / 解析 / 执行（迷你语言 + 类型化参数，Minestom 风格，终端向） | ✅ 本期完成 |
 | **Scheduling / Notifications / Profiles / State / Security** | 定时 / 通知 / 家庭成员 / 状态发布订阅 / 安全守卫 | 📋 后续迭代（契约见 §8） |
 
 > 依赖方向：**子模块引用 Core**；Core 不引用任何子模块。本期删除 `Core→Home` 工程引用与 Home 专属网关存根（`HomeService`/`IHomeClient`），依赖方向反转。
@@ -31,7 +31,7 @@ Momoka.Core 是**插件宿主 + 核心能力库**：提供一组**通用机制**
 | **模块 Module** | 静态子工程 | 如 `Momoka.Home` / `Momoka.Ai` / `Momoka.Sense`，实现插件契约即被宿主托管 |
 | **服务 Service** | 能力接口 | 插件注册进服务注册表，供其它插件解析调用 |
 
-命名空间规划：本期 `Momoka.Core.Plugins`（含服务注册表）/ `Momoka.Core.Events`；目标另含 `Configurations` / `Commands` / `Scheduling` / `Notifications` / `Profiles` / `State` / `Security`。
+命名空间规划：本期 `Momoka.Core.Plugins`（含服务注册表）/ `Momoka.Core.Events` / `Momoka.Core.Configurations` / `Momoka.Core.Commands`（含 `Arguments` / `Parsing` 子命名空间）；目标另含 `Scheduling` / `Notifications` / `Profiles` / `State` / `Security`。
 
 ## 4. 依赖方向与工程结构
 
@@ -48,9 +48,10 @@ Momoka.Core/
 ├── Plugins/                        # 插件子系统
 │   ├── Plugin.cs / PluginState.cs / PluginService.cs
 │   ├── PluginInfo.cs / PluginLoader.cs / PluginExceptions.cs
-│   ├── ServiceRegistry.cs / ServiceSource.cs / ServicePriority.cs
-│   └── PluginInfo.cs               # plugin.toml 直接反序列化 + 依赖图/排序/校验纯函数
+│   └── ServiceRegistry.cs / ServiceSource.cs / ServicePriority.cs
 ├── Events/                         # DispatchMode / EventHub
+├── Configurations/                 # Configuration / Migration + File/Binary/Database 三种后端
+└── Commands/                       # Command / CommandExecutor / CommandManager / CommandParser
 ```
 
 ## 5. 插件系统
@@ -74,6 +75,7 @@ public abstract class Plugin
     protected ILogger Logger { get; }               // 专属日志器（类别 = 插件名，懒创建）
     protected DirectoryInfo GetPluginFolder();      // Plugins/<name>/，按需即时生成，编排由插件自行决定
     protected FileInfo GetPluginConfig();           // Plugins/<name>/config.toml，按需即时生成
+    protected Stream? GetPluginResource(string path); // 提取本插件打包的嵌入资源流（内嵌名），未找到返回 null
 
     public virtual void OnEnable() { }              // 启用钩子：注册服务/订阅事件
     public virtual void OnDisable() { }             // 停用钩子：清理由插件自行完成
@@ -194,24 +196,129 @@ public enum ServicePriority { Highest, High, Normal, Low, Lowest }
 
 ```csharp
 public enum DispatchMode { Sequential, Parallel, Background }
+public enum EventDestination { None, Listeners, Client, Everyone }
+public enum EventPriority { Lowest, Low, Normal, High, Highest, Monitor }
+
+[AttributeUsage(AttributeTargets.Class)]
+public sealed class EventRouterAttribute
+{
+    string? Id { get; set; }                        // 线上 eventId（snake_case，全局唯一）
+    EventDestination Destination { get; set; } = EventDestination.Listeners;
+    bool FromClients { get; set; }                  // 接受客户端上报（wire-in）；true 时须带 Id 且 Destination=Listeners
+}
+
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class EventSubscribeAttribute
+{
+    Type Target { get; }                            // 事件类型
+    EventPriority Priority { get; set; } = EventPriority.Normal;
+    bool IgnoreCancellation { get; set; }           // 预留（可取消事件随 Security/拦截需求再定）
+}
 
 public sealed class EventHub
 {
     IDisposable Subscribe<TEvent>(Func<TEvent, Task> handler, DispatchMode mode = DispatchMode.Sequential);
-    Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default);
+    IDisposable AddSubscribers(object subscriber, Plugin? plugin = null);   // 扫描 [EventSubscribe]，整体退订令牌
+    void RegisterEventType(Type type);              // 扫描 [EventRouter]，重复 Id / 组合非法 fail-fast
+    Task InvokeAsync<TEvent>(TEvent @event, CancellationToken ct = default);
+    Task InvokeAsync(object @event, CancellationToken ct = default);        // 按运行期类型分发（wire-in 用）
+    Task PublishAsync<TEvent>(TEvent @event, CancellationToken ct = default); // InvokeAsync 兼容别名
+    // 构造注入：wire-sender（线上广播）/ recorder（被动审计 sink）
 }
+public sealed class EventRecorder { Task RecordAsync(object @event, CancellationToken ct); }  // ILogger 后端
 ```
 
 - 订阅表按 `Type` 分桶 + `lock`；订阅/退订/发布线程安全；**发布时快照订阅表再分发**（分发中退订不影响本次）。
 - **分发模式由订阅者声明**（发布者只 await）：Sequential 按序 await、Parallel 并发（`Task.WhenAll`）、Background 即发即忘；handler 异常一律隔离记日志，绝不向发布方传播。
+- **监听自动化**：`AddSubscribers` 实例扫描 `[EventSubscribe]`（Bukkit 风格，签名 = 单参数 Target + 返回 Task/void，非法 fail-fast）；按 `EventPriority` 排序执行（高者先、同级按注册序、**Monitor 恒最后**）；返回令牌整体退订（插件 OnDisable 用）；与手动 `Subscribe<T>` lambda 共存。
+- **路由自动化**：`RegisterEventType` 注册 `[EventRouter]` 类型后，`InvokeAsync` 按**路由矩阵**统一分发——记录器恒记录；`None` 仅记录器 / `Listeners` 仅监听者 / `Client` 仅 wire-out（须 Id）/ `Everyone` 监听者 + wire-out（须 Id）；`FromClients=true` 接受 wire-in 且**只进监听者、绝不广播回客户端**（避免 echo）。wire-sender 失败只记日志，进程内分发不受影响。
 - 事件类型由插件自声明；**Core 不定义业务事件**。
 
-## 8. 目标能力面（后续迭代契约草图）
+## 8. 配置（Configurations）
+
+```csharp
+public abstract class Configuration
+{
+    // 不透明值树：点分路径分层键（a.b.c），值 = 基础类型(string/bool/long/double/DateTime) / 值列表 / 嵌套表
+    public Version Version { get; }                         // 当前版本（迁移链应用后）
+    public T Get<T>(string path);                           // 类型化读取（枚举/Guid/DateTime/int…自动转换），缺失 fail-fast
+    public bool TryGet<T>(string path, out T? value);
+    public object? GetValue(string path);                   // 原始存储形态
+    public void Set<T>(string path, T value);               // 枚举→名、Guid→字符串、数值→long/double
+    public IReadOnlyCollection<string> GetKeys(string path);
+    public bool Contains(string path);
+}
+
+public sealed class Migration(Version from, Version to, Action<Configuration> apply);
+public sealed class FileConfiguration : Configuration       // TOML（顶层保留键 version）
+public sealed class BinaryConfiguration : Configuration      // 紧凑 BLOB（魔数 MCFG + 格式版本 + 标签化值）
+public sealed class DatabaseConfiguration : Configuration    // IConfigurationStore 扁平行 + JSON 列表编码
+public interface IConfigurationStore { IReadOnlyDictionary<string,string?> ReadAll(); void WriteAll(...); }
+```
+
+- **版本迁移链**：文件/存储顶层保留键 `version`；加载时按迁移链从存储版本升到目标版本（缺省 = 迁移链最大 To）；**断链 fail-fast**（`ConfigurationException`）；迁移只增改已知键，**未知字段保留**（向后兼容）。迁移来源版本重复 fail-fast。
+- **三种后端同一套值树 + 类型化 API**：文件（Tomlyn 直接反序列化到 `TomlTable`，未知字段原样往返）；二进制（自定小端/UTF8 长度前缀 codec，适合插件数据的紧凑不透明持久化）；数据库（扁平行「点分键 = 文本」，值文本类型嗅探解释，列表用 System.Text.Json）。存储层不解释语义（Core 只提供机制）。
+- 接管 / 取代 `GetPluginConfig()` 的类型化访问（原契约见 §8→本文）。
+
+## 9. 指令（Commands）
+
+```csharp
+public abstract class Command
+{
+    public string Name; public virtual IReadOnlyList<string> Aliases;
+    public virtual string Description; public virtual string Syntax;   // 迷你语言声明（字符串语法糖）
+    public CommandExecutor? Executor;                                  // 可组合执行器
+    public virtual CommandExecutor? DefaultExecutor;                   // 语法全部不匹配时调用
+    public virtual IReadOnlyList<CommandSyntax> Syntaxes;              // 类型化语法表（字符串 Syntax 惰性派生）
+    public virtual IReadOnlyList<Command> Subcommands;                 // 子命令（name <sub> … 分派）
+    public virtual Task ExecuteAsync(CommandContext, CancellationToken);
+    protected void AddSyntax(CommandExecutor, params Argument[]);      // 子类声明语法
+    protected void AddSubcommand(Command);
+}
+// 命名空间：Momoka.Core.Commands（Command/Builder/Context/Manager/Syntax/Result）
+//           ├─ .Arguments  Argument / Argument<T> / ArgumentType / 具体参数类型（逐文件平铺）
+//           └─ .Parsing    ArgumentParser / ArgumentQueryResult / CommandParser / CommandQueryResult
+public delegate Task CommandExecutor(CommandContext context, CancellationToken ct);
+public sealed class CommandContext { Name; RawArguments; Arguments; Get<T>/Get(Argument)/Has/TryGet; }
+public sealed class CommandManager { Register/Unregister/GetCommand/Commands/ExecuteAsync × 2; }
+public enum CommandResult { Success, Unknown, InvalidSyntax, ExecutorException, Cancelled }
+
+// 构建器（Minestom 风格，类型化参数）
+public sealed class CommandBuilder
+{
+    CommandBuilder(string name);
+    CommandBuilder Alias/Aliases/Description/DefaultExecutor/Subcommand;
+    CommandBuilder Syntax(CommandExecutor, params Argument[]);         // 类型化参数表
+    CommandBuilder Syntax(string format, CommandExecutor);             // 迷你语言糖
+    Command Build();
+}
+public static class ArgumentType { Literal/Word/String/StringArray/Boolean/Integer/Double/Enum<T>; }
+public abstract class Argument : ArgumentParser { Id; IsOptional; DefaultValue; SyntaxString; }
+public abstract class Argument<T> : Argument { bool TryParse(string, out T); Optional(); WithDefaultValue(T?); }
+public sealed class CommandSyntax { Executor; Arguments; SyntaxString; }
+
+// 解析层（Momoka.Core.Commands.Parsing）
+public abstract class ArgumentParser { ArgumentQueryResult Parse(string input); }   // token → 类型化值
+public readonly record struct ArgumentQueryResult(bool Matched, object? Value, string? Error);
+public static class CommandParser
+{
+    (string Name, string[] Arguments) ParseLine(string line);          // 词法：整行分词
+    CommandQueryResult Query(IReadOnlyList<CommandSyntax>, string[]);  // 依序尝试语法 → 命中结果
+}
+public sealed class CommandQueryResult { Matched; Syntax; Arguments; RawArguments; Hit(...) / NoMatch; }
+```
+
+- **类型化参数**（对应 Minestom `Argument<T>` 家族，终端向裁剪）：`LiteralArgument`（固定文本、不产生值）、`WordArgument`/`StringArgument`（token → string）、`StringArrayArgument`（变长，消费剩余全部 token）、`BooleanArgument`（true/false）、`IntegerArgument`/`DoubleArgument`（可选 Min/Max 区间）、`EnumArgument<TEnum>`。执行器经 `ctx.Get(argument)` / `ctx.Get<T>(argument)` 取类型化值。`FlagArgument` 已去除（终端以位置布尔 / 子命令表达开关，不用 `--` 标志）。
+- **可选参数**：`Optional()` / `WithDefaultValue(v)`（同时标记可选）；可选参数须全部尾随（否则 `IllegalCommandStructureException` fail-fast），同一语法内参数 id 不得重复。
+- **迷你语言糖**：`<必需> [可选]`，`<x...>`/`[x...]` 变长；`CommandSyntax.FromFormat` 展开为类型化参数表，与手工构建同路径。输入分词支持单/双引号；任何 `--` 前缀 token 视为未知语法 → `InvalidSyntax`。
+- **执行流水**：查找（本名/别名，忽略大小写）→ 未注册 → `Unknown` → 子命令分派（首 token 命中）→ 依声明序尝试语法（匹配失败尝试下一条）→ 命中执行器（异常隔离 → `ExecutorException`；取消 → `Cancelled`）→ `Success`；全不匹配 → 默认执行器，无默认执行器 → `InvalidSyntax`。
+- **终端向定案（2026-08-26）**：无发起者抽象——`ICommandSender`/`ConsoleSender`/`Roles`/`RequiredRole`/`CommandCondition`/`CanExecute`/`PreconditionFailed` 全部去除。纯本地终端只有一个调用方；权限鉴权归宿主（Security 期），输出通道由执行器自行捕获（如宿主传入的 `TextWriter`/日志器），命令模型只管解析 + 分派 + 返回 `CommandResult`。
+- **与 Minestom 对应**：`CommandBuilder`/`Command` ≈ `builder.Command`、`CommandSyntax` ≈ `CommandSyntax`、`Argument`/`ArgumentType` ≈ `arguments` 家族、`CommandExecutor` ≈ executor 回调、`CommandContext` ≈ 其 `CommandContext`、`CommandResult` ≈ `ExecutableCommand.Result`、`CommandManager` ≈ `CommandManager`。
+- 内置 `help`/`plugins`/`status`、CLI/终端/AI 工具面接入：宿主接线期实现（契约延续）。
+
+## 10. 目标能力面（后续迭代契约草图）
 
 > 本期只定义契约，不实现。
-
-- **Configurations**（统一配置 + 版本迁移）：`IConfiguration.Get<T>(path)` 分层访问（默认<文件<环境<覆写）；配置文件带 `version`，`IMigration`（from→to）升级链——旧配置**向上升级**、未知字段保留（**向后兼容**）；接管/取代 `GetPluginConfig()` 的类型化访问
-- **Commands**：`ICommandRegistry.Register(ICommandDefinition)` / `InvokeAsync(name, args, caller)`；格式迷你语言（`<必需> [可选] --flag`）+ 解析器；`RequiredRole` 与 Profiles/Security 联动；内置 `help`/`plugins`/`status`；供 CLI/终端/AI 工具面接入
 - **Scheduling**：`IScheduler.ScheduleOnce/ScheduleRecurring`；任务持久化；可包装 Command 调用（「8 点执行 lights.on」）
 - **Notifications**：`INotificationService.NotifyAsync`；severity/dedupeKey/目标；通道抽象（终端=网关通道）；离线入队待送达
 - **Profiles**：`IProfileService`（家庭成员 id/name/avatar/role/preferences/presence）；与连接身份、Security、Ai 记忆联动
@@ -222,11 +329,49 @@ public sealed class EventHub
 
 **边界**：Memory/LLM/Agentic→Ai；家庭模型/设备语义→Home；感知采集→Sense；传输（网关设施）→下一期。
 
-## 9. Ui 传输范式（下一期）
+## 11. Ui 传输范式（Core 网关设施）
 
-Core 网关设施 · **单路由**（通用操作路由）：一个通用路由承载操作（RegisterOperation 注册）与连接身份/角色/token 鉴权；不采用插件内手写传输中间件（Envelope 已删除的定案不变）。网关设施本身位于 Core（宿主设施），插件只注册操作与订阅事件。
+**单路由（通用操作路由）** 已落地（`Momoka.Core/Gateway/`，命名空间 `Momoka.Core`）：一个 SignalR Hub 承载操作与事件，不采用插件内手写传输中间件（Envelope 已删除的定案不变）。网关设施本身位于 Core（宿主设施），插件只注册操作与订阅事件。
 
-## 10. 与其它模块关系
+```csharp
+// 信封与线协议（STJ 全局 snake_case，GatewayJson.Options 一统：信封 + 载荷）
+public sealed record OperationRequest(string OperationId, JsonNode? Payload);       // 操作（客户端→服务器 request/response）
+public sealed record OperationResponse(bool Success, JsonNode? Payload, string? Error);
+public sealed record ClientEvent(string EventId, JsonNode? Payload);                // 线上事件（双向 fire-and-forget）
+public sealed record TerminalInfo(string ConnectionId, string TerminalId, string Role, DateTimeOffset ConnectedAt);
+public sealed record OperationContext(string OperationId, TerminalInfo Caller);
+public sealed class GatewayOptions { string Token; }                                 // appsettings Gateway:Token（缺省空 = 全部拒绝）
+
+public sealed class Gateway
+{
+    IDisposable RegisterOperation<TRequest, TResponse>(string operationId,
+        Func<OperationContext, TRequest, CancellationToken, Task<TResponse>> handler);
+    IDisposable RegisterOperation<TRequest>(string operationId,
+        Func<OperationContext, TRequest, CancellationToken, Task> handler);          // void 操作
+    Task<OperationResponse> InvokeAsync(string operationId, JsonNode? payload,
+        TerminalInfo caller, CancellationToken ct = default);
+    IReadOnlyCollection<TerminalInfo> Terminals { get; }                            // 终端注册表（connectionId→TerminalInfo）
+    void OnConnected(TerminalInfo terminal);  void OnDisconnected(string connectionId);
+    internal Task BroadcastClientEvent(string eventId, object? payload, ...);       // EventHub wire-sender 钩子
+    internal Task HandleClientEventAsync(string eventId, JsonNode? payload, ...);   // wire-in 协调
+}
+
+public sealed class GatewayHub : Hub<IGatewayClient>                                // MapHub<GatewayHub>("/hubs/gateway")
+{
+    Task<OperationResponse> InvokeOperation(OperationRequest request);              // 取调用者 → Gateway.InvokeAsync
+    Task SendEvent(ClientEvent @event);                                             // 客户端上报 → wire-in
+}
+public interface IGatewayClient { Task ClientEvent(string eventId, JsonNode? payload); }  // Clients.All（v1 全员）
+```
+
+- **三通道**：操作（request/response）+ 线上事件双向（fire-and-forget，仅服务器有 EventHub 为真相）+ 进程内事件（EventHub 服务端唯一总线）。
+- **鉴权与身份**：握手 query `?terminalId=&role=&token=`；token 恒定时间比较（`Gateway:Token` 缺省空 = 全部拒绝）；`TerminalRegistry` 断连清理；角色本期仅记录（Security 期授权）；操作处理器经 `OperationContext.Caller` 取调用者。
+- **操作 fail-soft**：未知 operationId / handler 异常 / 反序列化失败 → 错误响应；取消 → "Cancelled"；重复注册 operationId fail-fast；插件 OnEnable 注册、OnDisable 释放令牌。
+- **事件全自动化**：发布经 `[EventRouter]` + `EventHub.InvokeAsync`；监听经 `[EventSubscribe]` + `EventHub.AddSubscribers`；wire-in（`SendEvent`）经 eventId→Type 注册表反查 + `FromClients` 校验 + 反序列化进总线，**绝不自动广播回客户端**（插件处理后按需生成新事件发回）；`EventRecorder` 为被动审计 sink（ILogger）。
+- **宿主接线**：`Program.cs` 为 WebApplication（`AddSignalR` + snake_case JSON 协议 + 单例 DI：ServiceRegistry/EventHub/EventRecorder/Gateway/PluginService/PluginLoader），EventHub 的 wire-sender / recorder 经 DI 工厂闭包注入；`PluginLoader.Load` 扫描 `[EventRouter]` 类型填充注册表（重复 Id fail-fast）。
+- **后续**：按终端/档案定向广播（Profiles 期）、按角色授权（Security 期）、Home 领域事件挂属性 + 网关面 DTO STJ 化（HomePlugin 转换期）。
+
+## 12. 与其它模块关系
 
 | 模块 | 关系 |
 |------|------|
@@ -236,7 +381,7 @@ Core 网关设施 · **单路由**（通用操作路由）：一个通用路由�
 | **Voice** | Python HTTP 服务（TTS），经 Commands / 网关调用 |
 | **Ui** | 唯一远程边界（Godot C# .NET），下一期经 Core 网关设施单路由连接 |
 
-## 11. 设计原则
+## 13. 设计原则
 
 - **SOLID**：接口 + 抽象基类 + 单一职责子模块
 - **fail-fast**：校验一律前置、错误信息清晰、细分异常（InvalidPlugin / InvalidInfo / UnknownDependency）统一出口

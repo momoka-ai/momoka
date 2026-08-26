@@ -27,15 +27,15 @@
 | Momoka.Ui | 🔴 <10% | 仅 GDExtension 入口骨架 |
 | Momoka.Stage | 🔴 <5% | 仅目录与占位 README |
 | Momoka.Voice | 🟡 ~20% | HTTP 骨架完成；TTS 引擎未集成 |
-| Momoka.Core | 🟡 ~25% | 插件宿主内核一期完成（Plugins + Events + Registry，54 测试全绿）；Configurations/Commands/其余设施与 Ui 网关后续 |
+| Momoka.Core | 🟢 ~70% | 插件宿主内核（Plugins + Events + Registry）+ 配置（Configurations）+ 指令（Commands，含 Minestom 风格 Builder/类型化参数，终端向裁剪）+ Ui 网关设施（单路由 + 事件路由/监听自动化 + 信封 STJ 一统 + 鉴权），158 测试全绿；其余设施（Scheduling/Notifications/Profiles/State/Security）后续 |
 | Momoka.Ai / Sense | 🔴 <10% | 仅程序入口骨架 |
-| 测试 / CI | 🟢 ~80% | 383 个测试全绿；CI = dotnet 构建+测试 / Godot 检查 / Python ruff |
+| 测试 / CI | 🟢 ~90% | 547 个测试全绿（Home 389 + Core 158）；CI = dotnet 构建+测试 / Godot 检查 / Python ruff |
 
 ---
 
 ## 架构决策（2026-08）
 
-> 系统拓扑与模块通信的既定决策，落地时参照。**当前主做 Home 模块；Core 一期已落地插件宿主内核（Plugins + Events + Registry，见 Phase 5）。**
+> 系统拓扑与模块通信的既定决策，落地时参照。**当前主做 Home 模块；Core 一期已落地插件宿主内核（Plugins + Events + Registry）+ 配置（Configurations）+ 指令（Commands），见 Phase 5。**
 
 - **Momoka.Core = 插件宿主 + 核心能力库**（2026-08-24）：`Plugin` 子类契约 + `PluginLoader` 生命周期（Load/EnableAsync/DisableAsync）；**编译期统一**（同解决方案），推迟 Roslyn 运行期编译 / 第三方动态加载 / `AssemblyLoadContext` 热插拔
 - **Core 只认识通用契约** `Plugin` 基类（Name/Version + OnEnable/OnDisable）；**不内置任何模块能力契约**；插件能力经服务注册表 / 事件订阅表启用时自填充（**能力不声明**）
@@ -155,15 +155,17 @@
 
 ## Phase 5 — Momoka.Core 中枢 / 插件宿主（进行中）
 
-> 依据「架构决策（2026-08）」：Core 是插件宿主 + 核心能力库 + 服务注册 + 事件总线，不再承担 Agent 逻辑（Agentic 独立归 Ai）。2026-08-24 一期已落地插件内核（Plugins + Events + Registry）。
+> 依据「架构决策（2026-08）」：Core 是插件宿主 + 核心能力库 + 服务注册 + 事件总线，不再承担 Agent 逻辑（Agentic 独立归 Ai）。2026-08-24 一期已落地插件内核（Plugins + Events + Registry），2026-08-26 落地 Configurations 与 Commands。
 
-- [x] **插件内核（2026-08-24）**：`Plugin` 契约 + `plugin.toml` 只读 manifest + `PluginLoader`（扫描/拓扑排序/校验/生命周期/AssemblyResolve 兜底/失败回滚）+ 服务注册表 + 事件总线；测试 54 个全绿，详见 `Documentation/DESIGN_CORE.md`
+- [x] **插件内核（2026-08-24）**：`Plugin` 契约 + `plugin.toml` 只读 manifest + `PluginLoader`（扫描/拓扑排序/校验/生命周期/AssemblyResolve 兜底/失败回滚）+ 服务注册表 + 事件总线；测试 105 个全绿，详见 `Documentation/DESIGN_CORE.md`
 - [ ] 共享 Contracts 层：能力接口（`IHomeService` / `IAgenticService` / ...）+ 消息 DTO + 事件类型（由模块自声明，Core 零编写）
 - [ ] 生产适配器：`HomePlugin` / `AiPlugin` / `SensePlugin` 实现 `Plugin` 由宿主托管（当前 Plugins/ 由测试插件占位）
-- [ ] Configurations：统一配置 + 版本迁移（契约已定义，见 DESIGN_CORE §8）
-- [ ] Commands：指令注册/解析/调用，内置 `help`/`plugins`/`status`（契约已定义，见 DESIGN_CORE §8）
-- [ ] Scheduling / Notifications / Profiles / State / Security：逐期实现（契约已定义，见 DESIGN_CORE §8；Security 机制在 Core、规则由插件注册）
-- [ ] Ui 网关：Core 网关设施 · 单路由（通用操作路由）+ 连接身份/角色/token 鉴权；宿主接线（`AddSignalR` + `MapHub`）
+- [x] **Configurations（2026-08-26）**：不透明值树 + 版本键 + 迁移链（断链 fail-fast、未知字段保留），三种后端——文件（TOML）/ 二进制（紧凑 BLOB）/ 数据库（`IConfigurationStore` 扁平行）；接管 `GetPluginConfig()` 的类型化访问，详见 DESIGN_CORE §8
+- [x] **Commands（2026-08-26）**：`Command` / `CommandExecutor` / `CommandContext` / `CommandManager` + 迷你语言解析（`<必需> [可选]`，引号/变长），执行结果枚举（Minestom 参照），详见 DESIGN_CORE §9；内置 `help`/`plugins`/`status` 与宿主接线（CLI/终端/AI 工具面）待做
+- [x] **Commands Builder（2026-08-26）**：`CommandBuilder`（链式：别名/描述/默认执行器/子命令）+ 类型化 `Argument` 家族（Literal/Word/String/StringArray/Boolean/Integer/Double/Enum）+ `ArgumentType` 工厂 + `CommandSyntax`（executor+参数表，多语法依序匹配、默认执行器兜底），统一语法分派（含子命令）；详见 DESIGN_CORE §9
+- [x] **Commands 终端向裁剪（2026-08-26）**：去 `FlagArgument`（保留位置 `BooleanArgument`）、去发起者/权限抽象（`ICommandSender`/`ConsoleSender`/`Roles`/`RequiredRole`/`CommandCondition`/`PreconditionFailed`）——纯本地终端只有一个调用方，权限归宿主、输出通道由执行器捕获；命名空间拆分为 `Commands` + `.Arguments` + `.Parsing`；详见 DESIGN_CORE §9
+- [ ] Scheduling / Notifications / Profiles / State / Security：逐期实现（契约已定义，见 DESIGN_CORE §10；Security 机制在 Core、规则由插件注册）
+- [x] **Ui 网关（2026-08-26）**：Core 网关设施 · 单路由（`/hubs/gateway`，SignalR 受管传输）+ 三通道（操作 request/response + 线上事件双向 + 进程内 EventHub）+ 信封 snake_case（STJ 一统）+ token/TerminalRegistry 鉴权 + 事件全自动化（`[EventRouter]` 发布路由 + `[EventSubscribe]`/`AddSubscribers` 监听 + wire-in 无 echo + `EventRecorder` 审计）；宿主接线（`WebApplication` + `AddSignalR` + `MapHub`），详见 DESIGN_CORE §11
 - [ ] 会话 / 身份 / 鉴权：Ui 连接鉴权、用户会话
 - [ ] Agentic 模块（或并入 Ai）：意图识别（Ollama）、快慢通道、Agent 推理循环、工具集成（MCP 风格）、知识记忆（LiteDB）
 - [ ] 第三方动态加载（Roslyn / ALC 热插拔）：待插件生态需要时再评估（推迟）
