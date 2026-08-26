@@ -1,5 +1,4 @@
 using System.Reflection;
-using Microsoft.Extensions.Logging;
 
 namespace Momoka.Core.Plugins;
 
@@ -8,10 +7,9 @@ namespace Momoka.Core.Plugins;
 /// EnableAsync / DisableAsync 驱动生命周期（OnEnable / OnDisable），批量启停按依赖图拓扑顺序执行；
 /// 静态内省原语提供文件级扫描 / manifest / 资源 / 主类解析。生命周期与主程序同步，无内置状态机。
 /// </summary>
-public sealed partial class PluginLoader : IDisposable
+public sealed class PluginLoader : IDisposable
 {
     private readonly PluginService _pluginService;
-    private readonly ILogger<PluginLoader> _logger;
     private readonly object _gate = new();
     private readonly List<PluginAssembly> _assemblies = new();
     private readonly List<Plugin> _plugins = new();
@@ -20,7 +18,6 @@ public sealed partial class PluginLoader : IDisposable
     public PluginLoader(PluginService pluginService)
     {
         _pluginService = pluginService ?? throw new ArgumentNullException(nameof(pluginService));
-        _logger = pluginService.LoggerFactory.CreateLogger<PluginLoader>();
         AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;
     }
 
@@ -67,7 +64,7 @@ public sealed partial class PluginLoader : IDisposable
             throw new InvalidPluginException($"Failed to load assembly '{path}'.", ex);
         }
 
-        PluginInfo? info = ReadManifest(assembly);
+        PluginInfo? info = GetPluginInfo(path);
         if (info is null)
         {
             throw new InvalidPluginException($"Assembly '{path}' is not a plugin (missing plugin.toml).");
@@ -107,7 +104,6 @@ public sealed partial class PluginLoader : IDisposable
             _plugins.Add(plugin);
         }
 
-        LogPluginLoaded(info.Name);
         return plugin;
     }
 
@@ -135,15 +131,13 @@ public sealed partial class PluginLoader : IDisposable
         {
             plugin.OnEnable();
         }
-        catch (Exception ex)
+        catch
         {
             plugin.State = PluginState.Failed;
-            LogPluginEnableFailed(ex, plugin.Name);
             return false;
         }
 
         plugin.State = PluginState.Enabled;
-        LogPluginEnabled(plugin.Name);
         return true;
     }
 
@@ -171,15 +165,13 @@ public sealed partial class PluginLoader : IDisposable
         {
             plugin.OnDisable();
         }
-        catch (Exception ex)
+        catch
         {
             plugin.State = PluginState.Failed;
-            LogPluginDisableFailed(ex, plugin.Name);
             return false;
         }
 
         plugin.State = PluginState.Disabled;
-        LogPluginDisabled(plugin.Name);
         return true;
     }
 
@@ -189,21 +181,15 @@ public sealed partial class PluginLoader : IDisposable
     /// </summary>
     public Task<bool> EnableAsync()
     {
-        List<Plugin> snapshot;
-        lock (_gate)
-        {
-            snapshot = _plugins.ToList();
-        }
-
-        List<Plugin> ordered = OrderPlugins(snapshot);
+        var ordered = GetPluginsInDependencyOrder();
         var enabled = new List<Plugin>();
         foreach (var plugin in ordered)
         {
-            if (!EnablePlugin(plugin))
+            if (!EnableAsync(plugin))
             {
                 for (int i = enabled.Count - 1; i >= 0; i--)
                 {
-                    DisablePlugin(enabled[i]);
+                    DisableAsync(enabled[i]);
                 }
 
                 return Task.FromResult(false);
@@ -221,16 +207,10 @@ public sealed partial class PluginLoader : IDisposable
     /// </summary>
     public Task<bool> DisableAsync()
     {
-        List<Plugin> snapshot;
-        lock (_gate)
-        {
-            snapshot = _plugins.ToList();
-        }
-
-        List<Plugin> ordered = OrderPlugins(snapshot);
+        var ordered = GetPluginsInDependencyOrder();
         for (int i = ordered.Count - 1; i >= 0; i--)
         {
-            if (!DisablePlugin(ordered[i]))
+            if (!DisableAsync(ordered[i]))
             {
                 return Task.FromResult(false);
             }
@@ -370,49 +350,17 @@ public sealed partial class PluginLoader : IDisposable
         AppDomain.CurrentDomain.AssemblyResolve -= OnAssemblyResolve;
     }
 
-    private static PluginInfo? ReadManifest(Assembly assembly)
+    /// <summary>快照全部已加载插件并按依赖图拓扑排序（结构性错误 fail-fast）。</summary>
+    private List<Plugin> GetPluginsInDependencyOrder()
     {
-        string? resourceName = assembly.GetManifestResourceNames()
-            .FirstOrDefault(n => n.EndsWith(".plugin.toml", StringComparison.OrdinalIgnoreCase));
-        if (resourceName is null)
+        List<Plugin> snapshot;
+        lock (_gate)
         {
-            return null;
+            snapshot = _plugins.ToList();
         }
 
-        using var stream = assembly.GetManifestResourceStream(resourceName);
-        if (stream is null)
-        {
-            return null;
-        }
-
-        using var reader = new StreamReader(stream);
-        return PluginInfo.Parse(reader.ReadToEnd(), resourceName);
-    }
-
-    private bool EnablePlugin(Plugin plugin)
-    {
-        if (!_plugins.Contains(plugin))
-        {
-            return false;
-        }
-
-        return EnableAsync(plugin);
-    }
-
-    private bool DisablePlugin(Plugin plugin)
-    {
-        if (!_plugins.Contains(plugin))
-        {
-            return false;
-        }
-
-        return DisableAsync(plugin);
-    }
-
-    private static List<Plugin> OrderPlugins(IReadOnlyList<Plugin> plugins)
-    {
-        var byInfo = plugins.ToDictionary(p => p.Info);
-        return PluginDependencyGraph.Order(plugins.Select(p => p.Info))
+        var byInfo = snapshot.ToDictionary(p => p.Info);
+        return PluginDependencyGraph.Order(snapshot.Select(p => p.Info))
             .Select(i => byInfo[i])
             .ToList();
     }
@@ -437,48 +385,11 @@ public sealed partial class PluginLoader : IDisposable
         {
             return Assembly.LoadFrom(candidate.FullName);
         }
-        catch (Exception ex)
+        catch
         {
-            LogDependencyLoadFailed(ex, assemblyName, candidate.FullName);
             return null;
         }
     }
-
-    [LoggerMessage(
-        EventId = 1,
-        Level = LogLevel.Information,
-        Message = "Plugin '{Name}' loaded.")]
-    private partial void LogPluginLoaded(string name);
-
-    [LoggerMessage(
-        EventId = 2,
-        Level = LogLevel.Information,
-        Message = "Plugin '{Name}' enabled.")]
-    private partial void LogPluginEnabled(string name);
-
-    [LoggerMessage(
-        EventId = 3,
-        Level = LogLevel.Information,
-        Message = "Plugin '{Name}' disabled.")]
-    private partial void LogPluginDisabled(string name);
-
-    [LoggerMessage(
-        EventId = 4,
-        Level = LogLevel.Error,
-        Message = "Failed to enable plugin '{Name}'.")]
-    private partial void LogPluginEnableFailed(Exception exception, string name);
-
-    [LoggerMessage(
-        EventId = 5,
-        Level = LogLevel.Error,
-        Message = "Failed to disable plugin '{Name}'.")]
-    private partial void LogPluginDisableFailed(Exception exception, string name);
-
-    [LoggerMessage(
-        EventId = 6,
-        Level = LogLevel.Error,
-        Message = "Failed to load dependency '{AssemblyName}' from '{Path}'.")]
-    private partial void LogDependencyLoadFailed(Exception exception, string assemblyName, string path);
 
     /// <summary>已加载插件文件的记录（文件级元数据，与 <see cref="Plugin"/> 实例一一对应）。</summary>
     public sealed record PluginAssembly(string Path, PluginInfo Info, Assembly Assembly);
