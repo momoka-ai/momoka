@@ -22,6 +22,12 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="8.0.28" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.28" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources/**" />
   </ItemGroup>
 
   <ItemGroup>
@@ -31,6 +37,8 @@
     <ProjectReference Include="Plugins/PluginBad/PluginBad.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="Plugins/PluginPlain/PluginPlain.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="Plugins/PluginExplode/PluginExplode.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="Plugins/PluginEvents/PluginEvents.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="Plugins/PluginRouterBad/PluginRouterBad.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <!-- 嵌套插件工程由各自 csproj 独立编译；测试工程排除其源码与 obj 产物 -->
@@ -49,6 +57,8 @@
       <_PluginBadFiles Include="Plugins/PluginBad/bin/$(Configuration)/net8.0/**/*" />
       <_PluginPlainFiles Include="Plugins/PluginPlain/bin/$(Configuration)/net8.0/**/*" />
       <_PluginExplodeFiles Include="Plugins/PluginExplode/bin/$(Configuration)/net8.0/**/*" />
+      <_PluginEventsFiles Include="Plugins/PluginEvents/bin/$(Configuration)/net8.0/**/*" />
+      <_PluginRouterBadFiles Include="Plugins/PluginRouterBad/bin/$(Configuration)/net8.0/**/*" />
     </ItemGroup>
     <Copy SourceFiles="@(_PluginAlphaFiles)"
           DestinationFolder="$(TargetDir)Plugins/alpha/" SkipUnchangedFiles="true" />
@@ -60,6 +70,10 @@
           DestinationFolder="$(TargetDir)Plugins/plain/" SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(_PluginExplodeFiles)"
           DestinationFolder="$(TargetDir)Plugins/explode/" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_PluginEventsFiles)"
+          DestinationFolder="$(TargetDir)Plugins/events/" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_PluginRouterBadFiles)"
+          DestinationFolder="$(TargetDir)Plugins/routerbad/" SkipUnchangedFiles="true" />
   </Target>
 
 </Project>
