@@ -22,9 +22,9 @@ namespace Momoka.Home.Data.Sqlite;
 /// Home entity): id + full JSON.</item>
 /// <item><c>Chunks</c> — one row per non-empty voxel chunk (x, z key):
 /// the chunk encoded by <see cref="LayoutChunkCodec.Encode"/> — paletted
-/// sections + region spans, single source of truth for voxels.</item>
-/// <item><c>RegionNames</c> — per-id region names (geometry is recomputed from
-/// the spans embedded in the chunks; Region layer load deferred).</item>
+/// sections, single source of truth for voxels.</item>
+/// <item><c>RegionNames</c> — per-id region names, read from the region layer
+/// (geometry not persisted; Region layer load deferred).</item>
 /// </list>
 /// </summary>
 public sealed class SqliteStore : IDisposable
@@ -99,7 +99,7 @@ public sealed class SqliteStore : IDisposable
             });
         }
 
-        // Chunks — one row per non-empty chunk (paletted sections + region spans).
+        // Chunks — one row per non-empty chunk (paletted sections).
         _db.GetTable<ChunkRow>().Delete();
         foreach (var chunk in data.Layout.Voxels.Chunks)
         {
@@ -113,7 +113,7 @@ public sealed class SqliteStore : IDisposable
             });
         }
 
-        // Region names — per-id (geometry recomputed from chunk spans on load).
+        // Region names — per-id (from the current region layer; load deferred).
         _db.GetTable<RegionNameRow>().Delete();
         var seen = new HashSet<int>();
         foreach (var chunk in data.Layout.Regions.Chunks)
@@ -148,8 +148,8 @@ public sealed class SqliteStore : IDisposable
         var chunks = new Dictionary<long, VoxelChunk<Entity>>();
         foreach (var row in _db.GetTable<ChunkRow>())
         {
-            var decoded = LayoutChunkCodec.Decode(new Int2(row.X, row.Z), row.Data, byId);
-            chunks[VoxelLayout<Entity>.ChunkKeyOf(decoded.Chunk.Index)] = decoded.Chunk;
+            var chunk = LayoutChunkCodec.Decode(new Int2(row.X, row.Z), row.Data, byId);
+            chunks[VoxelLayout<Entity>.ChunkKeyOf(chunk.Index)] = chunk;
         }
         data.Layout.Voxels = new VoxelLayout<Entity>(chunks, Bound.UnsetValue);
         return data;

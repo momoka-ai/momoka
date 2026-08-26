@@ -180,7 +180,9 @@ Minecraft 式：XZ chunk 键**打包 long**（`(cx<<32)|cz`），每列是 `Voxe
 
 ### 5.6 Region — 3D 空间标注（取代 FloorPlanLayout）
 
-`Momoka.Home/Regions/Region.cs`：`Region.BuildLayout(VoxelLayout, Agent?)` 一次构建 `ColumnLayout<Region>`。核心是通用引擎 `ColumnLayout<T>.Build<TA>(VoxelLayout<TA>, cells, Settings)`（`Layouts/`，纯数学）：
+**本节已退役（2026-08-26）**：`ColumnLayout` 时代的 `Region.BuildLayout` 推导已删除——生产未接线、输出类型与 `LevelLayout.Regions`（`VoxelLayout<Region>`）不兼容。`Region` 现为纯数据值类型（Id / Bounds / Volume / Area / Name），RegionNames 按 id 持久化；自动推导需按 VoxelLayout 重写。原设计（供重写参考）：
+
+`Region.BuildLayout(VoxelLayout, Agent?)` 一次构建 `ColumnLayout<Region>`。核心是通用引擎 `ColumnLayout<T>.Build<TA>(VoxelLayout<TA>, cells, Settings)`（`Layouts/`，纯数学）：
 
 - **站立格 cells**：实体 `PlacementLayoutSource` 的 Up 面放置格 → 绝对体素坐标；仅带 `is_structural`（`BuiltinProperty.IS_STRUCTURAL`）实体的面为行走基底（地板/楼梯/庭院；桌顶、跑步机等排除）
 - **span**：站立格向上延伸，止于下一站立格 / 占用格 / `Bound` 顶

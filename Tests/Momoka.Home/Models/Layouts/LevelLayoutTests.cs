@@ -64,20 +64,6 @@ public class UnitLayoutTests
         }
     }
 
-    [Fact]
-    public void BuildLayout_BuildsAndQueries()
-    {
-        var unit = new LevelLayout();
-        unit.Add(new FloorEntity(), new Position(new Float3(0, 0, 0)));
-        unit.Add(StructuralBox("wall", 1, 29, 5), new Position(new Float3(20, 10, 0))); // 中墙 x=2 全高
-
-        var map = Region.BuildLayout(unit);
-        Assert.NotNull(map.At(1, 5, 2));
-        Assert.NotNull(map.At(3, 5, 2));
-        Assert.NotEqual(map.At(1, 5, 2)!.Id, map.At(3, 5, 2)!.Id);
-        Assert.Null(map.At(2, 5, 2)); // 中墙
-    }
-
     // ── 实体放置（LevelLayout 接管原 VoxelLayout 的放置语义）──────
 
     [Fact]

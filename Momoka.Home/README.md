@@ -11,7 +11,7 @@
 - **属性系统**：`Property` 基类 + 6 种子类型，配置驱动，值存于每实例 `Property.Value`
 - **体素存储**：Minecraft 式 16³ 区块 + paletted（`VoxelLayout` / `PalettedContainer`）、2D 网格（`GridLayout`）、面实体（`Subdivision`）、图（`Graph` / `Graph2D` / `Graph3D`）
 - **几何体系**：`Volume` / `Shape` + 3D / 2D 一族（`[JsonTypeName]` 注册，snake_case 配置直绑）
-- **3D Region 自动生成**：站立格 → span → 连通 flood-fill 聚合出房间 / 可行走区域（`Region` / `ColumnLayout` 引擎）
+- **Region 层**：`LevelLayout.Regions`（`VoxelLayout<Region>`）承载房间 / 可行走区域值；自动推导（原 `ColumnLayout` 时代 `BuildLayout`）已删除，待按 VoxelLayout 重写
 - **空间查询**：视线 / 视野内目标 / 碰撞 / 寻路（`IVoxelSource<T>` + 扩展；`Traverse` / `Visibility` / `Occlusion` / `Pathfinding` 纯几何基础）
 - **持久化**：SQLite 单文件存档（`SqliteStore`）——三表原子写入：`Entities`（每实体一行，含隐藏 Home 实体）/ `Chunks`（体素块，paletted 编码）/ `RegionNames`（id + name）；体素与 Region 文件层（`LayoutChunkCodec` / `RegionsCodec`）已退役
 - 设备抽象层（HA / GIIC）与安全约束校验为**规划中**，未实现
@@ -31,7 +31,7 @@
 | `Momoka.Home.Entities` | 实体系统：`Entity` / `EntityTemplate` / `EntityTemplateFactory` / `IEntitySource` / `IEntityRelationSource` / `.Components`（行为组件族）/ `.Properties`（Property 与 6 种子类型） |
 | `Momoka.Home.Level` | 数据载荷与编辑：`LevelData`（基类）/ `ServerLevelData` / `ClientLevelData` / `EditorSession` / 命令层 / 协议（`Protocol/`） |
 | `Momoka.Home.Geometry` | `Volume` / `Shape` / `IVoxelGeometry2D/3D` 及 3D / 2D 形状族 |
-| `Momoka.Home.Layouts` | `VoxelLayout` / `GridLayout` / `ColumnLayout` / `Palette` 族 / `Graph` / `Subdivision` / `IVoxelSource` |
+| `Momoka.Home.Layouts` | `VoxelLayout` / `GridLayout` / `Palette` 族 / `Graph` / `Subdivision` / `IVoxelSource` |
 | `Momoka.Home.Algorithms` | `Traverse` / `Visibility` / `Occlusion` / `Collision` / `Pathfinding` |
 | `Momoka.Home.Data` | JSON 转换器与注册表、`LayoutChunkCodec` / `RegionsCodec` |
 | `Momoka.Home.Data.Sqlite` | `SqliteStore`（linq2db 持久化） |

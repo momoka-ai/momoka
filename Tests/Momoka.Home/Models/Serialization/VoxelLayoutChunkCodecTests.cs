@@ -148,35 +148,4 @@ public class VoxelLayoutChunkCodecTests
             SqliteStore.Delete(dbPath);
         }
     }
-
-    [Fact]
-    public void Decode_RegionColumnsRoundTrip()
-    {
-        // Region spans 内嵌 chunk 载荷：Encode(chunk, columns) → Decode 还原（几何重算依据）
-        var scene = Scene();
-        var dbPath = TempDb();
-        try
-        {
-            using var store = new SqliteStore(dbPath);
-            store.Save(scene);
-            var loaded = store.Load()!;
-            var chunk = loaded.Layout.Voxels.Chunks.First(c => c.Index.X == 0 && c.Index.Z == 0);
-            var byId = loaded.Entities.ToDictionary(e => e.Id);
-
-            var columns = new[]
-            {
-                new ChunkRegionColumn(new Int2(0, 0), new[] { new RegionSpan(0, 3, 7) }),
-            };
-            var decoded = LayoutChunkCodec.Decode(Int2.Zero, LayoutChunkCodec.Encode(chunk, columns), byId);
-
-            var column = Assert.Single(decoded.RegionColumns);
-            Assert.Equal(new Int2(0, 0), column.World);
-            var span = Assert.Single(column.Spans);
-            Assert.Equal(new RegionSpan(0, 3, 7), span);
-        }
-        finally
-        {
-            SqliteStore.Delete(dbPath);
-        }
-    }
 }
