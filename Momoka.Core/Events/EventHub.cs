@@ -6,6 +6,12 @@ using Momoka.Core.Plugins;
 
 namespace Momoka.Core.Events;
 
+// 私有簿记的文件级元组别名（无嵌套类型）：
+// Subscription = 一条订阅（事件类型 + 优先级 + 来源插件 + 类型擦除后的委托）；
+// RouterRegistration = [Publish] 属性注册时解析校验后的快照。
+using Subscription = (Type EventType, EventPriority Priority, string? Source, Func<object, Task> Handler);
+using RouterRegistration = (string? Id, EventDestination Destination, bool FromClients);
+
 /// <summary>
 /// 事件中心（内存、线程安全）：订阅/退订/发布并发安全；发布时快照订阅表再分发，
 /// 分发过程中退订不影响本次快照。订阅只认 <see cref="Subscribers"/> 实现（携带
@@ -21,12 +27,12 @@ namespace Momoka.Core.Events;
 /// </remarks>
 public sealed partial class EventHub
 {
-    private readonly object _gate = new();
-    private readonly Dictionary<Type, List<Subscription>> _subscriptions = new();
     private readonly Dictionary<Subscribers, List<Subscription>> _bySubscriber = new();
-    private readonly Dictionary<Type, RouterRegistration> _routers = new();
     private readonly Dictionary<string, Type> _eventIds = new(StringComparer.Ordinal);
+    private readonly object _gate = new();
     private readonly ILogger<EventHub> _logger;
+    private readonly Dictionary<Type, RouterRegistration> _routers = new();
+    private readonly Dictionary<Type, List<Subscription>> _subscriptions = new();
     private readonly Func<string, object?, Task>? _wireSender;
 
     /// <summary>创建事件中心：<paramref name="logger"/> 缺省取 NullLogger（测试/无日志场景）；
@@ -56,7 +62,7 @@ public sealed partial class EventHub
             }
 
             _bySubscriber.Add(sub, subscriptions);
-            foreach (Subscription subscription in subscriptions)
+            foreach (var subscription in subscriptions)
             {
                 if (!_subscriptions.TryGetValue(subscription.EventType, out var list))
                 {
@@ -66,6 +72,59 @@ public sealed partial class EventHub
 
                 list.Add(subscription);
             }
+        }
+    }
+
+    /// <summary>按声明类型顺序发布事件（属性感知分发）；<typeparamref name="TEvent"/> 应为声明路由时的确切类型。</summary>
+    public Task InvokeAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(@event);
+        return InvokeCoreAsync(typeof(TEvent), @event, parallel: false, cancellationToken);
+    }
+
+    /// <summary>按运行期类型顺序发布事件（internal：Gateway wire-in 反序列化后分发的入口）。</summary>
+    internal Task InvokeAsync(object @event, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(@event);
+        return InvokeCoreAsync(@event.GetType(), @event, parallel: false, cancellationToken);
+    }
+
+    /// <summary>按声明类型**并行**发布事件：全部监听者并发执行，全部完成后返回（异常照常隔离记录）。</summary>
+    public Task InvokeParallelAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(@event);
+        return InvokeCoreAsync(typeof(TEvent), @event, parallel: true, cancellationToken);
+    }
+
+    /// <summary>注册路由事件类型（插件加载时扫描 <see cref="PublishAttribute"/> 调用）；
+    /// 组合非法 / 重复 eventId → fail-fast <see cref="InvalidOperationException"/>。</summary>
+    public void RegisterEventType(Type type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+
+        PublishAttribute? attribute = type.GetCustomAttribute<PublishAttribute>();
+        if (attribute is null)
+        {
+            throw new ArgumentException($"Type '{type}' does not carry [Publish].", nameof(type));
+        }
+
+        string? id = string.IsNullOrWhiteSpace(attribute.Id) ? null : attribute.Id.Trim();
+        ValidateRouting(type, id, attribute);
+
+        lock (_gate)
+        {
+            if (_routers.ContainsKey(type))
+            {
+                throw new InvalidOperationException($"Event type '{type}' is already registered.");
+            }
+
+            if (id is not null && !_eventIds.TryAdd(id, type))
+            {
+                throw new InvalidOperationException(
+                    $"Event id '{id}' is already registered by '{_eventIds[id]}'.");
+            }
+
+            _routers.Add(type, (id, attribute.Destination, attribute.FromClients));
         }
     }
 
@@ -81,10 +140,11 @@ public sealed partial class EventHub
                 return;
             }
 
-            foreach (Subscription subscription in subscriptions)
+            foreach (var subscription in subscriptions)
             {
                 if (_subscriptions.TryGetValue(subscription.EventType, out var list))
                 {
+                    // 元组按值相等：四字段（含同一委托实例）全等的才是同一条订阅
                     list.Remove(subscription);
                     if (list.Count == 0)
                     {
@@ -93,62 +153,6 @@ public sealed partial class EventHub
                 }
             }
         }
-    }
-
-    /// <summary>注册路由事件类型（插件加载时扫描 <see cref="PublishAttribute"/> 调用）；
-    /// 组合非法 / 重复 eventId → fail-fast <see cref="InvalidOperationException"/>。</summary>
-    public void RegisterEventType(Type type)
-    {
-        ArgumentNullException.ThrowIfNull(type);
-
-        PublishAttribute? attribute = type.GetCustomAttribute<PublishAttribute>();
-        if (attribute is null)
-        {
-            throw new ArgumentException($"Type '{type}' does not carry [Publish].", nameof(type));
-        }
-
-        string? id = NormalizeEventId(attribute.Id);
-        ValidateRouting(type, id, attribute);
-
-        lock (_gate)
-        {
-            if (_routers.ContainsKey(type))
-            {
-                throw new InvalidOperationException($"Event type '{type}' is already registered.");
-            }
-
-            if (id is not null)
-            {
-                if (!_eventIds.TryAdd(id, type))
-                {
-                    throw new InvalidOperationException(
-                        $"Event id '{id}' is already registered by '{_eventIds[id]}'.");
-                }
-            }
-
-            _routers.Add(type, new RouterRegistration(type, id, attribute.Destination, attribute.FromClients));
-        }
-    }
-
-    /// <summary>按声明类型顺序发布事件（属性感知分发）；<typeparamref name="TEvent"/> 应为声明路由时的确切类型。</summary>
-    public Task InvokeAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(@event);
-        return InvokeCoreAsync(typeof(TEvent), @event, parallel: false, cancellationToken);
-    }
-
-    /// <summary>按运行期类型顺序发布事件（wire-in 反序列化后分发的入口）。</summary>
-    public Task InvokeAsync(object @event, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(@event);
-        return InvokeCoreAsync(@event.GetType(), @event, parallel: false, cancellationToken);
-    }
-
-    /// <summary>按声明类型**并行**发布事件：全部监听者并发执行，全部完成后返回（异常照常隔离记录）。</summary>
-    public Task InvokeParallelAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(@event);
-        return InvokeCoreAsync(typeof(TEvent), @event, parallel: true, cancellationToken);
     }
 
     /// <summary>按线上 eventId 反查路由事件类型与其 FromClients 标记（Gateway wire-in 用）。</summary>
@@ -215,67 +219,14 @@ public sealed partial class EventHub
         }
 
         Func<object, Task> handler = method.ReturnType == typeof(Task)
-            ? e => InvokeTaskMethod(subscriber, method, e)
+            ? e => InvokeHandlerAsync(subscriber, method, e)
             : e =>
             {
-                InvokeMethod(subscriber, method, e);
+                InvokeHandlerAsync(subscriber, method, e).GetAwaiter().GetResult();
                 return Task.CompletedTask;
             };
 
-        return new Subscription(attribute.Target, handler, attribute.Priority, source);
-    }
-
-    private async Task InvokeCoreAsync(
-        Type eventType,
-        object @event,
-        bool parallel,
-        CancellationToken cancellationToken)
-    {
-        RouterRegistration? router;
-        lock (_gate)
-        {
-            _routers.TryGetValue(eventType, out router);
-        }
-
-        LogPublished(eventType, @event);
-
-        bool toListeners = router is null
-            || router.Destination is EventDestination.Listeners or EventDestination.Everyone;
-        bool toWire = router?.Destination is EventDestination.Client or EventDestination.Everyone;
-
-        if (toWire)
-        {
-            if (_wireSender is not null)
-            {
-                try
-                {
-                    await _wireSender(router!.Id!, @event).ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    LogWireError(ex, router!.Id!, eventType);
-                }
-            }
-            else
-            {
-                LogNoWireSender(eventType);
-            }
-        }
-
-        if (toListeners)
-        {
-            List<Subscription> snapshot;
-            lock (_gate)
-            {
-                _subscriptions.TryGetValue(eventType, out var list);
-                snapshot = list is null ? new List<Subscription>() : list.ToList();
-            }
-
-            if (snapshot.Count > 0)
-            {
-                await DispatchAsync(snapshot, @event, parallel, cancellationToken).ConfigureAwait(false);
-            }
-        }
+        return (attribute.Target, attribute.Priority, source, handler);
     }
 
     private async Task DispatchAsync<TEvent>(
@@ -305,39 +256,93 @@ public sealed partial class EventHub
         }
     }
 
+    private async Task InvokeCoreAsync(
+        Type eventType,
+        object @event,
+        bool parallel,
+        CancellationToken cancellationToken)
+    {
+        RouterRegistration? router = null;
+        lock (_gate)
+        {
+            if (_routers.TryGetValue(eventType, out var registration))
+            {
+                router = registration;
+            }
+        }
+
+        LogPublished(eventType, @event);
+
+        bool toListeners = router is null
+            || router.Value.Destination is EventDestination.Listeners or EventDestination.Everyone;
+        bool toWire = router?.Destination is EventDestination.Client or EventDestination.Everyone;
+
+        if (toWire)
+        {
+            string? eventId = router!.Value.Id;
+            if (_wireSender is not null)
+            {
+                try
+                {
+                    await _wireSender(eventId!, @event).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    LogWireError(ex, eventId!, eventType);
+                }
+            }
+            else
+            {
+                LogNoWireSender(eventType);
+            }
+        }
+
+        if (toListeners)
+        {
+            List<Subscription> snapshot;
+            lock (_gate)
+            {
+                _subscriptions.TryGetValue(eventType, out var list);
+                snapshot = list is null ? new List<Subscription>() : list.ToList();
+            }
+
+            if (snapshot.Count > 0)
+            {
+                await DispatchAsync(snapshot, @event, parallel, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static async Task InvokeHandlerAsync(object subscriber, MethodInfo method, object @event)
+    {
+        object? returnValue;
+        try
+        {
+            returnValue = method.Invoke(subscriber, new[] { @event });
+        }
+        catch (TargetInvocationException ex)
+        {
+            ExceptionDispatchInfo.Capture(ex.InnerException ?? ex).Throw();
+            return; // unreachable
+        }
+
+        if (returnValue is Task task)
+        {
+            await task.ConfigureAwait(false);
+        }
+    }
+
     private async Task InvokeSafelyAsync<TEvent>(Subscription subscription, TEvent @event)
     {
         try
         {
-            await subscription.InvokeAsync(@event).ConfigureAwait(false);
+            await subscription.Handler(@event!).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             LogHandlerError(ex, typeof(TEvent), subscription.Source);
         }
     }
-
-    private static object? InvokeMethod(object subscriber, MethodInfo method, object @event)
-    {
-        try
-        {
-            return method.Invoke(subscriber, new[] { @event });
-        }
-        catch (TargetInvocationException ex)
-        {
-            ExceptionDispatchInfo.Capture(ex.InnerException ?? ex).Throw();
-            throw; // unreachable
-        }
-    }
-
-    private static async Task InvokeTaskMethod(object subscriber, MethodInfo method, object @event)
-    {
-        Task task = (Task)InvokeMethod(subscriber, method, @event)!;
-        await task.ConfigureAwait(false);
-    }
-
-    private static string? NormalizeEventId(string? id)
-        => string.IsNullOrWhiteSpace(id) ? null : id.Trim();
 
     private static void ValidateRouting(Type type, string? id, PublishAttribute attribute)
     {
@@ -371,6 +376,12 @@ public sealed partial class EventHub
     private partial void LogHandlerError(Exception exception, Type eventType, string? source);
 
     [LoggerMessage(
+        EventId = 4,
+        Level = LogLevel.Debug,
+        Message = "Event '{EventType}' targets clients but no wire sender is configured.")]
+    private partial void LogNoWireSender(Type eventType);
+
+    [LoggerMessage(
         EventId = 2,
         Level = LogLevel.Debug,
         Message = "Event '{EventType}' published: {@Event}")]
@@ -381,43 +392,4 @@ public sealed partial class EventHub
         Level = LogLevel.Error,
         Message = "Wire sender for event '{EventId}' ('{EventType}') threw an exception.")]
     private partial void LogWireError(Exception exception, string eventId, Type eventType);
-
-    [LoggerMessage(
-        EventId = 4,
-        Level = LogLevel.Debug,
-        Message = "Event '{EventType}' targets clients but no wire sender is configured.")]
-    private partial void LogNoWireSender(Type eventType);
-
-    private sealed record RouterRegistration(Type Type, string? Id, EventDestination Destination, bool FromClients);
-
-    private sealed class Subscription
-    {
-        public Subscription(Type eventType, Func<object, Task> handler, EventPriority priority, string? source)
-        {
-            EventType = eventType;
-            Handler = handler;
-            Priority = priority;
-            Source = source;
-        }
-
-        public Type EventType { get; }
-
-        public EventPriority Priority { get; }
-
-        public string? Source { get; }
-
-        private Func<object, Task> Handler { get; }
-
-        public Task InvokeAsync<TEvent>(TEvent @event)
-        {
-            try
-            {
-                return Handler(@event!);
-            }
-            catch (Exception ex)
-            {
-                return Task.FromException(ex);
-            }
-        }
-    }
 }

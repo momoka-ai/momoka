@@ -223,9 +223,10 @@ public sealed class EventHub
     void RemoveSubscribers(Subscribers sub);                        // 按实例整体退订（幂等）
     void RegisterEventType(Type type);              // 扫描 [Publish]，重复 Id / 组合非法 fail-fast
     Task InvokeAsync<TEvent>(TEvent @event, CancellationToken ct = default);          // 顺序发布（默认）
-    Task InvokeAsync(object @event, CancellationToken ct = default);                  // 按运行期类型分发（wire-in 用）
+    internal Task InvokeAsync(object @event, CancellationToken ct = default);         // 按运行期类型分发（wire-in 专用）
     Task InvokeParallelAsync<TEvent>(TEvent @event, CancellationToken ct = default);  // 并行发布（Task.WhenAll）
     // 构造注入：wire-sender（线上广播）；发布审计为内建 Debug 日志
+    // 内部零嵌套类型：订阅/路由簿记为文件级元组别名（事件类型+优先级+来源+委托 / Id+目的地+FromClients）
 }
 ```
 
