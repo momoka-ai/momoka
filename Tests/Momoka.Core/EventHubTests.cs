@@ -3,7 +3,7 @@ using Momoka.Core.Events;
 
 namespace Momoka.Core.Tests;
 
-/// <summary>事件中心：订阅级分发模式（顺序/并行/后台）/异常隔离/退订令牌/无订阅者/快照。</summary>
+/// <summary>事件中心：顺序分发（优先级排序）/并行发布/异常隔离/退订令牌/无订阅者/快照。</summary>
 public sealed class EventHubTests
 {
     [Fact]
@@ -23,7 +23,7 @@ public sealed class EventHubTests
             return Task.CompletedTask;
         });
 
-        await hub.PublishAsync("x");
+        await hub.InvokeAsync("x");
 
         Assert.Equal(new[] { "first:x", "second:x" }, calls);
     }
@@ -45,13 +45,13 @@ public sealed class EventHubTests
             return Task.CompletedTask;
         });
 
-        await hub.PublishAsync("x"); // 不抛出
+        await hub.InvokeAsync("x"); // 不抛出
 
         Assert.Equal(new[] { "boom", "ok" }, calls);
     }
 
     [Fact]
-    public async Task Parallel_RunsAllHandlersAndCompletes()
+    public async Task Parallel_RunsAllHandlersConcurrently()
     {
         var hub = new EventHub();
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -61,14 +61,14 @@ public sealed class EventHubTests
         {
             started.TrySetResult();
             await release.Task;
-        }, DispatchMode.Parallel);
+        });
         using var second = hub.Subscribe<int>(async _ =>
         {
             started.TrySetResult();
             await release.Task;
-        }, DispatchMode.Parallel);
+        });
 
-        var publish = hub.PublishAsync(1);
+        var publish = hub.InvokeParallelAsync(1);
 
         // 两个 handler 都在 release 前开始执行 → 并行分发成立
         await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -83,45 +83,9 @@ public sealed class EventHubTests
     {
         var hub = new EventHub();
 
-        using var throwing = hub.Subscribe<int>(_ => throw new InvalidOperationException("boom"), DispatchMode.Parallel);
-        using var ok = hub.Subscribe<int>(_ => Task.CompletedTask, DispatchMode.Parallel);
-        await hub.PublishAsync(1);
-    }
-
-    [Fact]
-    public async Task Background_FireAndForget_StillInvokesHandlers()
-    {
-        var hub = new EventHub();
-        var invoked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        using var handler = hub.Subscribe<string>(_ =>
-        {
-            invoked.TrySetResult();
-            return Task.CompletedTask;
-        }, DispatchMode.Background);
-
-        await hub.PublishAsync("x");
-        await invoked.Task.WaitAsync(TimeSpan.FromSeconds(5));
-    }
-
-    [Fact]
-    public async Task Background_DoesNotBlockPublisher()
-    {
-        var hub = new EventHub();
-        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        using var handler = hub.Subscribe<int>(async _ =>
-        {
-            started.TrySetResult();
-            await release.Task;
-        }, DispatchMode.Background);
-
-        await hub.PublishAsync(1).WaitAsync(TimeSpan.FromSeconds(5)); // 后台 handler 不阻塞发布
-        Assert.True(started.Task.IsCompleted);
-
-        release.SetResult();
-        await started.Task;
+        using var throwing = hub.Subscribe<int>(_ => throw new InvalidOperationException("boom"));
+        using var ok = hub.Subscribe<int>(_ => Task.CompletedTask);
+        await hub.InvokeParallelAsync(1); // 不抛出
     }
 
     [Fact]
@@ -136,9 +100,9 @@ public sealed class EventHubTests
             return Task.CompletedTask;
         });
 
-        await hub.PublishAsync("a");
+        await hub.InvokeAsync("a");
         token.Dispose();
-        await hub.PublishAsync("b");
+        await hub.InvokeAsync("b");
 
         Assert.Equal(new[] { "a" }, calls);
     }
@@ -157,7 +121,7 @@ public sealed class EventHubTests
 
         token.Dispose();
         token.Dispose();
-        await hub.PublishAsync("x");
+        await hub.InvokeAsync("x");
 
         Assert.Equal(0, calls);
     }
@@ -167,7 +131,7 @@ public sealed class EventHubTests
     {
         var hub = new EventHub();
 
-        await hub.PublishAsync(42); // 不抛出
+        await hub.InvokeAsync(42); // 不抛出
     }
 
     [Fact]
@@ -189,20 +153,11 @@ public sealed class EventHubTests
             return Task.CompletedTask;
         });
 
-        await hub.PublishAsync(1);
+        await hub.InvokeAsync(1);
         Assert.Equal(new[] { "first", "second" }, calls);
 
-        await hub.PublishAsync(2);
+        await hub.InvokeAsync(2);
         Assert.Equal(new[] { "first", "second", "first" }, calls);
-    }
-
-    [Fact]
-    public async Task Publish_InvalidMode_Throws()
-    {
-        var hub = new EventHub();
-
-        using var handler = hub.Subscribe<int>(_ => Task.CompletedTask, (DispatchMode)99);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => hub.PublishAsync(1));
     }
 
     [Fact]
@@ -210,7 +165,8 @@ public sealed class EventHubTests
     {
         var hub = new EventHub();
 
-        await Assert.ThrowsAsync<ArgumentNullException>(() => hub.PublishAsync<string>(null!));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => hub.InvokeAsync<string>(null!));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => hub.InvokeParallelAsync<string>(null!));
     }
 
     [Fact]

@@ -8,14 +8,15 @@ namespace Momoka.Core.Events;
 
 /// <summary>
 /// 事件中心（内存、线程安全）：订阅/退订/发布并发安全；发布时快照订阅表再分发，
-/// 分发过程中退订不影响本次快照。分发模式由**订阅者**声明（发布者只 await）：
-/// Sequential 按优先级与订阅顺序依次执行、Parallel 并发执行、Background 即发即忘。
-/// handler 异常一律隔离记录，绝不向发布方传播。
+/// 分发过程中退订不影响本次快照。<see cref="InvokeAsync{TEvent}"/> 默认**顺序分发**
+/// （按 <see cref="EventPriority"/> 排序：高者先、同级按注册序、Monitor 恒最后）；
+/// <see cref="InvokeParallelAsync{TEvent}"/> 以并行模式发布（全部监听者 Task.WhenAll）。
+/// handler 异常一律隔离记录，绝不向发布方传播；每次发布写审计日志（Debug）。
 /// </summary>
 /// <remarks>
 /// 路由扩展：经 <see cref="RegisterEventType"/> 注册 <see cref="PublishAttribute"/> 类型后，
 /// <see cref="InvokeAsync{TEvent}"/> / <see cref="InvokeAsync(object)"/> 按路由矩阵统一分发
-/// （记录器恒记录；Destination 决定监听者与 wire-out）；wire-sender / recorder 由构造注入（宿主接线，无可变 setter）。
+/// （Destination 决定监听者与 wire-out）；wire-sender 由构造注入（宿主接线，无可变 setter）。
 /// </remarks>
 public sealed partial class EventHub
 {
@@ -25,43 +26,21 @@ public sealed partial class EventHub
     private readonly Dictionary<string, Type> _eventIds = new(StringComparer.Ordinal);
     private readonly ILogger<EventHub> _logger;
     private readonly Func<string, object?, Task>? _wireSender;
-    private readonly Func<object, Task>? _recorder;
 
-    /// <summary>创建不记日志的事件中心（测试/无日志场景）。</summary>
-    public EventHub()
-        : this(NullLogger<EventHub>.Instance)
+    /// <summary>创建事件中心：<paramref name="logger"/> 缺省取 NullLogger（测试/无日志场景）；
+    /// <paramref name="wireSender"/> 为线上广播钩子（eventId + 原始载荷，失败只记日志不阻断进程内分发）。</summary>
+    public EventHub(ILogger<EventHub>? logger = null, Func<string, object?, Task>? wireSender = null)
     {
-    }
-
-    /// <summary>创建事件中心。</summary>
-    public EventHub(ILogger<EventHub> logger)
-        : this(logger, null, null)
-    {
-    }
-
-    /// <summary>
-    /// 创建事件中心并接线路由钩子：<paramref name="wireSender"/>（线上广播，eventId + 原始载荷，
-    /// 失败只记日志不阻断进程内分发）、<paramref name="recorder"/>（被动审计 sink，记录全部事件）。
-    /// </summary>
-    public EventHub(
-        ILogger<EventHub> logger,
-        Func<string, object?, Task>? wireSender = null,
-        Func<object, Task>? recorder = null)
-    {
-        ArgumentNullException.ThrowIfNull(logger);
-        _logger = logger;
+        _logger = logger ?? NullLogger<EventHub>.Instance;
         _wireSender = wireSender;
-        _recorder = recorder;
     }
 
-    /// <summary>订阅事件（可按订阅者声明分发模式）；返回的令牌用于退订（幂等）。</summary>
-    public IDisposable Subscribe<TEvent>(
-        Func<TEvent, Task> handler,
-        DispatchMode mode = DispatchMode.Sequential)
+    /// <summary>订阅事件（顺序分发）；返回的令牌用于退订（幂等）。</summary>
+    public IDisposable Subscribe<TEvent>(Func<TEvent, Task> handler)
     {
         ArgumentNullException.ThrowIfNull(handler);
 
-        var subscription = new Subscription(this, typeof(TEvent), mode, e => handler((TEvent)e));
+        var subscription = new Subscription(this, typeof(TEvent), e => handler((TEvent)e));
         lock (_gate)
         {
             if (!_subscriptions.TryGetValue(typeof(TEvent), out var list))
@@ -148,23 +127,26 @@ public sealed partial class EventHub
         }
     }
 
-    /// <summary>按声明类型发布事件（属性感知分发）；<typeparamref name="TEvent"/> 应为声明路由时的确切类型。</summary>
+    /// <summary>按声明类型顺序发布事件（属性感知分发）；<typeparamref name="TEvent"/> 应为声明路由时的确切类型。</summary>
     public Task InvokeAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(@event);
-        return InvokeCoreAsync(typeof(TEvent), @event, cancellationToken);
+        return InvokeCoreAsync(typeof(TEvent), @event, parallel: false, cancellationToken);
     }
 
-    /// <summary>按运行期类型发布事件（wire-in 反序列化后分发，或 <typeparamref name="TEvent"/> 已知的等价入口）。</summary>
+    /// <summary>按运行期类型顺序发布事件（wire-in 反序列化后分发的入口）。</summary>
     public Task InvokeAsync(object @event, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(@event);
-        return InvokeCoreAsync(@event.GetType(), @event, cancellationToken);
+        return InvokeCoreAsync(@event.GetType(), @event, parallel: false, cancellationToken);
     }
 
-    /// <summary><see cref="InvokeAsync{TEvent}"/> 的兼容别名（更名前的发布入口，语义完全一致）。</summary>
-    public Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
-        => InvokeAsync(@event, cancellationToken);
+    /// <summary>按声明类型**并行**发布事件：全部监听者并发执行，全部完成后返回（异常照常隔离记录）。</summary>
+    public Task InvokeParallelAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(@event);
+        return InvokeCoreAsync(typeof(TEvent), @event, parallel: true, cancellationToken);
+    }
 
     /// <summary>按线上 eventId 反查路由事件类型与其 FromClients 标记（Gateway wire-in 用）。</summary>
     internal bool TryGetEventRouter(string eventId, out Type type, out bool fromClients)
@@ -212,8 +194,7 @@ public sealed partial class EventHub
                 return Task.CompletedTask;
             };
 
-        var subscription = new Subscription(
-            this, attribute.Target, DispatchMode.Sequential, handler, attribute.Priority, source);
+        var subscription = new Subscription(this, attribute.Target, handler, attribute.Priority, source);
         lock (_gate)
         {
             if (!_subscriptions.TryGetValue(attribute.Target, out var list))
@@ -228,7 +209,11 @@ public sealed partial class EventHub
         return subscription;
     }
 
-    private async Task InvokeCoreAsync(Type eventType, object @event, CancellationToken cancellationToken)
+    private async Task InvokeCoreAsync(
+        Type eventType,
+        object @event,
+        bool parallel,
+        CancellationToken cancellationToken)
     {
         RouterRegistration? router;
         lock (_gate)
@@ -236,17 +221,7 @@ public sealed partial class EventHub
             _routers.TryGetValue(eventType, out router);
         }
 
-        if (_recorder is not null)
-        {
-            try
-            {
-                await _recorder(@event).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                LogRecorderError(ex, eventType);
-            }
-        }
+        LogPublished(eventType, @event);
 
         bool toListeners = router is null
             || router.Destination is EventDestination.Listeners or EventDestination.Everyone;
@@ -282,7 +257,7 @@ public sealed partial class EventHub
 
             if (snapshot.Count > 0)
             {
-                await DispatchAsync(snapshot, @event, cancellationToken).ConfigureAwait(false);
+                await DispatchAsync(snapshot, @event, parallel, cancellationToken).ConfigureAwait(false);
             }
         }
     }
@@ -290,36 +265,29 @@ public sealed partial class EventHub
     private async Task DispatchAsync<TEvent>(
         IReadOnlyList<Subscription> snapshot,
         TEvent @event,
+        bool parallel,
         CancellationToken cancellationToken)
     {
         var ordered = snapshot
             .OrderBy(s => s.Priority, EventPriorityComparer.Instance)
             .ToList();
 
-        var parallelTasks = new List<Task>();
-        foreach (var subscription in ordered)
+        if (parallel)
         {
-            switch (subscription.Mode)
+            var tasks = new Task[ordered.Count];
+            for (int i = 0; i < ordered.Count; i++)
             {
-                case DispatchMode.Sequential:
-                    cancellationToken.ThrowIfCancellationRequested();
-                    await InvokeSafelyAsync(subscription, @event).ConfigureAwait(false);
-                    break;
-                case DispatchMode.Parallel:
-                    parallelTasks.Add(InvokeSafelyAsync(subscription, @event));
-                    break;
-                case DispatchMode.Background:
-                    _ = InvokeSafelyAsync(subscription, @event);
-                    break;
-                default:
-                    throw new InvalidOperationException(
-                        $"Unsupported dispatch mode '{subscription.Mode}'.");
+                tasks[i] = InvokeSafelyAsync(ordered[i], @event);
             }
+
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+            return;
         }
 
-        if (parallelTasks.Count > 0)
+        foreach (var subscription in ordered)
         {
-            await Task.WhenAll(parallelTasks).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            await InvokeSafelyAsync(subscription, @event).ConfigureAwait(false);
         }
     }
 
@@ -407,9 +375,9 @@ public sealed partial class EventHub
 
     [LoggerMessage(
         EventId = 2,
-        Level = LogLevel.Error,
-        Message = "Event recorder for '{EventType}' threw an exception.")]
-    private partial void LogRecorderError(Exception exception, Type eventType);
+        Level = LogLevel.Debug,
+        Message = "Event '{EventType}' published: {@Event}")]
+    private partial void LogPublished(Type eventType, object @event);
 
     [LoggerMessage(
         EventId = 3,
@@ -433,22 +401,18 @@ public sealed partial class EventHub
         public Subscription(
             EventHub hub,
             Type eventType,
-            DispatchMode mode,
             Func<object, Task> handler,
             EventPriority priority = EventPriority.Normal,
             string? source = null)
         {
             _hub = hub;
             EventType = eventType;
-            Mode = mode;
             Priority = priority;
             Source = source;
             Handler = handler;
         }
 
         public Type EventType { get; }
-
-        public DispatchMode Mode { get; }
 
         public EventPriority Priority { get; }
 

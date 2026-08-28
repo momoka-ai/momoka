@@ -6,14 +6,14 @@ namespace Momoka.Core.Tests;
 
 /// <summary>
 /// 事件路由（[Publish] + EventHub 属性感知分发）：路由矩阵逐项 /
-/// FromClients wire-in 无 echo / 组合校验与重复 Id fail-fast / wire-sender 异常不阻断 / 更名兼容。
+/// FromClients wire-in 无 echo / 组合校验与重复 Id fail-fast / wire-sender 异常不阻断。
 /// </summary>
 public sealed class EventRouterTests
 {
     [Fact]
     public async Task None_Destination_OnlyRecords()
     {
-        var (hub, wire, recorded) = CreateHub();
+        var (hub, wire, logger) = CreateHub();
         hub.RegisterEventType(typeof(SinkEvent));
         using var listener = hub.Subscribe<SinkEvent>(_ =>
         {
@@ -24,7 +24,7 @@ public sealed class EventRouterTests
         await hub.InvokeAsync(new SinkEvent());
 
         Assert.Empty(wire);
-        Assert.Single(recorded);
+        Assert.Contains(logger.Messages, m => m.Contains("SinkEvent"));
     }
 
     [Fact]
@@ -171,15 +171,7 @@ public sealed class EventRouterTests
     [Fact]
     public async Task WireSenderException_DoesNotBlockLocalDispatch()
     {
-        var recorder = new List<string>();
-        var hub = new EventHub(
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<EventHub>.Instance,
-            wireSender: (_, _) => throw new InvalidOperationException("wire exploded"),
-            recorder: e =>
-            {
-                recorder.Add(e.GetType().Name);
-                return Task.CompletedTask;
-            });
+        var (hub, _, logger) = CreateHub(wireSenderThrows: true);
         hub.RegisterEventType(typeof(EveryoneEvent));
         var received = 0;
         using var listener = hub.Subscribe<EveryoneEvent>(_ =>
@@ -191,25 +183,7 @@ public sealed class EventRouterTests
         await hub.InvokeAsync(new EveryoneEvent("x")); // 不抛出
 
         Assert.Equal(1, received);
-        Assert.Contains("EveryoneEvent", recorder);
-    }
-
-    [Fact]
-    public async Task PublishAsync_CompatibilityAlias_StillRoutes()
-    {
-        var (hub, wire, _) = CreateHub();
-        hub.RegisterEventType(typeof(LocalEvent));
-        var received = 0;
-        using var listener = hub.Subscribe<LocalEvent>(_ =>
-        {
-            Interlocked.Increment(ref received);
-            return Task.CompletedTask;
-        });
-
-        await hub.PublishAsync(new LocalEvent());
-
-        Assert.Equal(1, received);
-        Assert.Empty(wire);
+        Assert.Contains(logger.Messages, m => m.Contains("EveryoneEvent"));
     }
 
     [Fact]
@@ -228,31 +202,52 @@ public sealed class EventRouterTests
         Assert.Equal(1, received);
     }
 
-    private static (EventHub Hub, List<(string EventId, object Payload)> Wire, List<string> Recorded) CreateHub()
+    private static (EventHub Hub, List<(string EventId, object Payload)> Wire, CollectingLogger Logger) CreateHub(
+        bool wireSenderThrows = false)
     {
         var wire = new List<(string, object)>();
-        var recorded = new List<string>();
+        var logger = new CollectingLogger();
         var hub = new EventHub(
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<EventHub>.Instance,
+            logger,
             wireSender: (id, payload) =>
             {
+                if (wireSenderThrows)
+                {
+                    throw new InvalidOperationException("wire exploded");
+                }
+
                 lock (wire)
                 {
                     wire.Add((id, payload!));
                 }
 
                 return Task.CompletedTask;
-            },
-            recorder: e =>
-            {
-                lock (recorded)
-                {
-                    recorded.Add(e.GetType().Name);
-                }
-
-                return Task.CompletedTask;
             });
-        return (hub, wire, recorded);
+        return (hub, wire, logger);
+    }
+
+    private sealed class CollectingLogger : Microsoft.Extensions.Logging.ILogger<EventHub>
+    {
+        public List<string> Messages { get; } = new();
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull
+            => null;
+
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            Microsoft.Extensions.Logging.LogLevel logLevel,
+            Microsoft.Extensions.Logging.EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            lock (Messages)
+            {
+                Messages.Add(formatter(state, exception));
+            }
+        }
     }
 
     [Publish(Destination = EventDestination.None)]

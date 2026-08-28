@@ -261,14 +261,14 @@ public sealed class GatewayTests
     }
 
     [Fact]
-    public async Task EventRecorder_RecordsEvents()
+    public async Task EventHub_Publish_WritesAuditLog()
     {
         var logs = new CapturingLoggerProvider();
         await using var harness = await GatewayHarness.CreateAsync(logs: logs);
 
         await harness.Events.InvokeAsync(new LocalPlainEvent("x"));
 
-        Assert.Contains(logs.Messages, m => m.Contains("recorded") && m.Contains("LocalPlainEvent"));
+        Assert.Contains(logs.Messages, m => m.Contains("published") && m.Contains("LocalPlainEvent"));
     }
 
     private static Plugin LoadEventsPlugin(GatewayHarness harness)

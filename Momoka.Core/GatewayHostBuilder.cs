@@ -10,9 +10,9 @@ namespace Momoka.Core;
 
 /// <summary>
 /// 宿主 DI 接线（Program.cs 与测试自建内联 WebApplication 共用，避免两份接线漂移）：
-/// SignalR（AddSignalR + snake_case JSON 协议）+ 核心单例（ServiceRegistry / EventHub / EventRecorder / Gateway /
-/// PluginService / PluginLoader）。EventHub 的 wire-sender / recorder 经 DI 工厂闭包注入（无可变 setter），
-/// wire-sender 延迟解析 <see cref="Gateway"/> 以打破构造环。
+/// SignalR（AddSignalR + snake_case JSON 协议）+ 核心单例（ServiceRegistry / EventHub / Gateway /
+/// PluginService / PluginLoader）。EventHub 的 wire-sender 经 DI 工厂闭包注入（无可变 setter），
+/// 延迟解析 <see cref="Gateway"/> 以打破构造环。
 /// </summary>
 internal static class GatewayHostBuilder
 {
@@ -27,7 +27,6 @@ internal static class GatewayHostBuilder
 
         services.AddSingleton<ServiceRegistry>();
         services.AddSingleton(sp => CreateEventHub(sp));
-        services.AddSingleton<EventRecorder>();
         services.AddSingleton<Gateway>();
         services.AddSingleton(sp => new PluginService(
             sp.GetRequiredService<ServiceRegistry>(),
@@ -42,8 +41,7 @@ internal static class GatewayHostBuilder
     {
         return new EventHub(
             sp.GetRequiredService<ILogger<EventHub>>(),
-            (eventId, payload) => sp.GetRequiredService<Gateway>().BroadcastClientEvent(eventId, payload),
-            e => sp.GetRequiredService<EventRecorder>().RecordAsync(e));
+            (eventId, payload) => sp.GetRequiredService<Gateway>().BroadcastClientEvent(eventId, payload));
     }
 
     private static string? ReadBaseDirectory(IConfiguration configuration)

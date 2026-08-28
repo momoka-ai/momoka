@@ -94,11 +94,11 @@ public sealed class BaseClassTests : IDisposable
             return Task.CompletedTask;
         });
 
-        await hub.PublishAsync(1);
+        await hub.InvokeAsync(1);
         Assert.Equal(1, calls);
 
         token.Dispose();
-        await hub.PublishAsync(2);
+        await hub.InvokeAsync(2);
         Assert.Equal(1, calls);
     }
 
@@ -110,6 +110,24 @@ public sealed class BaseClassTests : IDisposable
         Assert.False(plugin.Enabled);
         plugin.OnEnable();
         Assert.True(plugin.Enabled);
+    }
+
+    [Fact]
+    public void GetPluginResource_ReadsEmbeddedResource()
+    {
+        var plugin = InjectedPlugin(out _, out _);
+
+        using Stream stream = plugin.Resource("Momoka.Core.Tests.Resources.greeting.txt")!;
+        using var reader = new StreamReader(stream);
+        Assert.Equal("hello resource", reader.ReadToEnd());
+    }
+
+    [Fact]
+    public void GetPluginResource_MissingResource_ReturnsNull()
+    {
+        var plugin = InjectedPlugin(out _, out _);
+
+        Assert.Null(plugin.Resource("no.such.resource"));
     }
 
     private TestPlugin InjectedPlugin(out DirectoryInfo folder, out FileInfo config)
@@ -146,6 +164,8 @@ public sealed class BaseClassTests : IDisposable
         public DirectoryInfo Folder => GetPluginFolder();
 
         public FileInfo Config => GetPluginConfig();
+
+        public Stream? Resource(string path) => GetPluginResource(path);
 
         public bool Enabled { get; private set; }
 
