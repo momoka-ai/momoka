@@ -200,7 +200,7 @@ public enum EventDestination { None, Listeners, Client, Everyone }
 public enum EventPriority { Lowest, Low, Normal, High, Highest, Monitor }
 
 [AttributeUsage(AttributeTargets.Class)]
-public sealed class EventRouterAttribute
+public sealed class PublishAttribute
 {
     string? Id { get; set; }                        // 线上 eventId（snake_case，全局唯一）
     EventDestination Destination { get; set; } = EventDestination.Listeners;
@@ -208,7 +208,7 @@ public sealed class EventRouterAttribute
 }
 
 [AttributeUsage(AttributeTargets.Method)]
-public sealed class EventSubscribeAttribute
+public sealed class SubscribeAttribute
 {
     Type Target { get; }                            // 事件类型
     EventPriority Priority { get; set; } = EventPriority.Normal;
@@ -218,8 +218,8 @@ public sealed class EventSubscribeAttribute
 public sealed class EventHub
 {
     IDisposable Subscribe<TEvent>(Func<TEvent, Task> handler, DispatchMode mode = DispatchMode.Sequential);
-    IDisposable AddSubscribers(object subscriber, Plugin? plugin = null);   // 扫描 [EventSubscribe]，整体退订令牌
-    void RegisterEventType(Type type);              // 扫描 [EventRouter]，重复 Id / 组合非法 fail-fast
+    IDisposable AddSubscribers(object subscriber, Plugin? plugin = null);   // 扫描 [Subscribe]，整体退订令牌
+    void RegisterEventType(Type type);              // 扫描 [Publish]，重复 Id / 组合非法 fail-fast
     Task InvokeAsync<TEvent>(TEvent @event, CancellationToken ct = default);
     Task InvokeAsync(object @event, CancellationToken ct = default);        // 按运行期类型分发（wire-in 用）
     Task PublishAsync<TEvent>(TEvent @event, CancellationToken ct = default); // InvokeAsync 兼容别名
@@ -230,8 +230,8 @@ public sealed class EventRecorder { Task RecordAsync(object @event, Cancellation
 
 - 订阅表按 `Type` 分桶 + `lock`；订阅/退订/发布线程安全；**发布时快照订阅表再分发**（分发中退订不影响本次）。
 - **分发模式由订阅者声明**（发布者只 await）：Sequential 按序 await、Parallel 并发（`Task.WhenAll`）、Background 即发即忘；handler 异常一律隔离记日志，绝不向发布方传播。
-- **监听自动化**：`AddSubscribers` 实例扫描 `[EventSubscribe]`（Bukkit 风格，签名 = 单参数 Target + 返回 Task/void，非法 fail-fast）；按 `EventPriority` 排序执行（高者先、同级按注册序、**Monitor 恒最后**）；返回令牌整体退订（插件 OnDisable 用）；与手动 `Subscribe<T>` lambda 共存。
-- **路由自动化**：`RegisterEventType` 注册 `[EventRouter]` 类型后，`InvokeAsync` 按**路由矩阵**统一分发——记录器恒记录；`None` 仅记录器 / `Listeners` 仅监听者 / `Client` 仅 wire-out（须 Id）/ `Everyone` 监听者 + wire-out（须 Id）；`FromClients=true` 接受 wire-in 且**只进监听者、绝不广播回客户端**（避免 echo）。wire-sender 失败只记日志，进程内分发不受影响。
+- **监听自动化**：`AddSubscribers` 实例扫描 `[Subscribe]`（Bukkit 风格，签名 = 单参数 Target + 返回 Task/void，非法 fail-fast）；按 `EventPriority` 排序执行（高者先、同级按注册序、**Monitor 恒最后**）；返回令牌整体退订（插件 OnDisable 用）；与手动 `Subscribe<T>` lambda 共存。
+- **路由自动化**：`RegisterEventType` 注册 `[Publish]` 类型后，`InvokeAsync` 按**路由矩阵**统一分发——记录器恒记录；`None` 仅记录器 / `Listeners` 仅监听者 / `Client` 仅 wire-out（须 Id）/ `Everyone` 监听者 + wire-out（须 Id）；`FromClients=true` 接受 wire-in 且**只进监听者、绝不广播回客户端**（避免 echo）。wire-sender 失败只记日志，进程内分发不受影响。
 - 事件类型由插件自声明；**Core 不定义业务事件**。
 
 ## 8. 配置（Configurations）
@@ -367,8 +367,8 @@ public interface IGatewayClient { Task ClientEvent(string eventId, JsonNode? pay
 - **三通道**：操作（request/response）+ 线上事件双向（fire-and-forget，仅服务器有 EventHub 为真相）+ 进程内事件（EventHub 服务端唯一总线）。
 - **鉴权与身份**：握手 query `?terminalId=&role=&token=`；token 恒定时间比较（`Gateway:Token` 缺省空 = 全部拒绝）；`TerminalRegistry` 断连清理；角色本期仅记录（Security 期授权）；操作处理器经 `OperationContext.Caller` 取调用者。
 - **操作 fail-soft**：未知 operationId / handler 异常 / 反序列化失败 → 错误响应；取消 → "Cancelled"；重复注册 operationId fail-fast；插件 OnEnable 注册、OnDisable 释放令牌。
-- **事件全自动化**：发布经 `[EventRouter]` + `EventHub.InvokeAsync`；监听经 `[EventSubscribe]` + `EventHub.AddSubscribers`；wire-in（`SendEvent`）经 eventId→Type 注册表反查 + `FromClients` 校验 + 反序列化进总线，**绝不自动广播回客户端**（插件处理后按需生成新事件发回）；`EventRecorder` 为被动审计 sink（ILogger）。
-- **宿主接线**：`Program.cs` 为 WebApplication（`AddSignalR` + snake_case JSON 协议 + 单例 DI：ServiceRegistry/EventHub/EventRecorder/Gateway/PluginService/PluginLoader），EventHub 的 wire-sender / recorder 经 DI 工厂闭包注入；`PluginLoader.Load` 扫描 `[EventRouter]` 类型填充注册表（重复 Id fail-fast）。
+- **事件全自动化**：发布经 `[Publish]` + `EventHub.InvokeAsync`；监听经 `[Subscribe]` + `EventHub.AddSubscribers`；wire-in（`SendEvent`）经 eventId→Type 注册表反查 + `FromClients` 校验 + 反序列化进总线，**绝不自动广播回客户端**（插件处理后按需生成新事件发回）；`EventRecorder` 为被动审计 sink（ILogger）。
+- **宿主接线**：`Program.cs` 为 WebApplication（`AddSignalR` + snake_case JSON 协议 + 单例 DI：ServiceRegistry/EventHub/EventRecorder/Gateway/PluginService/PluginLoader），EventHub 的 wire-sender / recorder 经 DI 工厂闭包注入；`PluginLoader.Load` 扫描 `[Publish]` 类型填充注册表（重复 Id fail-fast）。
 - **后续**：按终端/档案定向广播（Profiles 期）、按角色授权（Security 期）、Home 领域事件挂属性 + 网关面 DTO STJ 化（HomePlugin 转换期）。
 
 ## 12. 与其它模块关系

@@ -5,7 +5,7 @@ using Momoka.Core.Plugins;
 namespace Momoka.Core.Tests;
 
 /// <summary>
-/// 监听自动化（[EventSubscribe] + EventHub.AddSubscribers）：实例扫描注册 / 优先级排序（Monitor 恒最后）/
+/// 监听自动化（[Subscribe] + EventHub.AddSubscribers）：实例扫描注册 / 优先级排序（Monitor 恒最后）/
 /// 整体退订令牌 / 签名校验 fail-fast / 与手动 Subscribe 共存 / 插件自身作 subscriber。
 /// </summary>
 public sealed class EventSubscribeTests
@@ -172,7 +172,7 @@ public sealed class EventSubscribeTests
             }
         }
 
-        [EventSubscribe(typeof(string))]
+        [Subscribe(typeof(string))]
         public Task OnString(string value)
         {
             lock (_calls)
@@ -183,7 +183,7 @@ public sealed class EventSubscribeTests
             return Task.CompletedTask;
         }
 
-        [EventSubscribe(typeof(int), Priority = EventPriority.Low)]
+        [Subscribe(typeof(int), Priority = EventPriority.Low)]
         public void OnIntLow(int value)
         {
             lock (_calls)
@@ -192,7 +192,7 @@ public sealed class EventSubscribeTests
             }
         }
 
-        [EventSubscribe(typeof(int), Priority = EventPriority.Highest)]
+        [Subscribe(typeof(int), Priority = EventPriority.Highest)]
         public Task OnIntHigh(int value)
         {
             lock (_calls)
@@ -203,7 +203,7 @@ public sealed class EventSubscribeTests
             return Task.CompletedTask;
         }
 
-        [EventSubscribe(typeof(int), Priority = EventPriority.Monitor)]
+        [Subscribe(typeof(int), Priority = EventPriority.Monitor)]
         public Task OnIntMonitor(int value)
         {
             lock (_calls)
@@ -219,42 +219,42 @@ public sealed class EventSubscribeTests
     {
         public readonly List<string> Calls = new();
 
-        [EventSubscribe(typeof(int), Priority = EventPriority.Monitor)]
+        [Subscribe(typeof(int), Priority = EventPriority.Monitor)]
         public Task OnMonitor(int value)
         {
             Calls.Add("monitor");
             return Task.CompletedTask;
         }
 
-        [EventSubscribe(typeof(int), Priority = EventPriority.Highest)]
+        [Subscribe(typeof(int), Priority = EventPriority.Highest)]
         public Task OnHighest(int value)
         {
             Calls.Add("highest");
             return Task.CompletedTask;
         }
 
-        [EventSubscribe(typeof(int), Priority = EventPriority.Normal)]
+        [Subscribe(typeof(int), Priority = EventPriority.Normal)]
         public Task OnNormal(int value)
         {
             Calls.Add("normal");
             return Task.CompletedTask;
         }
 
-        [EventSubscribe(typeof(int), Priority = EventPriority.Low)]
+        [Subscribe(typeof(int), Priority = EventPriority.Low)]
         public Task OnLow(int value)
         {
             Calls.Add("low");
             return Task.CompletedTask;
         }
 
-        [EventSubscribe(typeof(int), Priority = EventPriority.Lowest)]
+        [Subscribe(typeof(int), Priority = EventPriority.Lowest)]
         public Task OnLowest(int value)
         {
             Calls.Add("lowest");
             return Task.CompletedTask;
         }
 
-        [EventSubscribe(typeof(int), Priority = EventPriority.High)]
+        [Subscribe(typeof(int), Priority = EventPriority.High)]
         public Task OnHigh(int value)
         {
             Calls.Add("high");
@@ -266,14 +266,14 @@ public sealed class EventSubscribeTests
     {
         public readonly List<string> Calls = new();
 
-        [EventSubscribe(typeof(string))]
+        [Subscribe(typeof(string))]
         public Task OnFirst(string value)
         {
             Calls.Add("first");
             return Task.CompletedTask;
         }
 
-        [EventSubscribe(typeof(string))]
+        [Subscribe(typeof(string))]
         public Task OnSecond(string value)
         {
             Calls.Add("second");
@@ -283,19 +283,19 @@ public sealed class EventSubscribeTests
 
     private sealed class TwoParametersSubscriber
     {
-        [EventSubscribe(typeof(string))]
+        [Subscribe(typeof(string))]
         public Task On(string a, string b) => Task.CompletedTask;
     }
 
     private sealed class WrongTypeSubscriber
     {
-        [EventSubscribe(typeof(string))]
+        [Subscribe(typeof(string))]
         public Task On(int value) => Task.CompletedTask;
     }
 
     private sealed class WrongReturnTypeSubscriber
     {
-        [EventSubscribe(typeof(string))]
+        [Subscribe(typeof(string))]
         public int On(string value) => 1;
     }
 
@@ -303,7 +303,7 @@ public sealed class EventSubscribeTests
     {
         public readonly List<string> Calls = new();
 
-        [EventSubscribe(typeof(string))]
+        [Subscribe(typeof(string))]
         public Task On(string value)
         {
             Calls.Add(value);
@@ -315,7 +315,7 @@ public sealed class EventSubscribeTests
     {
         public bool Called { get; private set; }
 
-        [EventSubscribe(typeof(string))]
+        [Subscribe(typeof(string))]
         public Task On(string value)
         {
             Called = true;

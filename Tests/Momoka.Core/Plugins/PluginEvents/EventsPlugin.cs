@@ -4,15 +4,15 @@ using Momoka.Core.Plugins;
 namespace Momoka.Core.Tests.Plugins.Events;
 
 /// <summary>客户端上报事件（wire-in）：监听者处理，绝不自动广播回客户端。</summary>
-[EventRouter(Id = "report_event", Destination = EventDestination.Listeners, FromClients = true)]
+[Publish(Id = "report_event", Destination = EventDestination.Listeners, FromClients = true)]
 public sealed record ReportEvent(string Message);
 
 /// <summary>全向事件（监听者 + 广播）：wire-in 处理后由插件按需生成并发布。</summary>
-[EventRouter(Id = "announce_event", Destination = EventDestination.Everyone)]
+[Publish(Id = "announce_event", Destination = EventDestination.Everyone)]
 public sealed record AnnounceEvent(string Message);
 
 /// <summary>
-/// 路由/订阅测试插件：OnEnable 用 AddSubscribers(this) 扫描 [EventSubscribe] 订阅，
+/// 路由/订阅测试插件：OnEnable 用 AddSubscribers(this) 扫描 [Subscribe] 订阅，
 /// OnDisable 释放整体令牌；收到 ReportEvent 后发布 AnnounceEvent（Everyone → 广播回全部终端）。
 /// </summary>
 public sealed class EventsPlugin : Plugin
@@ -54,7 +54,7 @@ public sealed class EventsPlugin : Plugin
         _subscriptions = null;
     }
 
-    [EventSubscribe(typeof(ReportEvent), Priority = EventPriority.High)]
+    [Subscribe(typeof(ReportEvent), Priority = EventPriority.High)]
     public Task OnReport(ReportEvent @event)
     {
         lock (LogGate)

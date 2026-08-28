@@ -6,10 +6,10 @@ namespace Momoka.Core.Events;
 /// 签名要求：恰一个参数且其类型等于 <see cref="Target"/>，返回 <see cref="Task"/> 或 <c>void</c>（否则 fail-fast）。
 /// </summary>
 [AttributeUsage(AttributeTargets.Method)]
-public sealed class EventSubscribeAttribute : Attribute
+public sealed class SubscribeAttribute : Attribute
 {
     /// <summary>创建监听声明。</summary>
-    public EventSubscribeAttribute(Type target)
+    public SubscribeAttribute(Type target)
     {
         Target = target ?? throw new ArgumentNullException(nameof(target));
     }

@@ -13,7 +13,7 @@ namespace Momoka.Core.Events;
 /// handler 异常一律隔离记录，绝不向发布方传播。
 /// </summary>
 /// <remarks>
-/// 路由扩展：经 <see cref="RegisterEventType"/> 注册 <see cref="EventRouterAttribute"/> 类型后，
+/// 路由扩展：经 <see cref="RegisterEventType"/> 注册 <see cref="PublishAttribute"/> 类型后，
 /// <see cref="InvokeAsync{TEvent}"/> / <see cref="InvokeAsync(object)"/> 按路由矩阵统一分发
 /// （记录器恒记录；Destination 决定监听者与 wire-out）；wire-sender / recorder 由构造注入（宿主接线，无可变 setter）。
 /// </remarks>
@@ -77,7 +77,7 @@ public sealed partial class EventHub
     }
 
     /// <summary>
-    /// 扫描 subscriber 的 <see cref="EventSubscribeAttribute"/> 方法并订阅（实例注册，Bukkit 风格）：
+    /// 扫描 subscriber 的 <see cref="SubscribeAttribute"/> 方法并订阅（实例注册，Bukkit 风格）：
     /// 校验签名（恰一参数 = Target，返回 Task 或 void）fail-fast；按 <see cref="EventPriority"/> 排序执行
     /// （高者先、同级按注册序、Monitor 恒最后）；返回令牌 = 整体退订（幂等，插件 OnDisable 用）。
     /// </summary>
@@ -89,7 +89,7 @@ public sealed partial class EventHub
         foreach (MethodInfo method in subscriber.GetType()
             .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
         {
-            EventSubscribeAttribute? attribute = method.GetCustomAttribute<EventSubscribeAttribute>();
+            SubscribeAttribute? attribute = method.GetCustomAttribute<SubscribeAttribute>();
             if (attribute is null)
             {
                 continue;
@@ -113,16 +113,16 @@ public sealed partial class EventHub
         return new BatchDisposable(tokens);
     }
 
-    /// <summary>注册路由事件类型（插件加载时扫描 <see cref="EventRouterAttribute"/> 调用）；
+    /// <summary>注册路由事件类型（插件加载时扫描 <see cref="PublishAttribute"/> 调用）；
     /// 组合非法 / 重复 eventId → fail-fast <see cref="InvalidOperationException"/>。</summary>
     public void RegisterEventType(Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
 
-        EventRouterAttribute? attribute = type.GetCustomAttribute<EventRouterAttribute>();
+        PublishAttribute? attribute = type.GetCustomAttribute<PublishAttribute>();
         if (attribute is null)
         {
-            throw new ArgumentException($"Type '{type}' does not carry [EventRouter].", nameof(type));
+            throw new ArgumentException($"Type '{type}' does not carry [Publish].", nameof(type));
         }
 
         string? id = NormalizeEventId(attribute.Id);
@@ -187,21 +187,21 @@ public sealed partial class EventHub
     private Subscription SubscribeScannedMethod(
         object subscriber,
         MethodInfo method,
-        EventSubscribeAttribute attribute,
+        SubscribeAttribute attribute,
         string? source)
     {
         ParameterInfo[] parameters = method.GetParameters();
         if (parameters.Length != 1 || parameters[0].ParameterType != attribute.Target)
         {
             throw new InvalidOperationException(
-                $"[EventSubscribe] method '{method.DeclaringType?.Name}.{method.Name}' must have exactly " +
+                $"[Subscribe] method '{method.DeclaringType?.Name}.{method.Name}' must have exactly " +
                 $"one parameter of type '{attribute.Target}'.");
         }
 
         if (method.ReturnType != typeof(void) && method.ReturnType != typeof(Task))
         {
             throw new InvalidOperationException(
-                $"[EventSubscribe] method '{method.DeclaringType?.Name}.{method.Name}' must return Task or void.");
+                $"[Subscribe] method '{method.DeclaringType?.Name}.{method.Name}' must return Task or void.");
         }
 
         Func<object, Task> handler = method.ReturnType == typeof(Task)
@@ -374,28 +374,28 @@ public sealed partial class EventHub
     private static string? NormalizeEventId(string? id)
         => string.IsNullOrWhiteSpace(id) ? null : id.Trim();
 
-    private static void ValidateRouting(Type type, string? id, EventRouterAttribute attribute)
+    private static void ValidateRouting(Type type, string? id, PublishAttribute attribute)
     {
         bool needsId = attribute.Destination is EventDestination.Client or EventDestination.Everyone
             || attribute.FromClients;
         if (needsId && id is null)
         {
             throw new InvalidOperationException(
-                $"[EventRouter] on '{type}' requires an Id when Destination is " +
+                $"[Publish] on '{type}' requires an Id when Destination is " +
                 $"{attribute.Destination} or FromClients is true.");
         }
 
         if (attribute.FromClients && attribute.Destination != EventDestination.Listeners)
         {
             throw new InvalidOperationException(
-                $"[EventRouter] on '{type}': FromClients requires Destination = Listeners " +
+                $"[Publish] on '{type}': FromClients requires Destination = Listeners " +
                 "(wire-in never echoes back to clients).");
         }
 
         if (!needsId && id is not null)
         {
             throw new InvalidOperationException(
-                $"[EventRouter] on '{type}' must have an empty Id for Destination {attribute.Destination}.");
+                $"[Publish] on '{type}' must have an empty Id for Destination {attribute.Destination}.");
         }
     }
 

@@ -80,7 +80,7 @@ public sealed class PluginLoader : IDisposable
             }
         }
 
-        // 扫描 [EventRouter] 类型注册进 EventHub（重复 eventId / 组合非法 → InvalidOperationException fail-fast）
+        // 扫描 [Publish] 类型注册进 EventHub（重复 eventId / 组合非法 → InvalidOperationException fail-fast）
         ScanEventRouters(assembly);
 
         Type? mainType = GetPluginMainType(info, assembly);
@@ -372,12 +372,12 @@ public sealed class PluginLoader : IDisposable
             .ToList();
     }
 
-    /// <summary>扫描程序集内带 <see cref="EventRouterAttribute"/> 的类型并注册进 EventHub（Load 期，重复 Id fail-fast）。</summary>
+    /// <summary>扫描程序集内带 <see cref="PublishAttribute"/> 的类型并注册进 EventHub（Load 期，重复 Id fail-fast）。</summary>
     private void ScanEventRouters(Assembly assembly)
     {
         foreach (Type type in assembly.GetTypes())
         {
-            if (type.GetCustomAttribute<EventRouterAttribute>() is not null)
+            if (type.GetCustomAttribute<PublishAttribute>() is not null)
             {
                 _pluginService.Events.RegisterEventType(type);
             }

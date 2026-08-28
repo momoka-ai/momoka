@@ -1,7 +1,7 @@
 namespace Momoka.Core.Events;
 
 /// <summary>
-/// 事件路由属性（标于事件类型上）：声明线上 eventId、发布目的地与是否接受客户端上报（wire-in）。
+/// 事件发布属性（标于事件类型上）：声明线上 eventId、发布目的地与是否接受客户端上报（wire-in）。
 /// 路由组合在 <see cref="EventHub.RegisterEventType"/> 注册时 fail-fast 校验：
 /// <list type="bullet">
 /// <item><c>Destination = Client/Everyone</c> 或 <c>FromClients = true</c> 时必须带 <c>Id</c>；</item>
@@ -10,7 +10,7 @@ namespace Momoka.Core.Events;
 /// </list>
 /// </summary>
 [AttributeUsage(AttributeTargets.Class)]
-public sealed class EventRouterAttribute : Attribute
+public sealed class PublishAttribute : Attribute
 {
     /// <summary>线上 eventId（snake_case，全局唯一）；按目的地在注册时校验是否必需/须空。</summary>
     public string? Id { get; set; }

@@ -7,7 +7,7 @@ namespace Momoka.Core;
 
 /// <summary>
 /// 插件宿主入口：WebApplication 底座（SignalR 网关）——扫描插件根目录 → 逐插件 Load（实例化 +
-/// [EventRouter] 注册表填充）→ EnableAsync（按依赖图依序启用）→ 运行 → 逆序停用。
+/// [Publish] 注册表填充）→ EnableAsync（按依赖图依序启用）→ 运行 → 逆序停用。
 /// 插件根目录硬编码于基目录（可经配置 Plugins:BaseDirectory 覆写）下的 Plugins。
 /// </summary>
 public static class Program
