@@ -9,7 +9,7 @@ public enum EventDestination
     /// <summary>仅记录器（sink-only），不进入监听者，也不发客户端。</summary>
     None = 0,
 
-    /// <summary>仅进程内监听者（默认）。</summary>
+    /// <summary>仅进程内监听者（默认）：带 <see cref="PublishAttribute.Id"/> 时接受客户端上报（wire-in 只进监听者）。</summary>
     Listeners = 1,
 
     /// <summary>仅发客户端（wire-out），不进进程内监听者；需 <see cref="PublishAttribute.Id"/>。</summary>

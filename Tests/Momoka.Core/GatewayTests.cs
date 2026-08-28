@@ -148,7 +148,7 @@ public sealed class GatewayTests
     }
 
     [Fact]
-    public async Task SendEvent_UnregisteredOrNotFromClients_IsIgnored()
+    public async Task SendEvent_UnregisteredOrNotReportable_IsIgnored()
     {
         await using var harness = await GatewayHarness.CreateAsync();
         ResetEventsPluginLog();

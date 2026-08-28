@@ -6,7 +6,7 @@ namespace Momoka.Core.Tests;
 
 /// <summary>
 /// 事件路由（[Publish] + EventHub 属性感知分发）：路由矩阵逐项 /
-/// FromClients wire-in 无 echo / 组合校验与重复 Id fail-fast / wire-sender 异常不阻断。
+/// wire-in（Listeners+Id）无 echo / 组合校验与重复 Id fail-fast / wire-sender 异常不阻断。
 /// </summary>
 public sealed class EventRouterTests
 {
@@ -66,7 +66,7 @@ public sealed class EventRouterTests
     }
 
     [Fact]
-    public async Task FromClients_WireIn_GoesToListenersOnly_NoEcho()
+    public async Task WireIn_GoesToListenersOnly_NoEcho()
     {
         var (hub, wire, _) = CreateHub();
         hub.RegisterEventType(typeof(ClientReportEvent));
@@ -95,7 +95,7 @@ public sealed class EventRouterTests
     }
 
     [Fact]
-    public async Task WireIn_NonFromClients_IsIgnored()
+    public async Task WireIn_NonReportable_IsIgnored()
     {
         var (hub, wire, _) = CreateHub();
         hub.RegisterEventType(typeof(EveryoneEvent));
@@ -112,9 +112,7 @@ public sealed class EventRouterTests
     [Theory]
     [InlineData(typeof(BadClientNoId))]
     [InlineData(typeof(BadEveryoneNoId))]
-    [InlineData(typeof(BadFromClientsNoId))]
-    [InlineData(typeof(BadFromClientsEveryone))]
-    [InlineData(typeof(BadListenersWithId))]
+    [InlineData(typeof(BadSinkWithId))]
     public void RegisterEventType_InvalidCombination_FailsFast(Type type)
     {
         var hub = new EventHub();
@@ -302,7 +300,7 @@ public sealed class EventRouterTests
     [Publish(Id = "every_evt", Destination = EventDestination.Everyone)]
     private sealed record EveryoneEvent(string Message);
 
-    [Publish(Id = "report_evt", Destination = EventDestination.Listeners, FromClients = true)]
+    [Publish(Id = "report_evt", Destination = EventDestination.Listeners)]
     private sealed record ClientReportEvent(string Message);
 
     [Publish(Destination = EventDestination.Client)]
@@ -311,14 +309,8 @@ public sealed class EventRouterTests
     [Publish(Destination = EventDestination.Everyone)]
     private sealed record BadEveryoneNoId;
 
-    [Publish(FromClients = true)]
-    private sealed record BadFromClientsNoId;
-
-    [Publish(Id = "bad_combo", Destination = EventDestination.Everyone, FromClients = true)]
-    private sealed record BadFromClientsEveryone;
-
-    [Publish(Id = "not_needed", Destination = EventDestination.Listeners)]
-    private sealed record BadListenersWithId;
+    [Publish(Id = "sink_addr", Destination = EventDestination.None)]
+    private sealed record BadSinkWithId;
 
     [Publish(Id = "dup_event", Destination = EventDestination.Everyone)]
     private sealed record DupEventA;

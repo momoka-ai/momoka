@@ -204,9 +204,9 @@ public interface Subscribers { }                // 监听者标记接口（Bukki
 [AttributeUsage(AttributeTargets.Class)]
 public sealed class PublishAttribute
 {
-    string? Id { get; set; }                        // 线上 eventId（snake_case，全局唯一）
+    string? Id { get; set; }                        // 线上 eventId（snake_case，全局唯一）= 上报地址：
+                                                    // Listeners + Id 即接受客户端上报；None 必须为空；Client/Everyone 必填
     EventDestination Destination { get; set; } = EventDestination.Listeners;
-    bool FromClients { get; set; }                  // 接受客户端上报（wire-in）；true 时须带 Id 且 Destination=Listeners
 }
 
 [AttributeUsage(AttributeTargets.Method)]
@@ -226,14 +226,14 @@ public sealed class EventHub
     internal Task InvokeAsync(object @event, CancellationToken ct = default);         // 按运行期类型分发（wire-in 专用）
     Task InvokeParallelAsync<TEvent>(TEvent @event, CancellationToken ct = default);  // 并行发布（Task.WhenAll）
     // 构造注入：wire-sender（线上广播）；发布审计为内建 Debug 日志
-    // 内部零嵌套类型：订阅/路由簿记为文件级元组别名（事件类型+优先级+来源+委托 / Id+目的地+FromClients）
+    // 内部零嵌套类型：订阅/路由簿记为文件级元组别名（事件类型+优先级+来源+委托 / Id+目的地）
 }
 ```
 
 - 订阅表按 `Type` 分桶 + 按实例索引（`Dictionary<Subscribers, …>`）+ `lock`；订阅/退订/发布线程安全；**发布时快照订阅表再分发**（分发中退订不影响本次）。
 - **分发默认顺序**：按 `EventPriority` 降序依次 await（高者先、同级按注册序，`Lowest` 即常规档位中最晚）；`InvokeParallelAsync` 并行发布（全部监听者 `Task.WhenAll`，完成后返回）；handler 异常一律隔离记日志，绝不向发布方传播；每次发布写审计日志（Debug，EventHub 内建，无独立 recorder 类型）。
 - **监听自动化**：`AddSubscribers` 只认 `Subscribers` 实现，扫描 `[Subscribe]`（Bukkit 风格，签名 = 单参数 Target + 返回 Task/void）；零监听方法 / 签名非法 / 重复实例 → fail-fast；`RemoveSubscribers` 按实例整体退订（幂等，插件 OnDisable 用）。无一次性 lambda 订阅。
-- **路由自动化**：`RegisterEventType` 注册 `[Publish]` 类型后，`InvokeAsync` 按**路由矩阵**统一分发——发布恒写审计日志；`None` 仅审计 / `Listeners` 仅监听者 / `Client` 仅 wire-out（须 Id）/ `Everyone` 监听者 + wire-out（须 Id）；`FromClients=true` 接受 wire-in 且**只进监听者、绝不广播回客户端**（避免 echo）。wire-sender 失败只记日志，进程内分发不受影响。
+- **路由自动化**：`RegisterEventType` 注册 `[Publish]` 类型后，`InvokeAsync` 按**路由矩阵**统一分发——发布恒写审计日志；`None` 仅审计（Id 必须为空）/ `Listeners` 仅监听者（带 Id 即接受客户端上报）/ `Client` 仅 wire-out（须 Id）/ `Everyone` 监听者 + wire-out（须 Id）；wire-in **只进监听者、绝不广播回客户端**（避免 echo）。wire-sender 失败只记日志，进程内分发不受影响。
 - 事件类型由插件自声明；**Core 不定义业务事件**。
 
 ## 8. 配置（Configurations）
@@ -369,7 +369,7 @@ public interface IGatewayClient { Task ClientEvent(string eventId, JsonNode? pay
 - **三通道**：操作（request/response）+ 线上事件双向（fire-and-forget，仅服务器有 EventHub 为真相）+ 进程内事件（EventHub 服务端唯一总线）。
 - **鉴权与身份**：握手 query `?terminalId=&role=&token=`；token 恒定时间比较（`Gateway:Token` 缺省空 = 全部拒绝）；`TerminalRegistry` 断连清理；角色本期仅记录（Security 期授权）；操作处理器经 `OperationContext.Caller` 取调用者。
 - **操作 fail-soft**：未知 operationId / handler 异常 / 反序列化失败 → 错误响应；取消 → "Cancelled"；重复注册 operationId fail-fast；插件 OnEnable 注册、OnDisable 释放令牌。
-- **事件全自动化**：发布经 `[Publish]` + `EventHub.InvokeAsync`；监听经 `[Subscribe]` + `EventHub.AddSubscribers`；wire-in（`SendEvent`）经 eventId→Type 注册表反查 + `FromClients` 校验 + 反序列化进总线，**绝不自动广播回客户端**（插件处理后按需生成新事件发回）；发布审计为 EventHub 内建 Debug 日志（无独立 recorder 类型）。
+- **事件全自动化**：发布经 `[Publish]` + `EventHub.InvokeAsync`；监听经 `[Subscribe]` + `EventHub.AddSubscribers`；wire-in（`SendEvent`）经 eventId→Type 注册表反查 + 可上报校验（目的地 = Listeners）+ 反序列化进总线，**绝不自动广播回客户端**（插件处理后按需生成新事件发回）；发布审计为 EventHub 内建 Debug 日志（无独立 recorder 类型）。
 - **宿主接线**：`Program.cs` 为 WebApplication（`AddSignalR` + snake_case JSON 协议 + 单例 DI：ServiceRegistry/EventHub/Gateway/PluginService/PluginLoader），EventHub 的 wire-sender 经 DI 工厂闭包注入；`PluginLoader.Load` 扫描 `[Publish]` 类型填充注册表（重复 Id fail-fast）。
 - **后续**：按终端/档案定向广播（Profiles 期）、按角色授权（Security 期）、Home 领域事件挂属性 + 网关面 DTO STJ 化（HomePlugin 转换期）。
 

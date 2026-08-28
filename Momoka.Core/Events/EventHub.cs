@@ -8,9 +8,9 @@ namespace Momoka.Core.Events;
 
 // 私有簿记的文件级元组别名（无嵌套类型）：
 // Subscription = 一条订阅（事件类型 + 优先级 + 来源插件 + 类型擦除后的委托）；
-// RouterRegistration = [Publish] 属性注册时解析校验后的快照。
+// RouterRegistration = [Publish] 属性注册时解析校验后的快照（Id 即线上地址）。
 using Subscription = (Type EventType, EventPriority Priority, string? Source, Func<object, Task> Handler);
-using RouterRegistration = (string? Id, EventDestination Destination, bool FromClients);
+using RouterRegistration = (string? Id, EventDestination Destination);
 
 /// <summary>
 /// 事件中心（内存、线程安全）：订阅/退订/发布并发安全；发布时快照订阅表再分发，
@@ -109,7 +109,7 @@ public sealed partial class EventHub
         }
 
         string? id = string.IsNullOrWhiteSpace(attribute.Id) ? null : attribute.Id.Trim();
-        ValidateRouting(type, id, attribute);
+        ValidateRouting(type, id, attribute.Destination);
 
         lock (_gate)
         {
@@ -124,7 +124,7 @@ public sealed partial class EventHub
                     $"Event id '{id}' is already registered by '{_eventIds[id]}'.");
             }
 
-            _routers.Add(type, (id, attribute.Destination, attribute.FromClients));
+            _routers.Add(type, (id, attribute.Destination));
         }
     }
 
@@ -155,47 +155,25 @@ public sealed partial class EventHub
         }
     }
 
-    /// <summary>按线上 eventId 反查路由事件类型与其 FromClients 标记（Gateway wire-in 用）。</summary>
-    internal bool TryGetEventRouter(string eventId, out Type type, out bool fromClients)
+    /// <summary>
+    /// 按线上 eventId 反查路由事件类型与其是否可客户端上报（Gateway wire-in 用）：
+    /// 可上报 = 目的地为 <see cref="EventDestination.Listeners"/>（Id 即线上地址）。
+    /// </summary>
+    internal bool TryGetEventRouter(string eventId, out Type type, out bool acceptsClients)
     {
         lock (_gate)
         {
             if (_eventIds.TryGetValue(eventId, out Type? resolved))
             {
                 type = resolved;
-                fromClients = _routers[resolved].FromClients;
+                acceptsClients = _routers[resolved].Destination == EventDestination.Listeners;
                 return true;
             }
         }
 
         type = null!;
-        fromClients = false;
+        acceptsClients = false;
         return false;
-    }
-
-    /// <summary>扫描监听方法并构造订阅（先全量校验后提交，无部分注册状态）；零监听方法 fail-fast。</summary>
-    private List<Subscription> ScanSubscriptions(Subscribers sub, string? source)
-    {
-        var subscriptions = new List<Subscription>();
-        foreach (MethodInfo method in sub.GetType()
-            .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
-        {
-            SubscribeAttribute? attribute = method.GetCustomAttribute<SubscribeAttribute>();
-            if (attribute is null)
-            {
-                continue;
-            }
-
-            subscriptions.Add(CreateSubscription(sub, method, attribute, source));
-        }
-
-        if (subscriptions.Count == 0)
-        {
-            throw new InvalidOperationException(
-                $"Subscribers type '{sub.GetType()}' carries no [Subscribe] methods.");
-        }
-
-        return subscriptions;
     }
 
     private static Subscription CreateSubscription(
@@ -212,7 +190,7 @@ public sealed partial class EventHub
                 $"one parameter of type '{attribute.Target}'.");
         }
 
-        if (method.ReturnType != typeof(void) && method.ReturnType != typeof(Task))
+        if (method.ReturnType != typeof(Task) && method.ReturnType != typeof(void))
         {
             throw new InvalidOperationException(
                 $"[Subscribe] method '{method.DeclaringType?.Name}.{method.Name}' must return Task or void.");
@@ -227,6 +205,22 @@ public sealed partial class EventHub
             };
 
         return (attribute.Target, attribute.Priority, source, handler);
+    }
+
+    /// <summary>扫描监听方法并构造订阅（先全量校验后提交，无部分注册状态）；零监听方法 fail-fast。</summary>
+    private List<Subscription> ScanSubscriptions(Subscribers sub, string? source)
+    {
+        List<Subscription> subscriptions = sub.GetType()
+            .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+            .Select(method => (Method: method, Attribute: method.GetCustomAttribute<SubscribeAttribute>()))
+            .Where(x => x.Attribute is not null)
+            .Select(x => CreateSubscription(sub, x.Method, x.Attribute!, source))
+            .ToList();
+
+        return subscriptions.Count == 0
+            ? throw new InvalidOperationException(
+                $"Subscribers type '{sub.GetType()}' carries no [Subscribe] methods.")
+            : subscriptions;
     }
 
     private async Task DispatchAsync<TEvent>(
@@ -273,13 +267,9 @@ public sealed partial class EventHub
 
         LogPublished(eventType, @event);
 
-        bool toListeners = router is null
-            || router.Value.Destination is EventDestination.Listeners or EventDestination.Everyone;
-        bool toWire = router?.Destination is EventDestination.Client or EventDestination.Everyone;
-
-        if (toWire)
+        if (router?.Destination is EventDestination.Client or EventDestination.Everyone)
         {
-            string? eventId = router!.Value.Id;
+            string? eventId = router.Value.Id;
             if (_wireSender is not null)
             {
                 try
@@ -297,7 +287,7 @@ public sealed partial class EventHub
             }
         }
 
-        if (toListeners)
+        if (router is null || router.Value.Destination is EventDestination.Listeners or EventDestination.Everyone)
         {
             List<Subscription> snapshot;
             lock (_gate)
@@ -344,28 +334,16 @@ public sealed partial class EventHub
         }
     }
 
-    private static void ValidateRouting(Type type, string? id, PublishAttribute attribute)
+    private static void ValidateRouting(Type type, string? id, EventDestination destination)
     {
-        bool needsId = attribute.Destination is EventDestination.Client or EventDestination.Everyone
-            || attribute.FromClients;
-        if (needsId && id is null)
+        switch (destination)
         {
-            throw new InvalidOperationException(
-                $"[Publish] on '{type}' requires an Id when Destination is " +
-                $"{attribute.Destination} or FromClients is true.");
-        }
-
-        if (attribute.FromClients && attribute.Destination != EventDestination.Listeners)
-        {
-            throw new InvalidOperationException(
-                $"[Publish] on '{type}': FromClients requires Destination = Listeners " +
-                "(wire-in never echoes back to clients).");
-        }
-
-        if (!needsId && id is not null)
-        {
-            throw new InvalidOperationException(
-                $"[Publish] on '{type}' must have an empty Id for Destination {attribute.Destination}.");
+            case EventDestination.None when id is not null:
+                throw new InvalidOperationException(
+                    $"[Publish] on '{type}' must have an empty Id for Destination None.");
+            case EventDestination.Client or EventDestination.Everyone when id is null:
+                throw new InvalidOperationException(
+                    $"[Publish] on '{type}' requires an Id when Destination is {destination}.");
         }
     }
 

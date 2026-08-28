@@ -3,8 +3,8 @@ using Momoka.Core.Plugins;
 
 namespace Momoka.Core.Tests.Plugins.Events;
 
-/// <summary>客户端上报事件（wire-in）：监听者处理，绝不自动广播回客户端。</summary>
-[Publish(Id = "report_event", Destination = EventDestination.Listeners, FromClients = true)]
+/// <summary>客户端上报事件（wire-in：Listeners + Id 即可上报）：监听者处理，绝不自动广播回客户端。</summary>
+[Publish(Id = "report_event", Destination = EventDestination.Listeners)]
 public sealed record ReportEvent(string Message);
 
 /// <summary>全向事件（监听者 + 广播）：wire-in 处理后由插件按需生成并发布。</summary>

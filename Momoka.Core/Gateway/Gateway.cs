@@ -13,7 +13,7 @@ namespace Momoka.Core;
 /// Ui 网关设施（Core 单例）：通用操作路由（request/response）+ 线上事件广播原语 + wire-in 协调 + 终端注册表。
 /// 操作由插件 OnEnable 注册（<see cref="RegisterOperation{TRequest,TResponse}"/>，返回幂等注销令牌），
 /// 未知操作 / handler 异常 / 反序列化失败一律 fail-soft 返回错误响应。广播经
-/// <see cref="IHubContext{T,T}"/>（构造注入）；wire-in 经 <see cref="EventHub"/> 反查注册表并校验 FromClients。
+/// <see cref="IHubContext{T,T}"/>（构造注入）；wire-in 经 <see cref="EventHub"/> 反查注册表并校验可上报（Listeners）。
 /// </summary>
 public sealed partial class Gateway
 {
@@ -184,22 +184,22 @@ public sealed partial class Gateway
 
     /// <summary>
     /// 处理客户端上报（wire-in，GatewayHub.SendEvent 调用）：eventId 注册表反查 →
-    /// 校验 <c>FromClients</c> → 反序列化 → 进 <see cref="EventHub"/> 只分发监听者
-    /// （绝不自动广播回客户端，避免 echo）。未注册 / 非 FromClients / 载荷非法 → 记日志忽略（fail-soft）。
+    /// 校验可上报（目的地为 Listeners，Id 即线上地址）→ 反序列化 → 进 <see cref="EventHub"/>
+    /// 只分发监听者（绝不自动广播回客户端，避免 echo）。未注册 / 不可上报 / 载荷非法 → 记日志忽略（fail-soft）。
     /// </summary>
     internal async Task HandleClientEventAsync(string eventId, JsonNode? payload, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(eventId);
 
-        if (!_events.TryGetEventRouter(eventId, out Type type, out bool fromClients))
+        if (!_events.TryGetEventRouter(eventId, out Type type, out bool acceptsClients))
         {
             LogIgnoredEvent(eventId, "not registered");
             return;
         }
 
-        if (!fromClients)
+        if (!acceptsClients)
         {
-            LogIgnoredEvent(eventId, "FromClients is false");
+            LogIgnoredEvent(eventId, "not client-reportable");
             return;
         }
 
