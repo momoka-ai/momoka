@@ -8,20 +8,22 @@ namespace Momoka.Core.Events;
 
 /// <summary>
 /// 事件中心（内存、线程安全）：订阅/退订/发布并发安全；发布时快照订阅表再分发，
-/// 分发过程中退订不影响本次快照。<see cref="InvokeAsync{TEvent}"/> 默认**顺序分发**
-/// （按 <see cref="EventPriority"/> 排序：高者先、同级按注册序、Monitor 恒最后）；
-/// <see cref="InvokeParallelAsync{TEvent}"/> 以并行模式发布（全部监听者 Task.WhenAll）。
+/// 分发过程中退订不影响本次快照。订阅只认 <see cref="Subscribers"/> 实现（携带
+/// <see cref="SubscribeAttribute"/> 方法的类型）：<see cref="AddSubscribers"/> 扫描注册并按
+/// <see cref="EventPriority"/> 降序分发（高者先、同级按注册序），<see cref="RemoveSubscribers"/>
+/// 按实例整体退订（幂等）。<see cref="InvokeAsync{TEvent}"/> 默认顺序分发；
+/// <see cref="InvokeParallelAsync{TEvent}"/> 并行发布（全部监听者 Task.WhenAll）。
 /// handler 异常一律隔离记录，绝不向发布方传播；每次发布写审计日志（Debug）。
 /// </summary>
 /// <remarks>
 /// 路由扩展：经 <see cref="RegisterEventType"/> 注册 <see cref="PublishAttribute"/> 类型后，
-/// <see cref="InvokeAsync{TEvent}"/> / <see cref="InvokeAsync(object)"/> 按路由矩阵统一分发
-/// （Destination 决定监听者与 wire-out）；wire-sender 由构造注入（宿主接线，无可变 setter）。
+/// 发布按路由矩阵统一分发（Destination 决定监听者与 wire-out）；wire-sender 由构造注入（宿主接线，无可变 setter）。
 /// </remarks>
 public sealed partial class EventHub
 {
     private readonly object _gate = new();
     private readonly Dictionary<Type, List<Subscription>> _subscriptions = new();
+    private readonly Dictionary<Subscribers, List<Subscription>> _bySubscriber = new();
     private readonly Dictionary<Type, RouterRegistration> _routers = new();
     private readonly Dictionary<string, Type> _eventIds = new(StringComparer.Ordinal);
     private readonly ILogger<EventHub> _logger;
@@ -35,61 +37,62 @@ public sealed partial class EventHub
         _wireSender = wireSender;
     }
 
-    /// <summary>订阅事件（顺序分发）；返回的令牌用于退订（幂等）。</summary>
-    public IDisposable Subscribe<TEvent>(Func<TEvent, Task> handler)
+    /// <summary>
+    /// 扫描 <paramref name="sub"/> 的 <see cref="SubscribeAttribute"/> 方法并整体注册（实例注册，Bukkit 风格）：
+    /// 签名校验（恰一参数 = Target，返回 Task 或 void）与零监听方法 → fail-fast
+    /// <see cref="InvalidOperationException"/>；重复注册同一实例 → fail-fast。
+    /// </summary>
+    public void AddSubscribers(Subscribers sub, Plugin? plugin = null)
     {
-        ArgumentNullException.ThrowIfNull(handler);
+        ArgumentNullException.ThrowIfNull(sub);
 
-        var subscription = new Subscription(this, typeof(TEvent), e => handler((TEvent)e));
+        List<Subscription> subscriptions = ScanSubscriptions(sub, plugin?.Name);
         lock (_gate)
         {
-            if (!_subscriptions.TryGetValue(typeof(TEvent), out var list))
+            if (_bySubscriber.ContainsKey(sub))
             {
-                list = new List<Subscription>();
-                _subscriptions.Add(typeof(TEvent), list);
+                throw new InvalidOperationException(
+                    $"Subscribers instance of type '{sub.GetType()}' is already registered.");
             }
 
-            list.Add(subscription);
-        }
-
-        return subscription;
-    }
-
-    /// <summary>
-    /// 扫描 subscriber 的 <see cref="SubscribeAttribute"/> 方法并订阅（实例注册，Bukkit 风格）：
-    /// 校验签名（恰一参数 = Target，返回 Task 或 void）fail-fast；按 <see cref="EventPriority"/> 排序执行
-    /// （高者先、同级按注册序、Monitor 恒最后）；返回令牌 = 整体退订（幂等，插件 OnDisable 用）。
-    /// </summary>
-    public IDisposable AddSubscribers(object subscriber, Plugin? plugin = null)
-    {
-        ArgumentNullException.ThrowIfNull(subscriber);
-
-        var tokens = new List<IDisposable>();
-        foreach (MethodInfo method in subscriber.GetType()
-            .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
-        {
-            SubscribeAttribute? attribute = method.GetCustomAttribute<SubscribeAttribute>();
-            if (attribute is null)
+            _bySubscriber.Add(sub, subscriptions);
+            foreach (Subscription subscription in subscriptions)
             {
-                continue;
-            }
-
-            try
-            {
-                tokens.Add(SubscribeScannedMethod(subscriber, method, attribute, plugin?.Name));
-            }
-            catch
-            {
-                foreach (IDisposable token in tokens)
+                if (!_subscriptions.TryGetValue(subscription.EventType, out var list))
                 {
-                    token.Dispose();
+                    list = new List<Subscription>();
+                    _subscriptions.Add(subscription.EventType, list);
                 }
 
-                throw;
+                list.Add(subscription);
             }
         }
+    }
 
-        return new BatchDisposable(tokens);
+    /// <summary>按实例整体退订（幂等：未注册的实例为 no-op）。</summary>
+    public void RemoveSubscribers(Subscribers sub)
+    {
+        ArgumentNullException.ThrowIfNull(sub);
+
+        lock (_gate)
+        {
+            if (!_bySubscriber.Remove(sub, out List<Subscription>? subscriptions))
+            {
+                return;
+            }
+
+            foreach (Subscription subscription in subscriptions)
+            {
+                if (_subscriptions.TryGetValue(subscription.EventType, out var list))
+                {
+                    list.Remove(subscription);
+                    if (list.Count == 0)
+                    {
+                        _subscriptions.Remove(subscription.EventType);
+                    }
+                }
+            }
+        }
     }
 
     /// <summary>注册路由事件类型（插件加载时扫描 <see cref="PublishAttribute"/> 调用）；
@@ -166,8 +169,33 @@ public sealed partial class EventHub
         return false;
     }
 
-    private Subscription SubscribeScannedMethod(
-        object subscriber,
+    /// <summary>扫描监听方法并构造订阅（先全量校验后提交，无部分注册状态）；零监听方法 fail-fast。</summary>
+    private List<Subscription> ScanSubscriptions(Subscribers sub, string? source)
+    {
+        var subscriptions = new List<Subscription>();
+        foreach (MethodInfo method in sub.GetType()
+            .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+        {
+            SubscribeAttribute? attribute = method.GetCustomAttribute<SubscribeAttribute>();
+            if (attribute is null)
+            {
+                continue;
+            }
+
+            subscriptions.Add(CreateSubscription(sub, method, attribute, source));
+        }
+
+        if (subscriptions.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"Subscribers type '{sub.GetType()}' carries no [Subscribe] methods.");
+        }
+
+        return subscriptions;
+    }
+
+    private static Subscription CreateSubscription(
+        Subscribers subscriber,
         MethodInfo method,
         SubscribeAttribute attribute,
         string? source)
@@ -194,19 +222,7 @@ public sealed partial class EventHub
                 return Task.CompletedTask;
             };
 
-        var subscription = new Subscription(this, attribute.Target, handler, attribute.Priority, source);
-        lock (_gate)
-        {
-            if (!_subscriptions.TryGetValue(attribute.Target, out var list))
-            {
-                list = new List<Subscription>();
-                _subscriptions.Add(attribute.Target, list);
-            }
-
-            list.Add(subscription);
-        }
-
-        return subscription;
+        return new Subscription(attribute.Target, handler, attribute.Priority, source);
     }
 
     private async Task InvokeCoreAsync(
@@ -268,9 +284,7 @@ public sealed partial class EventHub
         bool parallel,
         CancellationToken cancellationToken)
     {
-        var ordered = snapshot
-            .OrderBy(s => s.Priority, EventPriorityComparer.Instance)
-            .ToList();
+        var ordered = snapshot.OrderByDescending(s => (int)s.Priority).ToList();
 
         if (parallel)
         {
@@ -300,23 +314,6 @@ public sealed partial class EventHub
         catch (Exception ex)
         {
             LogHandlerError(ex, typeof(TEvent), subscription.Source);
-        }
-    }
-
-    private void Remove(Subscription subscription)
-    {
-        lock (_gate)
-        {
-            if (!_subscriptions.TryGetValue(subscription.EventType, out var list))
-            {
-                return;
-            }
-
-            list.Remove(subscription);
-            if (list.Count == 0)
-            {
-                _subscriptions.Remove(subscription.EventType);
-            }
         }
     }
 
@@ -393,23 +390,14 @@ public sealed partial class EventHub
 
     private sealed record RouterRegistration(Type Type, string? Id, EventDestination Destination, bool FromClients);
 
-    private sealed class Subscription : IDisposable
+    private sealed class Subscription
     {
-        private readonly EventHub _hub;
-        private int _disposed;
-
-        public Subscription(
-            EventHub hub,
-            Type eventType,
-            Func<object, Task> handler,
-            EventPriority priority = EventPriority.Normal,
-            string? source = null)
+        public Subscription(Type eventType, Func<object, Task> handler, EventPriority priority, string? source)
         {
-            _hub = hub;
             EventType = eventType;
+            Handler = handler;
             Priority = priority;
             Source = source;
-            Handler = handler;
         }
 
         public Type EventType { get; }
@@ -430,64 +418,6 @@ public sealed partial class EventHub
             {
                 return Task.FromException(ex);
             }
-        }
-
-        public void Dispose()
-        {
-            if (Interlocked.Exchange(ref _disposed, 1) == 0)
-            {
-                _hub.Remove(this);
-            }
-        }
-    }
-
-    private sealed class BatchDisposable : IDisposable
-    {
-        private readonly IReadOnlyList<IDisposable> _tokens;
-        private int _disposed;
-
-        public BatchDisposable(IReadOnlyList<IDisposable> tokens)
-        {
-            _tokens = tokens;
-        }
-
-        public void Dispose()
-        {
-            if (Interlocked.Exchange(ref _disposed, 1) == 0)
-            {
-                foreach (IDisposable token in _tokens)
-                {
-                    token.Dispose();
-                }
-            }
-        }
-    }
-
-    private sealed class EventPriorityComparer : IComparer<EventPriority>
-    {
-        public static EventPriorityComparer Instance { get; } = new();
-
-        public int Compare(EventPriority x, EventPriority y)
-        {
-            bool xMonitor = x == EventPriority.Monitor;
-            bool yMonitor = y == EventPriority.Monitor;
-
-            if (xMonitor && yMonitor)
-            {
-                return 0;
-            }
-
-            if (xMonitor)
-            {
-                return 1;
-            }
-
-            if (yMonitor)
-            {
-                return -1;
-            }
-
-            return y.CompareTo(x);
         }
     }
 }

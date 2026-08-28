@@ -87,19 +87,14 @@ public sealed class BaseClassTests : IDisposable
         var plugin = InjectedPlugin(out _, out _);
         var hub = plugin.EventsPublic;
 
-        var calls = 0;
-        using var token = hub.Subscribe<int>(_ =>
-        {
-            calls++;
-            return Task.CompletedTask;
-        });
-
+        var listener = new IntListener();
+        hub.AddSubscribers(listener);
         await hub.InvokeAsync(1);
-        Assert.Equal(1, calls);
+        Assert.Equal(1, listener.Count);
 
-        token.Dispose();
+        hub.RemoveSubscribers(listener);
         await hub.InvokeAsync(2);
-        Assert.Equal(1, calls);
+        Assert.Equal(1, listener.Count);
     }
 
     [Fact]
@@ -151,6 +146,19 @@ public sealed class BaseClassTests : IDisposable
 
     private PluginService CreateService(ServiceRegistry registry, EventHub hub)
         => new(registry, hub, NullLoggerFactory.Instance, _tempRoot);
+
+    /// <summary>事件监听测试载体（Subscribers 实现）。</summary>
+    public sealed class IntListener : Subscribers
+    {
+        public int Count;
+
+        [Subscribe(typeof(int))]
+        public Task On(int value)
+        {
+            Count++;
+            return Task.CompletedTask;
+        }
+    }
 
     /// <summary>内联测试插件：暴露 Plugin 的 protected 成员供测试访问。</summary>
     public sealed class TestPlugin : Plugin

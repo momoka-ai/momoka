@@ -12,15 +12,13 @@ public sealed record ReportEvent(string Message);
 public sealed record AnnounceEvent(string Message);
 
 /// <summary>
-/// 路由/订阅测试插件：OnEnable 用 AddSubscribers(this) 扫描 [Subscribe] 订阅，
-/// OnDisable 释放整体令牌；收到 ReportEvent 后发布 AnnounceEvent（Everyone → 广播回全部终端）。
+/// 路由/订阅测试插件：OnEnable 用 AddSubscribers(this) 扫描 [Subscribe] 订阅（载体实现 Subscribers），
+/// OnDisable 用 RemoveSubscribers 整体退订；收到 ReportEvent 后发布 AnnounceEvent（Everyone → 广播回全部终端）。
 /// </summary>
-public sealed class EventsPlugin : Plugin
+public sealed class EventsPlugin : Plugin, Subscribers
 {
     private static readonly object LogGate = new();
     private static readonly List<string> LogList = new();
-
-    private IDisposable? _subscriptions;
 
     /// <summary>清空跨测试共享的静态日志（测试夹具用）。</summary>
     public static void Reset()
@@ -45,13 +43,12 @@ public sealed class EventsPlugin : Plugin
 
     public override void OnEnable()
     {
-        _subscriptions = Host.Events.AddSubscribers(this);
+        Host.Events.AddSubscribers(this);
     }
 
     public override void OnDisable()
     {
-        _subscriptions?.Dispose();
-        _subscriptions = null;
+        Host.Events.RemoveSubscribers(this);
     }
 
     [Subscribe(typeof(ReportEvent), Priority = EventPriority.High)]

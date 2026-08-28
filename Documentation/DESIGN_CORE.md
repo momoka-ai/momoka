@@ -94,7 +94,7 @@ public sealed class PluginService
 }
 ```
 
-插件代码示例：`Host.Services.Register<ITestService>(...)`、`Host.Events.Subscribe<T>(...)`、`Logger.LogInformation(...)`、`GetPluginFolder()`。
+插件代码示例：`Host.Services.Register<ITestService>(...)`、`Host.Events.AddSubscribers(listener)`、`Logger.LogInformation(...)`、`GetPluginFolder()`。
 
 ### 5.2 plugin.toml（只读内嵌元数据，一个程序集 = 一个插件）
 
@@ -196,7 +196,10 @@ public enum ServicePriority { Highest, High, Normal, Low, Lowest }
 
 ```csharp
 public enum EventDestination { None, Listeners, Client, Everyone }
-public enum EventPriority { Lowest, Low, Normal, High, Highest, Monitor }
+public enum EventPriority { Lowest, Low, Normal, High, Highest }
+
+public interface Subscribers { }                // 监听者标记接口（Bukkit Listener 风格）：
+                                                // 携带 [Subscribe] 方法的类型必须实现，订阅/退订只认本接口实例
 
 [AttributeUsage(AttributeTargets.Class)]
 public sealed class PublishAttribute
@@ -216,8 +219,8 @@ public sealed class SubscribeAttribute
 
 public sealed class EventHub
 {
-    IDisposable Subscribe<TEvent>(Func<TEvent, Task> handler);              // 手动 lambda 订阅（顺序分发）
-    IDisposable AddSubscribers(object subscriber, Plugin? plugin = null);   // 扫描 [Subscribe]，整体退订令牌
+    void AddSubscribers(Subscribers sub, Plugin? plugin = null);    // 扫描 [Subscribe] 整体注册；零监听/重复实例 fail-fast
+    void RemoveSubscribers(Subscribers sub);                        // 按实例整体退订（幂等）
     void RegisterEventType(Type type);              // 扫描 [Publish]，重复 Id / 组合非法 fail-fast
     Task InvokeAsync<TEvent>(TEvent @event, CancellationToken ct = default);          // 顺序发布（默认）
     Task InvokeAsync(object @event, CancellationToken ct = default);                  // 按运行期类型分发（wire-in 用）
@@ -226,9 +229,9 @@ public sealed class EventHub
 }
 ```
 
-- 订阅表按 `Type` 分桶 + `lock`；订阅/退订/发布线程安全；**发布时快照订阅表再分发**（分发中退订不影响本次）。
-- **分发默认顺序**：按 `EventPriority` 排序依次 await（高者先、同级按注册序、Monitor 恒最后）；`InvokeParallelAsync` 并行发布（全部监听者 `Task.WhenAll`，完成后返回）；handler 异常一律隔离记日志，绝不向发布方传播；每次发布写审计日志（Debug，EventHub 内建，无独立 recorder 类型）。
-- **监听自动化**：`AddSubscribers` 实例扫描 `[Subscribe]`（Bukkit 风格，签名 = 单参数 Target + 返回 Task/void，非法 fail-fast）；按 `EventPriority` 排序执行（高者先、同级按注册序、**Monitor 恒最后**）；返回令牌整体退订（插件 OnDisable 用）；与手动 `Subscribe<T>` lambda 共存。
+- 订阅表按 `Type` 分桶 + 按实例索引（`Dictionary<Subscribers, …>`）+ `lock`；订阅/退订/发布线程安全；**发布时快照订阅表再分发**（分发中退订不影响本次）。
+- **分发默认顺序**：按 `EventPriority` 降序依次 await（高者先、同级按注册序，`Lowest` 即常规档位中最晚）；`InvokeParallelAsync` 并行发布（全部监听者 `Task.WhenAll`，完成后返回）；handler 异常一律隔离记日志，绝不向发布方传播；每次发布写审计日志（Debug，EventHub 内建，无独立 recorder 类型）。
+- **监听自动化**：`AddSubscribers` 只认 `Subscribers` 实现，扫描 `[Subscribe]`（Bukkit 风格，签名 = 单参数 Target + 返回 Task/void）；零监听方法 / 签名非法 / 重复实例 → fail-fast；`RemoveSubscribers` 按实例整体退订（幂等，插件 OnDisable 用）。无一次性 lambda 订阅。
 - **路由自动化**：`RegisterEventType` 注册 `[Publish]` 类型后，`InvokeAsync` 按**路由矩阵**统一分发——发布恒写审计日志；`None` 仅审计 / `Listeners` 仅监听者 / `Client` 仅 wire-out（须 Id）/ `Everyone` 监听者 + wire-out（须 Id）；`FromClients=true` 接受 wire-in 且**只进监听者、绝不广播回客户端**（避免 echo）。wire-sender 失败只记日志，进程内分发不受影响。
 - 事件类型由插件自声明；**Core 不定义业务事件**。
 

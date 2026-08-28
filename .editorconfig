@@ -26,6 +26,9 @@ dotnet_diagnostic.CA1051.severity = none
 # VoxelLayout<T>.IsEntityCollided(dest, src, cs) is a pure predicate but part of
 # the layout's instance collision API (kept non-static by design)
 dotnet_diagnostic.CA1822.severity = none
+# Subscribers marker interface (Bukkit Listener style) is deliberately unprefixed —
+# concrete-first house style; the type name is the contract
+dotnet_diagnostic.CA1715.severity = none
 
 # xUnit assertions with inline arrays (Assert.Equal(new[] {...}, ...)) are idiomatic in tests
 [Tests/**/*.cs]

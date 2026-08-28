@@ -1,7 +1,7 @@
 namespace Momoka.Core.Events;
 
 /// <summary>
-/// 监听优先级（Bukkit 对齐）：高者先执行，同级按注册先后；<see cref="Monitor"/> 恒最后（观察用）。
+/// 监听优先级：高者先执行，同级按注册先后（<see cref="Lowest"/> 即常规档位中最晚执行）。
 /// </summary>
 public enum EventPriority
 {
@@ -19,7 +19,4 @@ public enum EventPriority
 
     /// <summary>最高。</summary>
     Highest = 4,
-
-    /// <summary>监控：恒在最后执行（只读观察，不改状态）。</summary>
-    Monitor = 5,
 }

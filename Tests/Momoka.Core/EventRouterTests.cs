@@ -15,11 +15,7 @@ public sealed class EventRouterTests
     {
         var (hub, wire, logger) = CreateHub();
         hub.RegisterEventType(typeof(SinkEvent));
-        using var listener = hub.Subscribe<SinkEvent>(_ =>
-        {
-            Assert.Fail("None destination must not reach listeners.");
-            return Task.CompletedTask;
-        });
+        hub.AddSubscribers(new SinkListener());
 
         await hub.InvokeAsync(new SinkEvent());
 
@@ -32,16 +28,12 @@ public sealed class EventRouterTests
     {
         var (hub, wire, _) = CreateHub();
         hub.RegisterEventType(typeof(LocalEvent));
-        var received = 0;
-        using var listener = hub.Subscribe<LocalEvent>(_ =>
-        {
-            Interlocked.Increment(ref received);
-            return Task.CompletedTask;
-        });
+        var listener = new LocalListener();
+        hub.AddSubscribers(listener);
 
         await hub.InvokeAsync(new LocalEvent());
 
-        Assert.Equal(1, received);
+        Assert.Equal(1, listener.Count);
         Assert.Empty(wire);
     }
 
@@ -50,11 +42,7 @@ public sealed class EventRouterTests
     {
         var (hub, wire, _) = CreateHub();
         hub.RegisterEventType(typeof(WireOnlyEvent));
-        using var listener = hub.Subscribe<WireOnlyEvent>(_ =>
-        {
-            Assert.Fail("Client destination must not reach listeners.");
-            return Task.CompletedTask;
-        });
+        hub.AddSubscribers(new WireOnlyListener());
 
         await hub.InvokeAsync(WireOnlyEvent.Shared);
 
@@ -68,16 +56,12 @@ public sealed class EventRouterTests
     {
         var (hub, wire, _) = CreateHub();
         hub.RegisterEventType(typeof(EveryoneEvent));
-        var received = 0;
-        using var listener = hub.Subscribe<EveryoneEvent>(_ =>
-        {
-            Interlocked.Increment(ref received);
-            return Task.CompletedTask;
-        });
+        var listener = new EveryoneListener();
+        hub.AddSubscribers(listener);
 
         await hub.InvokeAsync(new EveryoneEvent("hi"));
 
-        Assert.Equal(1, received);
+        Assert.Equal(1, listener.Count);
         Assert.Equal("every_evt", Assert.Single(wire).EventId);
     }
 
@@ -87,16 +71,12 @@ public sealed class EventRouterTests
         var (hub, wire, _) = CreateHub();
         hub.RegisterEventType(typeof(ClientReportEvent));
         var gateway = new Gateway(hub);
-        var received = new List<string>();
-        using var listener = hub.Subscribe<ClientReportEvent>(e =>
-        {
-            received.Add(e.Message);
-            return Task.CompletedTask;
-        });
+        var listener = new ReportListener();
+        hub.AddSubscribers(listener);
 
         await gateway.HandleClientEventAsync("report_evt", JsonNode.Parse("""{"message":"hello"}"""));
 
-        Assert.Equal(new[] { "hello" }, received);
+        Assert.Equal(new[] { "hello" }, listener.Messages);
         Assert.Empty(wire); // wire-in 绝不广播回客户端（无 echo）
     }
 
@@ -105,16 +85,12 @@ public sealed class EventRouterTests
     {
         var (hub, wire, _) = CreateHub();
         var gateway = new Gateway(hub);
-        var called = false;
-        using var listener = hub.Subscribe<ClientReportEvent>(_ =>
-        {
-            called = true;
-            return Task.CompletedTask;
-        });
+        var listener = new ReportListener();
+        hub.AddSubscribers(listener);
 
         await gateway.HandleClientEventAsync("no_such_event", JsonNode.Parse("""{"message":"x"}"""));
 
-        Assert.False(called);
+        Assert.Empty(listener.Messages);
         Assert.Empty(wire);
     }
 
@@ -124,16 +100,12 @@ public sealed class EventRouterTests
         var (hub, wire, _) = CreateHub();
         hub.RegisterEventType(typeof(EveryoneEvent));
         var gateway = new Gateway(hub);
-        var called = false;
-        using var listener = hub.Subscribe<EveryoneEvent>(_ =>
-        {
-            called = true;
-            return Task.CompletedTask;
-        });
+        var listener = new EveryoneListener();
+        hub.AddSubscribers(listener);
 
         await gateway.HandleClientEventAsync("every_evt", JsonNode.Parse("""{"message":"x"}"""));
 
-        Assert.False(called);
+        Assert.Equal(0, listener.Count);
         Assert.Empty(wire);
     }
 
@@ -173,16 +145,12 @@ public sealed class EventRouterTests
     {
         var (hub, _, logger) = CreateHub(wireSenderThrows: true);
         hub.RegisterEventType(typeof(EveryoneEvent));
-        var received = 0;
-        using var listener = hub.Subscribe<EveryoneEvent>(_ =>
-        {
-            Interlocked.Increment(ref received);
-            return Task.CompletedTask;
-        });
+        var listener = new EveryoneListener();
+        hub.AddSubscribers(listener);
 
         await hub.InvokeAsync(new EveryoneEvent("x")); // 不抛出
 
-        Assert.Equal(1, received);
+        Assert.Equal(1, listener.Count);
         Assert.Contains(logger.Messages, m => m.Contains("EveryoneEvent"));
     }
 
@@ -190,16 +158,12 @@ public sealed class EventRouterTests
     public async Task InvokeAsync_RuntimeType_DispatchesByRuntimeType()
     {
         var hub = new EventHub();
-        var received = 0;
-        using var listener = hub.Subscribe<LocalEvent>(_ =>
-        {
-            Interlocked.Increment(ref received);
-            return Task.CompletedTask;
-        });
+        var listener = new LocalListener();
+        hub.AddSubscribers(listener);
 
         await hub.InvokeAsync((object)new LocalEvent());
 
-        Assert.Equal(1, received);
+        Assert.Equal(1, listener.Count);
     }
 
     private static (EventHub Hub, List<(string EventId, object Payload)> Wire, CollectingLogger Logger) CreateHub(
@@ -224,6 +188,79 @@ public sealed class EventRouterTests
                 return Task.CompletedTask;
             });
         return (hub, wire, logger);
+    }
+
+    private sealed class SinkListener : Subscribers
+    {
+        [Subscribe(typeof(SinkEvent))]
+        public Task On(SinkEvent _)
+        {
+            Assert.Fail("None destination must not reach listeners.");
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class LocalListener : Subscribers
+    {
+        public int Count;
+
+        [Subscribe(typeof(LocalEvent))]
+        public Task On(LocalEvent _)
+        {
+            Interlocked.Increment(ref Count);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class WireOnlyListener : Subscribers
+    {
+        [Subscribe(typeof(WireOnlyEvent))]
+        public Task On(WireOnlyEvent _)
+        {
+            Assert.Fail("Client destination must not reach listeners.");
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class EveryoneListener : Subscribers
+    {
+        public int Count;
+
+        [Subscribe(typeof(EveryoneEvent))]
+        public Task On(EveryoneEvent _)
+        {
+            Interlocked.Increment(ref Count);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ReportListener : Subscribers
+    {
+        private readonly object _gate = new();
+
+        public List<string> Messages
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return MessagesList.ToList();
+                }
+            }
+        }
+
+        private List<string> MessagesList { get; } = new();
+
+        [Subscribe(typeof(ClientReportEvent))]
+        public Task On(ClientReportEvent e)
+        {
+            lock (_gate)
+            {
+                MessagesList.Add(e.Message);
+            }
+
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class CollectingLogger : Microsoft.Extensions.Logging.ILogger<EventHub>
