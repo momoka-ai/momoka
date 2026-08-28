@@ -29,7 +29,7 @@
 | Momoka.Voice | 🟡 ~20% | HTTP 骨架完成；TTS 引擎未集成 |
 | Momoka.Core | 🟢 ~70% | 插件宿主内核（Plugins + Events + Registry）+ 配置（Configurations）+ 指令（Commands，含 Minestom 风格 Builder/类型化参数，终端向裁剪）+ Ui 网关设施（单路由 + 事件路由/监听自动化 + 信封 STJ 一统 + 鉴权），158 测试全绿；其余设施（Scheduling/Notifications/Profiles/State/Security）后续 |
 | Momoka.Ai / Sense | 🔴 <10% | 仅程序入口骨架 |
-| 测试 / CI | 🟢 ~90% | 547 个测试全绿（Home 389 + Core 158）；CI = dotnet 构建+测试 / Godot 检查 / Python ruff |
+| 测试 / CI | 🟢 ~90% | 532 个测试全绿（Home 374 + Core 158）；CI = dotnet 构建+测试 / Godot 检查 / Python ruff |
 
 ---
 
