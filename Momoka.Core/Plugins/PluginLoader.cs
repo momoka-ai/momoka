@@ -80,7 +80,7 @@ public sealed class PluginLoader : IDisposable
             }
         }
 
-        // 扫描 [Publish] 类型注册进 EventHub（重复 eventId / 组合非法 → InvalidOperationException fail-fast）
+        // 扫描 Behavior 派生类型注册进 Gateway（四件套契约校验，缺 Execute 等 fail-fast）
         ScanEventRouters(assembly);
 
         Type? mainType = GetPluginMainType(info, assembly);
