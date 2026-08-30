@@ -1,6 +1,6 @@
 using System.Reflection;
 using System.Runtime.Loader;
-using Momoka.Core.Events;
+using Momoka.Core.Behaviors;
 
 namespace Momoka.Core.Plugins;
 
@@ -372,16 +372,42 @@ public sealed class PluginLoader : IDisposable
             .ToList();
     }
 
-    /// <summary>扫描程序集内带 <see cref="PublishAttribute"/> 的类型并注册进 EventHub（Load 期，重复 Id fail-fast）。</summary>
+    /// <summary>
+    /// 扫描程序集（Load 期）：<see cref="Behavior{T}"/> 派生类型注册进 Gateway
+    /// （四件套契约校验，缺 Execute 等 fail-fast）。OnEnable 无需显式注册任何事件；
+    /// 可传输契约（[Publish]）由发布路径按属性判定，无需注册表。
+    /// </summary>
     private void ScanEventRouters(Assembly assembly)
     {
         foreach (Type type in assembly.GetTypes())
         {
-            if (type.GetCustomAttribute<PublishAttribute>() is not null)
+            if (IsBehavior(type))
             {
-                _pluginService.Events.RegisterEventType(type);
+                _pluginService.Gateway.RegisterBehavior(type, _pluginService);
             }
         }
+    }
+
+    /// <summary>该类型是否为闭合 <see cref="Behavior{T}"/> 派生的具体类型。</summary>
+    private static bool IsBehavior(Type type)
+    {
+        if (type.IsAbstract || type.IsInterface)
+        {
+            return false;
+        }
+
+        Type? current = type.BaseType;
+        while (current is not null)
+        {
+            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(Behavior<>))
+            {
+                return true;
+            }
+
+            current = current.BaseType;
+        }
+
+        return false;
     }
 
     private Assembly? OnAssemblyResolve(object? sender, ResolveEventArgs args)

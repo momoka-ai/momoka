@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using Momoka.Core.Events;
+using Momoka.Core.Behaviors;
 
 namespace Momoka.Core.Plugins;
 
@@ -35,7 +35,7 @@ public sealed class PluginService
     /// <summary>强类型事件中心（共享）。</summary>
     public EventHub Events { get; }
 
-    /// <summary>Ui 网关设施（共享；插件 OnEnable 用 <c>RegisterOperation</c> 注册操作，OnDisable 释放令牌）。</summary>
+    /// <summary>Ui 网关设施（共享；操作经 <c>RegisterOperation</c> 注册，行为由插件加载期扫描注册）。</summary>
     public Gateway Gateway { get; }
 
     /// <summary>日志工厂（共享；插件日志器经 <see cref="Plugin"/> 派生）。</summary>

@@ -1,5 +1,5 @@
 using Xunit;
-using Momoka.Core.Events;
+using Momoka.Core.Behaviors;
 
 namespace Momoka.Core.Tests;
 

@@ -10,7 +10,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Momoka.Core;
-using Momoka.Core.Events;
+using Momoka.Core.Behaviors;
 using Momoka.Core.Plugins;
 using Xunit;
 
@@ -30,9 +30,9 @@ public sealed class GatewayTests
             Task.FromResult(new SetLightResponse($"ok:{req.RoomName}:{req.Brightness}")));
 
         await using var connection = await harness.ConnectAsync();
-        var response = await connection.InvokeCoreAsync<OperationResponse>("InvokeOperation", new object[]
+        var response = await connection.InvokeCoreAsync<GatewayResponse>("InvokeOperation", new object[]
         {
-            new OperationRequest("set_light", JsonNode.Parse("""{"brightness":80,"room_name":"kitchen"}""")),
+            new GatewayRequest("set_light", JsonNode.Parse("""{"brightness":80,"room_name":"kitchen"}""")),
         });
 
         Assert.True(response.Success);
@@ -52,9 +52,9 @@ public sealed class GatewayTests
         });
 
         await using var connection = await harness.ConnectAsync();
-        var response = await connection.InvokeCoreAsync<OperationResponse>("InvokeOperation", new object[]
+        var response = await connection.InvokeCoreAsync<GatewayResponse>("InvokeOperation", new object[]
         {
-            new OperationRequest("flip", JsonNode.Parse("\"on\"")),
+            new GatewayRequest("flip", JsonNode.Parse("\"on\"")),
         });
 
         Assert.True(response.Success);
@@ -69,9 +69,9 @@ public sealed class GatewayTests
         await using var harness = await GatewayHarness.CreateAsync();
         await using var connection = await harness.ConnectAsync();
 
-        var response = await connection.InvokeCoreAsync<OperationResponse>("InvokeOperation", new object[]
+        var response = await connection.InvokeCoreAsync<GatewayResponse>("InvokeOperation", new object[]
         {
-            new OperationRequest("no_such_op", null),
+            new GatewayRequest("no_such_op", null),
         });
 
         Assert.False(response.Success);
@@ -86,9 +86,9 @@ public sealed class GatewayTests
             throw new InvalidOperationException("handler exploded"));
 
         await using var connection = await harness.ConnectAsync();
-        var response = await connection.InvokeCoreAsync<OperationResponse>("InvokeOperation", new object[]
+        var response = await connection.InvokeCoreAsync<GatewayResponse>("InvokeOperation", new object[]
         {
-            new OperationRequest("boom", null),
+            new GatewayRequest("boom", null),
         });
 
         Assert.False(response.Success);
@@ -103,9 +103,9 @@ public sealed class GatewayTests
             Task.FromResult(new SetLightResponse(req.RoomName)));
 
         await using var connection = await harness.ConnectAsync();
-        var response = await connection.InvokeCoreAsync<OperationResponse>("InvokeOperation", new object[]
+        var response = await connection.InvokeCoreAsync<GatewayResponse>("InvokeOperation", new object[]
         {
-            new OperationRequest("set_light", JsonNode.Parse("""{"brightness":"high","room_name":"kitchen"}""")),
+            new GatewayRequest("set_light", JsonNode.Parse("""{"brightness":"high","room_name":"kitchen"}""")),
         });
 
         Assert.False(response.Success);
@@ -113,14 +113,14 @@ public sealed class GatewayTests
     }
 
     [Fact]
-    public async Task SendEvent_WireIn_HandledByPlugin_AndBroadcastToAllTerminals()
+    public async Task Post_ExecutesBehavior_AndBroadcastsFactToAllClients()
     {
         await using var harness = await GatewayHarness.CreateAsync();
         ResetEventsPluginLog();
         LoadEventsPlugin(harness);
 
-        await using var first = await harness.ConnectAsync(terminalId: "ui-1");
-        await using var second = await harness.ConnectAsync(terminalId: "ui-2");
+        await using var first = await harness.ConnectAsync(clientId: "ui-1");
+        await using var second = await harness.ConnectAsync(clientId: "ui-2");
         var received = new TaskCompletionSource<(string EventId, JsonNode? Payload)>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var receivedSecond = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -135,20 +135,24 @@ public sealed class GatewayTests
             return Task.CompletedTask;
         });
 
-        await first.SendCoreAsync("SendEvent", new object[]
+        string eventId = GreetBehaviorEventId();
+        var response = await first.InvokeCoreAsync<GatewayResponse>("Post", new object[]
         {
-            new ClientEvent("report_event", JsonNode.Parse("""{"message":"hi"}""")),
+            new GatewayRequest(eventId, JsonNode.Parse("""{"message":"hi"}""")),
         });
 
-        var (eventId, payload) = await received.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.Equal("announce_event", eventId);
+        Assert.True(response.Success);
+        Assert.Null(response.Error);
+        var (receivedEventId, payload) = await received.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(eventId, receivedEventId);
         Assert.Equal("hi", payload!["message"]!.GetValue<string>());
-        Assert.Equal("announce_event", await receivedSecond.Task.WaitAsync(TimeSpan.FromSeconds(10)));
-        Assert.Equal(new[] { "report:hi" }, EventsPluginLog());
+        Assert.Equal(eventId, await receivedSecond.Task.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Contains("greet:hi", EventsPluginLog());
+        Assert.Contains("fact:hi", EventsPluginLog());
     }
 
     [Fact]
-    public async Task SendEvent_UnregisteredOrNotReportable_IsIgnored()
+    public async Task Post_UnknownEvent_ReturnsError_NoBroadcast()
     {
         await using var harness = await GatewayHarness.CreateAsync();
         ResetEventsPluginLog();
@@ -162,16 +166,21 @@ public sealed class GatewayTests
             return Task.CompletedTask;
         });
 
-        await connection.SendCoreAsync("SendEvent", new object[]
+        var unknown = await connection.InvokeCoreAsync<GatewayResponse>("Post", new object[]
         {
-            new ClientEvent("no_such_event", JsonNode.Parse("{}")),
+            new GatewayRequest("no.such.event", JsonNode.Parse("{}")),
         });
-        await connection.SendCoreAsync("SendEvent", new object[]
-        {
-            new ClientEvent("announce_event", JsonNode.Parse("""{"message":"x"}""")),
-        });
+        Assert.False(unknown.Success);
+        Assert.Contains("Unknown event", unknown.Error);
 
-        await Task.Delay(300);
+        string announceId = AnnounceEventType().FullName!;
+        var notBehavior = await connection.InvokeCoreAsync<GatewayResponse>("Post", new object[]
+        {
+            new GatewayRequest(announceId, JsonNode.Parse("""{"message":"x"}""")),
+        });
+        Assert.False(notBehavior.Success);
+        Assert.Contains("Unknown event", notBehavior.Error);
+
         Assert.False(received);
         Assert.Empty(EventsPluginLog());
     }
@@ -183,81 +192,93 @@ public sealed class GatewayTests
         await using var connection = harness.BuildConnection(token: "wrong-token");
 
         await AssertConnectionRejectedAsync(connection);
-        Assert.Empty(harness.Gateway.Terminals);
+        Assert.Empty(harness.Gateway.Clients);
     }
 
     [Theory]
     [InlineData("", "user")]
-    [InlineData("term-1", "")]
-    public async Task Connection_MissingHandshakeParameter_IsRejected(string terminalId, string role)
+    [InlineData("cli-1", "")]
+    public async Task Connection_MissingHandshakeParameter_IsRejected(string clientId, string role)
     {
         await using var harness = await GatewayHarness.CreateAsync();
-        await using var connection = harness.BuildConnection(terminalId: terminalId, role: role);
+        await using var connection = harness.BuildConnection(clientId: clientId, role: role);
 
         await AssertConnectionRejectedAsync(connection);
-        Assert.Empty(harness.Gateway.Terminals);
+        Assert.Empty(harness.Gateway.Clients);
     }
 
     [Fact]
-    public async Task Disconnect_RemovesTerminalFromRegistry()
+    public async Task Disconnect_RemovesClientFromRegistry()
     {
         await using var harness = await GatewayHarness.CreateAsync();
-        var connection = await harness.ConnectAsync(terminalId: "ui-1");
-        Assert.Single(harness.Gateway.Terminals);
+        var connection = await harness.ConnectAsync(clientId: "ui-1");
+        Assert.Single(harness.Gateway.Clients);
 
         await connection.DisposeAsync();
-        await WaitForAsync(() => harness.Gateway.Terminals.Count == 0);
+        await WaitForAsync(() => harness.Gateway.Clients.Count == 0);
 
-        Assert.Empty(harness.Gateway.Terminals);
+        Assert.Empty(harness.Gateway.Clients);
     }
 
     [Fact]
     public async Task InvokeOperation_CallerContext_IsSet()
     {
         await using var harness = await GatewayHarness.CreateAsync();
-        TerminalInfo? captured = null;
+        Client? captured = null;
         harness.Gateway.RegisterOperation<string, string>("whoami", (ctx, _, _) =>
         {
             captured = ctx.Caller;
-            return Task.FromResult(ctx.Caller.TerminalId);
+            return Task.FromResult(ctx.Caller.ClientId);
         });
 
-        await using var connection = await harness.ConnectAsync(terminalId: "my-ui", role: "admin");
-        var response = await connection.InvokeCoreAsync<OperationResponse>("InvokeOperation", new object[]
+        await using var connection = await harness.ConnectAsync(clientId: "my-ui", role: "admin");
+        var response = await connection.InvokeCoreAsync<GatewayResponse>("InvokeOperation", new object[]
         {
-            new OperationRequest("whoami", null),
+            new GatewayRequest("whoami", null),
         });
 
         Assert.True(response.Success);
         Assert.Equal("my-ui", response.Payload!.GetValue<string>());
         Assert.NotNull(captured);
-        Assert.Equal("my-ui", captured!.TerminalId);
+        Assert.Equal("my-ui", captured!.ClientId);
         Assert.Equal("admin", captured.Role);
         Assert.Equal(connection.ConnectionId, captured.ConnectionId);
     }
 
     [Fact]
-    public async Task PluginLoad_ScansEventRouters_IntoRegistry()
+    public async Task PluginLoad_ScansAndRegistersBehavior()
     {
         await using var harness = await GatewayHarness.CreateAsync();
+        ResetEventsPluginLog();
         LoadEventsPlugin(harness);
 
-        Assert.True(harness.Events.TryGetEventRouter("report_event", out var reportType, out var fromClients));
-        Assert.Equal("Momoka.Core.Tests.Plugins.Events.ReportEvent", reportType.FullName);
-        Assert.True(fromClients);
+        await using var connection = await harness.ConnectAsync();
+        var received = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        connection.On<string, JsonNode?>("ClientEvent", (eventId, _) =>
+        {
+            received.TrySetResult(eventId);
+            return Task.CompletedTask;
+        });
 
-        Assert.True(harness.Events.TryGetEventRouter("announce_event", out var announceType, out _));
-        Assert.Equal("Momoka.Core.Tests.Plugins.Events.AnnounceEvent", announceType.FullName);
+        string greetEventId = GreetBehaviorEventId();
+        var response = await connection.InvokeCoreAsync<GatewayResponse>("Post", new object[]
+        {
+            new GatewayRequest(greetEventId, JsonNode.Parse("""{"message":"scanned"}""")),
+        });
+
+        Assert.True(response.Success);
+        Assert.Equal(greetEventId, await received.Task.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Contains("greet:scanned", EventsPluginLog());
     }
 
     [Fact]
-    public async Task PluginLoad_DuplicateEventId_FailsFast()
+    public async Task PluginLoad_MalformedBehavior_FailsFast()
     {
         await using var harness = await GatewayHarness.CreateAsync();
         var loader = harness.App.Services.GetRequiredService<PluginLoader>();
 
-        var ex = Assert.Throws<InvalidOperationException>(() => loader.Load(RouterBadPath()));
-        Assert.Contains("dup_event", ex.Message);
+        var ex = Assert.Throws<ArgumentException>(() => loader.Load(RouterBadPath()));
+        Assert.Contains("Execute", ex.Message);
     }
 
     [Fact]
@@ -312,6 +333,15 @@ public sealed class GatewayTests
         return (IReadOnlyList<string>)type.GetProperty("Log", BindingFlags.Public | BindingFlags.Static)!
             .GetValue(null)!;
     }
+
+    private static Type AnnounceEventType()
+        => LoadEventsPluginType().Assembly.GetType("Momoka.Core.Tests.Plugins.Events.AnnounceEvent")
+            ?? throw new InvalidOperationException("AnnounceEvent type was not found.");
+
+    private static string GreetBehaviorEventId()
+        => (LoadEventsPluginType().Assembly.GetType("Momoka.Core.Tests.Plugins.Events.GreetBehavior")
+                ?? throw new InvalidOperationException("GreetBehavior type was not found."))
+            .GetNestedType("Event")!.FullName!;
 
     private static Type LoadEventsPluginType()
         => AssemblyLoadContext.Default.LoadFromAssemblyPath(EventsPluginPath())
@@ -393,12 +423,12 @@ public sealed class GatewayTests
         }
 
         public HubConnection BuildConnection(
-            string terminalId = "term-1",
+            string clientId = "cli-1",
             string role = "user",
             string? token = null)
         {
             string url =
-                $"http://localhost/hubs/gateway?terminalId={Uri.EscapeDataString(terminalId)}" +
+                $"http://localhost/hubs/gateway?clientId={Uri.EscapeDataString(clientId)}" +
                 $"&role={Uri.EscapeDataString(role)}&token={Uri.EscapeDataString(token ?? "test-token")}";
 
             return new HubConnectionBuilder()
@@ -412,13 +442,13 @@ public sealed class GatewayTests
         }
 
         public async Task<HubConnection> ConnectAsync(
-            string terminalId = "term-1",
+            string clientId = "cli-1",
             string role = "user",
             string? token = null)
         {
-            HubConnection connection = BuildConnection(terminalId, role, token);
+            HubConnection connection = BuildConnection(clientId, role, token);
             await connection.StartAsync();
-            await WaitForAsync(() => Gateway.GetTerminal(connection.ConnectionId!) is not null);
+            await WaitForAsync(() => Gateway.GetClient(connection.ConnectionId!) is not null);
             return connection;
         }
 

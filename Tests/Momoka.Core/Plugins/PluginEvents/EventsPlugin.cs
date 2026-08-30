@@ -1,24 +1,45 @@
-using Momoka.Core.Events;
+using Momoka.Core.Behaviors;
 using Momoka.Core.Plugins;
 
 namespace Momoka.Core.Tests.Plugins.Events;
 
-/// <summary>客户端上报事件（wire-in：Listeners + Id 即可上报）：监听者处理，绝不自动广播回客户端。</summary>
-[Publish(Id = "report_event", Destination = EventDestination.Listeners)]
-public sealed record ReportEvent(string Message);
-
-/// <summary>全向事件（监听者 + 广播）：wire-in 处理后由插件按需生成并发布。</summary>
-[Publish(Id = "announce_event", Destination = EventDestination.Everyone)]
+/// <summary>全向通知事件（[Publish] 契约：可传输，发布即广播全部终端 + 分发进程内监听者）。</summary>
+[Publish]
 public sealed record AnnounceEvent(string Message);
 
 /// <summary>
+/// 行为测试夹具：客户端 Post 意图 → 主机 Execute 生成事实（[Publish]，下行广播）→ 监听者可见。
+/// Execute 记录来源日志并返回事实（四件套契约由插件加载期扫描注册到 Gateway）。
+/// </summary>
+public sealed class GreetBehavior : Behavior<GreetBehavior>
+{
+    /// <summary>事实（下行广播载荷，只由主机生成）。</summary>
+    [Publish]
+    public sealed record Event(string Message);
+
+    /// <summary>意图（上行请求载荷，客户端唯一构造的对象）。</summary>
+    public sealed record Intent(string Message);
+
+    /// <summary>逻辑执行：意图 → 事实。</summary>
+    public Event Execute(Intent intent, IntentSource? source = null)
+    {
+        lock (EventsPlugin.LogGate)
+        {
+            EventsPlugin.LogList.Add($"greet:{intent.Message}");
+        }
+
+        return new Event(intent.Message);
+    }
+}
+
+/// <summary>
 /// 路由/订阅测试插件：OnEnable 用 AddSubscribers(this) 扫描 [Subscribe] 订阅（载体实现 Subscribers），
-/// OnDisable 用 RemoveSubscribers 整体退订；收到 ReportEvent 后发布 AnnounceEvent（Everyone → 广播回全部终端）。
+/// OnDisable 用 RemoveSubscribers 整体退订；监听 GreetBehavior 事实。
 /// </summary>
 public sealed class EventsPlugin : Plugin, Subscribers
 {
-    private static readonly object LogGate = new();
-    private static readonly List<string> LogList = new();
+    internal static readonly object LogGate = new();
+    internal static readonly List<string> LogList = new();
 
     /// <summary>清空跨测试共享的静态日志（测试夹具用）。</summary>
     public static void Reset()
@@ -29,7 +50,7 @@ public sealed class EventsPlugin : Plugin, Subscribers
         }
     }
 
-    /// <summary>监听日志快照（格式 <c>report:&lt;message&gt;</c>）。</summary>
+    /// <summary>监听日志快照（格式 <c>greet:&lt;message&gt;</c> / <c>fact:&lt;message&gt;</c>）。</summary>
     public static IReadOnlyList<string> Log
     {
         get
@@ -51,14 +72,14 @@ public sealed class EventsPlugin : Plugin, Subscribers
         Host.Events.RemoveSubscribers(this);
     }
 
-    [Subscribe(typeof(ReportEvent), Priority = EventPriority.High)]
-    public Task OnReport(ReportEvent @event)
+    [Subscribe(typeof(GreetBehavior.Event))]
+    public Task OnGreetFact(GreetBehavior.Event @event)
     {
         lock (LogGate)
         {
-            LogList.Add($"report:{@event.Message}");
+            LogList.Add($"fact:{@event.Message}");
         }
 
-        return Host.Events.InvokeAsync(new AnnounceEvent(@event.Message));
+        return Task.CompletedTask;
     }
 }

@@ -4,13 +4,11 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Momoka.Core.Plugins;
 
-namespace Momoka.Core.Events;
+namespace Momoka.Core.Behaviors;
 
 // 私有簿记的文件级元组别名（无嵌套类型）：
-// Subscription = 一条订阅（事件类型 + 优先级 + 来源插件 + 类型擦除后的委托）；
-// RouterRegistration = [Publish] 属性注册时解析校验后的快照（Id 即线上地址）。
+// Subscription = 一条订阅（事件类型 + 优先级 + 来源插件 + 类型擦除后的委托）。
 using Subscription = (Type EventType, EventPriority Priority, string? Source, Func<object, Task> Handler);
-using RouterRegistration = (string? Id, EventDestination Destination);
 
 /// <summary>
 /// 事件中心（内存、线程安全）：订阅/退订/发布并发安全；发布时快照订阅表再分发，
@@ -22,16 +20,16 @@ using RouterRegistration = (string? Id, EventDestination Destination);
 /// handler 异常一律隔离记录，绝不向发布方传播；每次发布写审计日志（Debug）。
 /// </summary>
 /// <remarks>
-/// 路由扩展：经 <see cref="RegisterEventType"/> 注册 <see cref="PublishAttribute"/> 类型后，
-/// 发布按路由矩阵统一分发（Destination 决定监听者与 wire-out）；wire-sender 由构造注入（宿主接线，无可变 setter）。
+/// 事件即客户端与主机沟通的桥梁：携带 <see cref="PublishAttribute"/> 的类型（含行为嵌套
+/// <c>Event</c> POD）发布时经 wire-sender 广播全部终端（eventId = 类型 FullName），同时
+/// 分发进程内监听者；未携带 <see cref="PublishAttribute"/> 的类型仅进程内分发（可传输契约
+/// 在发布路径按属性判定，无需注册表）。wire-sender 由构造注入（宿主接线，无可变 setter）。
 /// </remarks>
 public sealed partial class EventHub
 {
     private readonly Dictionary<Subscribers, List<Subscription>> _bySubscriber = new();
-    private readonly Dictionary<string, Type> _eventIds = new(StringComparer.Ordinal);
     private readonly object _gate = new();
     private readonly ILogger<EventHub> _logger;
-    private readonly Dictionary<Type, RouterRegistration> _routers = new();
     private readonly Dictionary<Type, List<Subscription>> _subscriptions = new();
     private readonly Func<string, object?, Task>? _wireSender;
 
@@ -75,14 +73,14 @@ public sealed partial class EventHub
         }
     }
 
-    /// <summary>按声明类型顺序发布事件（属性感知分发）；<typeparamref name="TEvent"/> 应为声明路由时的确切类型。</summary>
+    /// <summary>按声明类型顺序发布事件（携带 <see cref="PublishAttribute"/> 的类型同时广播全部终端）。</summary>
     public Task InvokeAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(@event);
         return InvokeCoreAsync(typeof(TEvent), @event, parallel: false, cancellationToken);
     }
 
-    /// <summary>按运行期类型顺序发布事件（internal：Gateway wire-in 反序列化后分发的入口）。</summary>
+    /// <summary>按运行期类型顺序发布事件（internal：Gateway 行为事实发布 / 反序列化后分发的入口）。</summary>
     internal Task InvokeAsync(object @event, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(@event);
@@ -94,38 +92,6 @@ public sealed partial class EventHub
     {
         ArgumentNullException.ThrowIfNull(@event);
         return InvokeCoreAsync(typeof(TEvent), @event, parallel: true, cancellationToken);
-    }
-
-    /// <summary>注册路由事件类型（插件加载时扫描 <see cref="PublishAttribute"/> 调用）；
-    /// 组合非法 / 重复 eventId → fail-fast <see cref="InvalidOperationException"/>。</summary>
-    public void RegisterEventType(Type type)
-    {
-        ArgumentNullException.ThrowIfNull(type);
-
-        PublishAttribute? attribute = type.GetCustomAttribute<PublishAttribute>();
-        if (attribute is null)
-        {
-            throw new ArgumentException($"Type '{type}' does not carry [Publish].", nameof(type));
-        }
-
-        string? id = string.IsNullOrWhiteSpace(attribute.Id) ? null : attribute.Id.Trim();
-        ValidateRouting(type, id, attribute.Destination);
-
-        lock (_gate)
-        {
-            if (_routers.ContainsKey(type))
-            {
-                throw new InvalidOperationException($"Event type '{type}' is already registered.");
-            }
-
-            if (id is not null && !_eventIds.TryAdd(id, type))
-            {
-                throw new InvalidOperationException(
-                    $"Event id '{id}' is already registered by '{_eventIds[id]}'.");
-            }
-
-            _routers.Add(type, (id, attribute.Destination));
-        }
     }
 
     /// <summary>按实例整体退订（幂等：未注册的实例为 no-op）。</summary>
@@ -153,27 +119,6 @@ public sealed partial class EventHub
                 }
             }
         }
-    }
-
-    /// <summary>
-    /// 按线上 eventId 反查路由事件类型与其是否可客户端上报（Gateway wire-in 用）：
-    /// 可上报 = 目的地为 <see cref="EventDestination.Listeners"/>（Id 即线上地址）。
-    /// </summary>
-    internal bool TryGetEventRouter(string eventId, out Type type, out bool acceptsClients)
-    {
-        lock (_gate)
-        {
-            if (_eventIds.TryGetValue(eventId, out Type? resolved))
-            {
-                type = resolved;
-                acceptsClients = _routers[resolved].Destination == EventDestination.Listeners;
-                return true;
-            }
-        }
-
-        type = null!;
-        acceptsClients = false;
-        return false;
     }
 
     private static Subscription CreateSubscription(
@@ -256,50 +201,35 @@ public sealed partial class EventHub
         bool parallel,
         CancellationToken cancellationToken)
     {
-        RouterRegistration? router = null;
-        lock (_gate)
-        {
-            if (_routers.TryGetValue(eventType, out var registration))
-            {
-                router = registration;
-            }
-        }
-
+        string eventId = eventType.FullName!;
         LogPublished(eventType, @event);
 
-        if (router?.Destination is EventDestination.Client or EventDestination.Everyone)
+        if (eventType.GetCustomAttribute<PublishAttribute>() is not null && _wireSender is not null)
         {
-            string? eventId = router.Value.Id;
-            if (_wireSender is not null)
+            try
             {
-                try
-                {
-                    await _wireSender(eventId!, @event).ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    LogWireError(ex, eventId!, eventType);
-                }
+                await _wireSender(eventId, @event).ConfigureAwait(false);
             }
-            else
+            catch (Exception ex)
             {
-                LogNoWireSender(eventType);
+                LogWireError(ex, eventId, eventType);
             }
         }
-
-        if (router is null || router.Value.Destination is EventDestination.Listeners or EventDestination.Everyone)
+        else if (_wireSender is null)
         {
-            List<Subscription> snapshot;
-            lock (_gate)
-            {
-                _subscriptions.TryGetValue(eventType, out var list);
-                snapshot = list is null ? new List<Subscription>() : list.ToList();
-            }
+            LogNoWireSender(eventType);
+        }
 
-            if (snapshot.Count > 0)
-            {
-                await DispatchAsync(snapshot, @event, parallel, cancellationToken).ConfigureAwait(false);
-            }
+        List<Subscription> snapshot;
+        lock (_gate)
+        {
+            _subscriptions.TryGetValue(eventType, out var list);
+            snapshot = list is null ? new List<Subscription>() : list.ToList();
+        }
+
+        if (snapshot.Count > 0)
+        {
+            await DispatchAsync(snapshot, @event, parallel, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -331,19 +261,6 @@ public sealed partial class EventHub
         catch (Exception ex)
         {
             LogHandlerError(ex, typeof(TEvent), subscription.Source);
-        }
-    }
-
-    private static void ValidateRouting(Type type, string? id, EventDestination destination)
-    {
-        switch (destination)
-        {
-            case EventDestination.None when id is not null:
-                throw new InvalidOperationException(
-                    $"[Publish] on '{type}' must have an empty Id for Destination None.");
-            case EventDestination.Client or EventDestination.Everyone when id is null:
-                throw new InvalidOperationException(
-                    $"[Publish] on '{type}' requires an Id when Destination is {destination}.");
         }
     }
 

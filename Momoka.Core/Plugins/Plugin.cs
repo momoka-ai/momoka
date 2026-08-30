@@ -67,6 +67,16 @@ public abstract class Plugin
     }
 
     /// <summary>
+    /// 提取本插件打包的嵌入资源流（资源路径为程序集内嵌名，如 <c>Momoka.Home.plugin.toml</c>）；
+    /// 未找到返回 null。实现为按插件自身程序集查询 <see cref="System.Reflection.Assembly.GetManifestResourceStream"/>。
+    /// </summary>
+    protected Stream? GetPluginResource(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        return GetType().Assembly.GetManifestResourceStream(path);
+    }
+
+    /// <summary>
     /// 宿主注入插件信息与共享能力束。仅供 <see cref="PluginLoader"/> 调用。
     /// </summary>
     internal void InjectHost(PluginInfo info, PluginService host)

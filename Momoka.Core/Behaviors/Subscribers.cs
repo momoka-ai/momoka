@@ -1,4 +1,4 @@
-namespace Momoka.Core.Events;
+namespace Momoka.Core.Behaviors;
 
 /// <summary>
 /// 事件监听者标记接口（Bukkit Listener 风格）：所有携带 <see cref="SubscribeAttribute"/>

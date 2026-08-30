@@ -1,168 +1,204 @@
 using System.Text.Json.Nodes;
 using Xunit;
-using Momoka.Core.Events;
+using Momoka.Core.Behaviors;
 
 namespace Momoka.Core.Tests;
 
 /// <summary>
-/// 事件路由（[Publish] + EventHub 属性感知分发）：路由矩阵逐项 /
-/// wire-in（Listeners+Id）无 echo / 组合校验与重复 Id fail-fast / wire-sender 异常不阻断。
+/// 事件路由与行为管线（[Publish] 可传输契约门 + EventHub 双路分发 / Gateway 行为上报）：
+/// 传输门（[Publish] 广播、无属性仅进程内）/ wire-sender 异常不阻断 / Post 执行行为发布事实 /
+/// 失败回执 / 行为契约校验 fail-fast。
 /// </summary>
 public sealed class EventRouterTests
 {
     [Fact]
-    public async Task None_Destination_OnlyRecords()
-    {
-        var (hub, wire, logger) = CreateHub();
-        hub.RegisterEventType(typeof(SinkEvent));
-        hub.AddSubscribers(new SinkListener());
-
-        await hub.InvokeAsync(new SinkEvent());
-
-        Assert.Empty(wire);
-        Assert.Contains(logger.Messages, m => m.Contains("SinkEvent"));
-    }
-
-    [Fact]
-    public async Task Listeners_Destination_LocalOnly()
+    public async Task Publish_Transmittable_BroadcastsAndDispatchesListeners()
     {
         var (hub, wire, _) = CreateHub();
-        hub.RegisterEventType(typeof(LocalEvent));
-        var listener = new LocalListener();
+        var listener = new NotifyListener();
         hub.AddSubscribers(listener);
 
-        await hub.InvokeAsync(new LocalEvent());
+        await hub.InvokeAsync(new NotifyEvent("hi"));
 
         Assert.Equal(1, listener.Count);
-        Assert.Empty(wire);
-    }
-
-    [Fact]
-    public async Task Client_Destination_WireOnly()
-    {
-        var (hub, wire, _) = CreateHub();
-        hub.RegisterEventType(typeof(WireOnlyEvent));
-        hub.AddSubscribers(new WireOnlyListener());
-
-        await hub.InvokeAsync(WireOnlyEvent.Shared);
-
         var sent = Assert.Single(wire);
-        Assert.Equal("client_evt", sent.EventId);
-        Assert.Same(WireOnlyEvent.Shared, sent.Payload);
+        Assert.Equal(typeof(NotifyEvent).FullName!, sent.EventId);
+        Assert.Equal("hi", Assert.IsType<NotifyEvent>(sent.Payload).Message);
     }
 
     [Fact]
-    public async Task Everyone_Destination_ListenersAndWire()
+    public async Task Publish_NonTransmittable_IsLocalOnly()
     {
         var (hub, wire, _) = CreateHub();
-        hub.RegisterEventType(typeof(EveryoneEvent));
-        var listener = new EveryoneListener();
+        var listener = new PlainListener();
         hub.AddSubscribers(listener);
 
-        await hub.InvokeAsync(new EveryoneEvent("hi"));
+        await hub.InvokeAsync(new PlainRecord("x"));
 
         Assert.Equal(1, listener.Count);
-        Assert.Equal("every_evt", Assert.Single(wire).EventId);
-    }
-
-    [Fact]
-    public async Task WireIn_GoesToListenersOnly_NoEcho()
-    {
-        var (hub, wire, _) = CreateHub();
-        hub.RegisterEventType(typeof(ClientReportEvent));
-        var gateway = new Gateway(hub);
-        var listener = new ReportListener();
-        hub.AddSubscribers(listener);
-
-        await gateway.HandleClientEventAsync("report_evt", JsonNode.Parse("""{"message":"hello"}"""));
-
-        Assert.Equal(new[] { "hello" }, listener.Messages);
-        Assert.Empty(wire); // wire-in 绝不广播回客户端（无 echo）
-    }
-
-    [Fact]
-    public async Task WireIn_UnknownEventId_IsIgnored()
-    {
-        var (hub, wire, _) = CreateHub();
-        var gateway = new Gateway(hub);
-        var listener = new ReportListener();
-        hub.AddSubscribers(listener);
-
-        await gateway.HandleClientEventAsync("no_such_event", JsonNode.Parse("""{"message":"x"}"""));
-
-        Assert.Empty(listener.Messages);
         Assert.Empty(wire);
-    }
-
-    [Fact]
-    public async Task WireIn_NonReportable_IsIgnored()
-    {
-        var (hub, wire, _) = CreateHub();
-        hub.RegisterEventType(typeof(EveryoneEvent));
-        var gateway = new Gateway(hub);
-        var listener = new EveryoneListener();
-        hub.AddSubscribers(listener);
-
-        await gateway.HandleClientEventAsync("every_evt", JsonNode.Parse("""{"message":"x"}"""));
-
-        Assert.Equal(0, listener.Count);
-        Assert.Empty(wire);
-    }
-
-    [Theory]
-    [InlineData(typeof(BadClientNoId))]
-    [InlineData(typeof(BadEveryoneNoId))]
-    [InlineData(typeof(BadSinkWithId))]
-    public void RegisterEventType_InvalidCombination_FailsFast(Type type)
-    {
-        var hub = new EventHub();
-
-        Assert.Throws<InvalidOperationException>(() => hub.RegisterEventType(type));
-    }
-
-    [Fact]
-    public void RegisterEventType_DuplicateEventId_FailsFast()
-    {
-        var hub = new EventHub();
-        hub.RegisterEventType(typeof(DupEventA));
-
-        var ex = Assert.Throws<InvalidOperationException>(() => hub.RegisterEventType(typeof(DupEventB)));
-        Assert.Contains("dup_event", ex.Message);
-    }
-
-    [Fact]
-    public void RegisterEventType_TypeWithoutAttribute_Throws()
-    {
-        var hub = new EventHub();
-
-        Assert.Throws<ArgumentException>(() => hub.RegisterEventType(typeof(string)));
     }
 
     [Fact]
     public async Task WireSenderException_DoesNotBlockLocalDispatch()
     {
         var (hub, _, logger) = CreateHub(wireSenderThrows: true);
-        hub.RegisterEventType(typeof(EveryoneEvent));
-        var listener = new EveryoneListener();
+        var listener = new NotifyListener();
         hub.AddSubscribers(listener);
 
-        await hub.InvokeAsync(new EveryoneEvent("x")); // 不抛出
+        await hub.InvokeAsync(new NotifyEvent("x")); // 不抛出
 
         Assert.Equal(1, listener.Count);
-        Assert.Contains(logger.Messages, m => m.Contains("EveryoneEvent"));
+        Assert.Contains(logger.Messages, m => m.Contains("NotifyEvent"));
     }
 
     [Fact]
     public async Task InvokeAsync_RuntimeType_DispatchesByRuntimeType()
     {
         var hub = new EventHub();
-        var listener = new LocalListener();
+        var listener = new NotifyListener();
         hub.AddSubscribers(listener);
 
-        await hub.InvokeAsync((object)new LocalEvent());
+        await hub.InvokeAsync((object)new NotifyEvent("x"));
 
         Assert.Equal(1, listener.Count);
     }
+
+    [Fact]
+    public async Task Post_ExecutesBehaviorAndPublishesFact()
+    {
+        var (hub, wire, _) = CreateHub();
+        var gateway = new Gateway(hub);
+        var listener = new GreetListener();
+        hub.AddSubscribers(listener);
+        gateway.RegisterBehavior(typeof(GreetBehavior));
+        var client = TestClient();
+
+        var response = await gateway.HandlePostAsync(
+            new GatewayRequest(
+                typeof(GreetBehavior.Event).FullName!,
+                JsonNode.Parse("""{"message":"hi"}""")),
+            client);
+
+        Assert.True(response.Success);
+        Assert.Null(response.Error);
+        Assert.Equal(1, listener.Count);
+        var sent = Assert.Single(wire);
+        Assert.Equal(typeof(GreetBehavior.Event).FullName!, sent.EventId);
+        Assert.Equal("HI", Assert.IsType<GreetBehavior.Event>(sent.Payload).Message);
+    }
+
+    [Fact]
+    public async Task Post_UnknownEventId_ReturnsError()
+    {
+        var (hub, wire, _) = CreateHub();
+        var gateway = new Gateway(hub);
+
+        var response = await gateway.HandlePostAsync(
+            new GatewayRequest("no.such.event", JsonNode.Parse("{}")),
+            TestClient());
+
+        Assert.False(response.Success);
+        Assert.Contains("Unknown event", response.Error);
+        Assert.Empty(wire);
+    }
+
+    [Fact]
+    public async Task Post_RequiresPayload_ReturnsError()
+    {
+        var (hub, _, _) = CreateHub();
+        var gateway = new Gateway(hub);
+        gateway.RegisterBehavior(typeof(GreetBehavior));
+
+        var response = await gateway.HandlePostAsync(
+            new GatewayRequest(typeof(GreetBehavior.Event).FullName!, null),
+            TestClient());
+
+        Assert.False(response.Success);
+        Assert.Contains("payload", response.Error);
+    }
+
+    [Fact]
+    public async Task Post_DeserializationFailure_ReturnsError()
+    {
+        var (hub, wire, _) = CreateHub();
+        var gateway = new Gateway(hub);
+        gateway.RegisterBehavior(typeof(GreetBehavior));
+
+        var response = await gateway.HandlePostAsync(
+            new GatewayRequest(
+                typeof(GreetBehavior.Event).FullName!,
+                JsonNode.Parse("""{"message":123}""")),
+            TestClient());
+
+        Assert.False(response.Success);
+        Assert.Contains("Deserialization failed", response.Error);
+        Assert.Empty(wire);
+    }
+
+    [Fact]
+    public async Task Post_ExecuteThrows_ReturnsError()
+    {
+        var (hub, wire, _) = CreateHub();
+        var gateway = new Gateway(hub);
+        gateway.RegisterBehavior(typeof(BoomBehavior));
+
+        var response = await gateway.HandlePostAsync(
+            new GatewayRequest(
+                typeof(BoomBehavior.Event).FullName!,
+                JsonNode.Parse("""{"message":"x"}""")),
+            TestClient());
+
+        Assert.False(response.Success);
+        Assert.Contains("execution exploded", response.Error);
+        Assert.Empty(wire);
+    }
+
+    [Fact]
+    public void RegisterBehavior_NonBehaviorType_Throws()
+    {
+        var gateway = new Gateway(new EventHub());
+
+        Assert.Throws<ArgumentException>(() => gateway.RegisterBehavior(typeof(PlainRecord)));
+    }
+
+    [Fact]
+    public void RegisterBehavior_AbstractBehavior_FailsFast()
+    {
+        var gateway = new Gateway(new EventHub());
+
+        Assert.Throws<InvalidOperationException>(() => gateway.RegisterBehavior(typeof(AbstractBehavior)));
+    }
+
+    [Fact]
+    public void RegisterBehavior_EventWithoutPublish_FailsFast()
+    {
+        var gateway = new Gateway(new EventHub());
+
+        var ex = Assert.Throws<ArgumentException>(() => gateway.RegisterBehavior(typeof(UnattributedBehavior)));
+        Assert.Contains("[Publish]", ex.Message);
+    }
+
+    [Fact]
+    public void RegisterBehavior_MissingExecute_FailsFast()
+    {
+        var gateway = new Gateway(new EventHub());
+
+        var ex = Assert.Throws<ArgumentException>(() => gateway.RegisterBehavior(typeof(MissingExecuteBehavior)));
+        Assert.Contains("Execute", ex.Message);
+    }
+
+    [Fact]
+    public void RegisterBehavior_DuplicateEventId_FailsFast()
+    {
+        var gateway = new Gateway(new EventHub());
+        gateway.RegisterBehavior(typeof(GreetBehavior));
+
+        var ex = Assert.Throws<InvalidOperationException>(() => gateway.RegisterBehavior(typeof(GreetBehavior)));
+        Assert.Contains("already registered", ex.Message);
+    }
+
+    private static Client TestClient() => new("conn-1", "ui-1", "user", DateTimeOffset.UtcNow);
 
     private static (EventHub Hub, List<(string EventId, object Payload)> Wire, CollectingLogger Logger) CreateHub(
         bool wireSenderThrows = false)
@@ -188,75 +224,38 @@ public sealed class EventRouterTests
         return (hub, wire, logger);
     }
 
-    private sealed class SinkListener : Subscribers
-    {
-        [Subscribe(typeof(SinkEvent))]
-        public Task On(SinkEvent _)
-        {
-            Assert.Fail("None destination must not reach listeners.");
-            return Task.CompletedTask;
-        }
-    }
-
-    private sealed class LocalListener : Subscribers
+    private sealed class NotifyListener : Subscribers
     {
         public int Count;
 
-        [Subscribe(typeof(LocalEvent))]
-        public Task On(LocalEvent _)
+        [Subscribe(typeof(NotifyEvent))]
+        public Task On(NotifyEvent _)
         {
             Interlocked.Increment(ref Count);
             return Task.CompletedTask;
         }
     }
 
-    private sealed class WireOnlyListener : Subscribers
-    {
-        [Subscribe(typeof(WireOnlyEvent))]
-        public Task On(WireOnlyEvent _)
-        {
-            Assert.Fail("Client destination must not reach listeners.");
-            return Task.CompletedTask;
-        }
-    }
-
-    private sealed class EveryoneListener : Subscribers
+    private sealed class PlainListener : Subscribers
     {
         public int Count;
 
-        [Subscribe(typeof(EveryoneEvent))]
-        public Task On(EveryoneEvent _)
+        [Subscribe(typeof(PlainRecord))]
+        public Task On(PlainRecord _)
         {
             Interlocked.Increment(ref Count);
             return Task.CompletedTask;
         }
     }
 
-    private sealed class ReportListener : Subscribers
+    private sealed class GreetListener : Subscribers
     {
-        private readonly object _gate = new();
+        public int Count;
 
-        public List<string> Messages
+        [Subscribe(typeof(GreetBehavior.Event))]
+        public Task On(GreetBehavior.Event _)
         {
-            get
-            {
-                lock (_gate)
-                {
-                    return MessagesList.ToList();
-                }
-            }
-        }
-
-        private List<string> MessagesList { get; } = new();
-
-        [Subscribe(typeof(ClientReportEvent))]
-        public Task On(ClientReportEvent e)
-        {
-            lock (_gate)
-            {
-                MessagesList.Add(e.Message);
-            }
-
+            Interlocked.Increment(ref Count);
             return Task.CompletedTask;
         }
     }
@@ -285,36 +284,56 @@ public sealed class EventRouterTests
         }
     }
 
-    [Publish(Destination = EventDestination.None)]
-    private sealed record SinkEvent;
+    [Publish]
+    private sealed record NotifyEvent(string Message);
 
-    [Publish(Destination = EventDestination.Listeners)]
-    private sealed record LocalEvent;
+    private sealed record PlainRecord(string Value);
 
-    [Publish(Id = "client_evt", Destination = EventDestination.Client)]
-    private sealed record WireOnlyEvent(string Value)
+    private sealed class GreetBehavior : Behavior<GreetBehavior>
     {
-        public static readonly WireOnlyEvent Shared = new("hi");
+        [Publish]
+        public sealed record Event(string Message);
+
+        public sealed record Intent(string Message);
+
+        public Event Execute(Intent intent, IntentSource? source = null)
+            => new(intent.Message.ToUpperInvariant());
     }
 
-    [Publish(Id = "every_evt", Destination = EventDestination.Everyone)]
-    private sealed record EveryoneEvent(string Message);
+    private sealed class BoomBehavior : Behavior<BoomBehavior>
+    {
+        [Publish]
+        public sealed record Event(string Message);
 
-    [Publish(Id = "report_evt", Destination = EventDestination.Listeners)]
-    private sealed record ClientReportEvent(string Message);
+        public sealed record Intent(string Message);
 
-    [Publish(Destination = EventDestination.Client)]
-    private sealed record BadClientNoId;
+        public Event Execute(Intent intent, IntentSource? source = null)
+            => throw new InvalidOperationException("execution exploded");
+    }
 
-    [Publish(Destination = EventDestination.Everyone)]
-    private sealed record BadEveryoneNoId;
+    private sealed class UnattributedBehavior : Behavior<UnattributedBehavior>
+    {
+        public sealed record Event(string Message);
 
-    [Publish(Id = "sink_addr", Destination = EventDestination.None)]
-    private sealed record BadSinkWithId;
+        public sealed record Intent(string Message);
 
-    [Publish(Id = "dup_event", Destination = EventDestination.Everyone)]
-    private sealed record DupEventA;
+        public Event Execute(Intent intent, IntentSource? source = null)
+            => new(intent.Message);
+    }
 
-    [Publish(Id = "dup_event", Destination = EventDestination.Everyone)]
-    private sealed record DupEventB;
+    private sealed class MissingExecuteBehavior : Behavior<MissingExecuteBehavior>
+    {
+        [Publish]
+        public sealed record Event(string Message);
+
+        public sealed record Intent(string Message);
+    }
+
+    private abstract class AbstractBehavior : Behavior<AbstractBehavior>
+    {
+        [Publish]
+        public sealed record Event(string Message);
+
+        public sealed record Intent(string Message);
+    }
 }

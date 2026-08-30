@@ -1,7 +1,7 @@
 using Xunit;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Momoka.Core.Events;
+using Momoka.Core.Behaviors;
 using Momoka.Core.Plugins;
 
 namespace Momoka.Core.Tests;
