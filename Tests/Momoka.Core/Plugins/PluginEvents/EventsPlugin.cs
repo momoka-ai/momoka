@@ -11,7 +11,7 @@ public sealed record AnnounceEvent(string Message);
 /// 行为测试夹具：客户端 Post 意图 → 主机 Execute 生成事实（[Publish]，下行广播）→ 监听者可见。
 /// Execute 记录来源日志并返回事实（四件套契约由插件加载期扫描注册到 Gateway）。
 /// </summary>
-public sealed class GreetBehavior : Behavior<GreetBehavior>
+public sealed class GreetBehavior : Behavior
 {
     /// <summary>事实（下行广播载荷，只由主机生成）。</summary>
     [Publish]

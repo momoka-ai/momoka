@@ -4,7 +4,7 @@ using Momoka.Core.Plugins;
 namespace Momoka.Core.Tests.Plugins.RouterBad;
 
 /// <summary>非法行为夹具（缺 Execute 方法）→ 插件加载期 <see cref="Gateway.RegisterBehavior"/> fail-fast。</summary>
-public sealed class BadBehavior : Behavior<BadBehavior>
+public sealed class BadBehavior : Behavior
 {
     /// <summary>事实（携带 [Publish] 契约）。</summary>
     [Publish]

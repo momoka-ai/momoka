@@ -373,7 +373,7 @@ public sealed class PluginLoader : IDisposable
     }
 
     /// <summary>
-    /// 扫描程序集（Load 期）：<see cref="Behavior{T}"/> 派生类型注册进 Gateway
+    /// 扫描程序集（Load 期）：<see cref="Behavior"/> 派生类型注册进 Gateway
     /// （四件套契约校验，缺 Execute 等 fail-fast）。OnEnable 无需显式注册任何事件；
     /// 可传输契约（[Publish]）由发布路径按属性判定，无需注册表。
     /// </summary>
@@ -388,27 +388,9 @@ public sealed class PluginLoader : IDisposable
         }
     }
 
-    /// <summary>该类型是否为闭合 <see cref="Behavior{T}"/> 派生的具体类型。</summary>
-    private static bool IsBehavior(Type type)
-    {
-        if (type.IsAbstract || type.IsInterface)
-        {
-            return false;
-        }
-
-        Type? current = type.BaseType;
-        while (current is not null)
-        {
-            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(Behavior<>))
-            {
-                return true;
-            }
-
-            current = current.BaseType;
-        }
-
-        return false;
-    }
+    /// <summary>该类型是否为 <see cref="Behavior"/> 派生的具体类型。</summary>
+    private static bool IsBehavior(Type type) =>
+        !type.IsAbstract && !type.IsInterface && typeof(Behavior).IsAssignableFrom(type);
 
     private Assembly? OnAssemblyResolve(object? sender, ResolveEventArgs args)
     {        string? assemblyName = new AssemblyName(args.Name).Name;

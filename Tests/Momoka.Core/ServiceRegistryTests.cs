@@ -95,11 +95,11 @@ public sealed class ServiceRegistryTests
         registry.Register<IFooService>(new FooService(), ServicePriority.Low);
         registry.Register<IFooService>(high, ServicePriority.High);
 
-        Assert.Same(high, registry.GetService<IFooService>());
+        Assert.Same(high, registry.TryResolve<IFooService>());
         Assert.True(registry.TryGetService<IFooService>(out var value));
         Assert.Same(high, value);
 
-        Assert.Null(registry.GetService<IBarService>());
+        Assert.Null(registry.TryResolve<IBarService>());
         Assert.False(registry.TryGetService<IBarService>(out _));
     }
 

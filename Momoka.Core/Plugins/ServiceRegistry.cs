@@ -73,9 +73,6 @@ public sealed class ServiceRegistry
         }
     }
 
-    /// <summary>解析最高优先级服务实例；无注册返回 null（<see cref="TryResolve{TService}"/> 别名）。</summary>
-    public TService? GetService<TService>() where TService : class => TryResolve<TService>();
-
     /// <summary>解析最高优先级服务实例（out 变体）；无注册返回 false。</summary>
     public bool TryGetService<TService>(out TService? value) where TService : class
     {

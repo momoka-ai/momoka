@@ -131,7 +131,7 @@ public sealed partial class Gateway
     }
 
     /// <summary>
-    /// 扫描期注册行为（插件加载时调用）：校验四件套契约（<see cref="Behavior{T}"/> 派生 + 具体类型 +
+    /// 扫描期注册行为（插件加载时调用）：校验四件套契约（<see cref="Behavior"/> 派生 + 具体类型 +
     /// 嵌套 <c>Intent</c> + 嵌套携带 <see cref="PublishAttribute"/> 的 <c>Event</c> + 公开实例
     /// <c>Execute(Intent, IntentSource?)</c> 且返回其 <c>Event</c>），实例化（须公开无参构造器）并注入
     /// 宿主，构建类型擦除执行委托。重复注册同一 eventId → fail-fast <see cref="InvalidOperationException"/>。
@@ -140,11 +140,10 @@ public sealed partial class Gateway
     {
         ArgumentNullException.ThrowIfNull(behaviorType);
 
-        Type? behaviorBase = FindBehaviorBase(behaviorType);
-        if (behaviorBase is null)
+        if (!typeof(Behavior).IsAssignableFrom(behaviorType))
         {
             throw new ArgumentException(
-                $"Type '{behaviorType}' does not derive from Behavior<T>.", nameof(behaviorType));
+                $"Type '{behaviorType}' does not derive from Behavior.", nameof(behaviorType));
         }
 
         if (behaviorType.IsAbstract || behaviorType.IsInterface)
@@ -201,9 +200,9 @@ public sealed partial class Gateway
 
         if (host is not null)
         {
-            MethodInfo injectHost = behaviorBase.GetMethod(
+            MethodInfo injectHost = typeof(Behavior).GetMethod(
                 "InjectHost", BindingFlags.Instance | BindingFlags.NonPublic)
-                ?? throw new InvalidOperationException($"Behavior base '{behaviorBase}' must declare InjectHost.");
+                ?? throw new InvalidOperationException("Behavior must declare InjectHost.");
             injectHost.Invoke(instance, new object[] { host });
         }
 
@@ -372,22 +371,6 @@ public sealed partial class Gateway
         {
             _operations.Remove(operationId);
         }
-    }
-
-    private static Type? FindBehaviorBase(Type type)
-    {
-        Type? current = type.BaseType;
-        while (current is not null)
-        {
-            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(Behavior<>))
-            {
-                return current;
-            }
-
-            current = current.BaseType;
-        }
-
-        return null;
     }
 
     [LoggerMessage(

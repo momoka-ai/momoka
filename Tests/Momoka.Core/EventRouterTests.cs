@@ -289,7 +289,7 @@ public sealed class EventRouterTests
 
     private sealed record PlainRecord(string Value);
 
-    private sealed class GreetBehavior : Behavior<GreetBehavior>
+    private sealed class GreetBehavior : Behavior
     {
         [Publish]
         public sealed record Event(string Message);
@@ -300,7 +300,7 @@ public sealed class EventRouterTests
             => new(intent.Message.ToUpperInvariant());
     }
 
-    private sealed class BoomBehavior : Behavior<BoomBehavior>
+    private sealed class BoomBehavior : Behavior
     {
         [Publish]
         public sealed record Event(string Message);
@@ -311,7 +311,7 @@ public sealed class EventRouterTests
             => throw new InvalidOperationException("execution exploded");
     }
 
-    private sealed class UnattributedBehavior : Behavior<UnattributedBehavior>
+    private sealed class UnattributedBehavior : Behavior
     {
         public sealed record Event(string Message);
 
@@ -321,7 +321,7 @@ public sealed class EventRouterTests
             => new(intent.Message);
     }
 
-    private sealed class MissingExecuteBehavior : Behavior<MissingExecuteBehavior>
+    private sealed class MissingExecuteBehavior : Behavior
     {
         [Publish]
         public sealed record Event(string Message);
@@ -329,7 +329,7 @@ public sealed class EventRouterTests
         public sealed record Intent(string Message);
     }
 
-    private abstract class AbstractBehavior : Behavior<AbstractBehavior>
+    private abstract class AbstractBehavior : Behavior
     {
         [Publish]
         public sealed record Event(string Message);

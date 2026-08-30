@@ -8,15 +8,11 @@ public sealed class LiteralArgument : Argument
     public LiteralArgument(string literal)
         : base(literal)
     {
-        Literal = literal;
     }
-
-    /// <summary>要匹配的固定文本。</summary>
-    public string Literal { get; }
 
     /// <inheritdoc />
     public override ArgumentQueryResult Parse(string input) =>
-        input == Literal
+        input == Id
             ? ArgumentQueryResult.Success(input)
-            : ArgumentQueryResult.Failure($"Expected literal '{Literal}'.");
+            : ArgumentQueryResult.Failure($"Expected literal '{Id}'.");
 }

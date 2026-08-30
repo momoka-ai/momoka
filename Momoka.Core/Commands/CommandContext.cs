@@ -71,13 +71,6 @@ public sealed class CommandContext
         return Arguments.TryGetValue(argument.Id, out object? value) ? value : null;
     }
 
-    /// <summary>是否含指定参数。</summary>
-    public bool Has(Argument argument)
-    {
-        ArgumentNullException.ThrowIfNull(argument);
-        return Arguments.ContainsKey(argument.Id);
-    }
-
     /// <summary>读取并转换参数值（缺失抛 <see cref="InvalidOperationException"/>，转换失败抛 <see cref="FormatException"/>）。</summary>
     public T Get<T>(Argument<T> argument)
     {

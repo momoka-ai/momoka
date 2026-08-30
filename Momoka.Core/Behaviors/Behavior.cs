@@ -3,7 +3,7 @@ using Momoka.Core.Plugins;
 namespace Momoka.Core.Behaviors;
 
 /// <summary>
-/// 行为基类（自引用泛型）：四件套契约 = 派生类型 + <c>Execute</c> + 嵌套 <c>Event</c>（事实 POD，
+/// 行为基类：四件套契约 = 派生类型 + <c>Execute</c> + 嵌套 <c>Event</c>（事实 POD，
 /// 携带 <see cref="PublishAttribute"/>，下行广播载荷，只由主机生成）+ 嵌套 <c>Intent</c>
 /// （意图 POD，上行请求载荷，客户端唯一构造的对象）。
 /// 派生类型由插件加载期扫描实例化（<see cref="Gateway.RegisterBehavior"/>，须公开无参构造器）并注入
@@ -11,8 +11,7 @@ namespace Momoka.Core.Behaviors;
 /// 主机在权威状态上执行并生成事实，客户端以收到的事实为意图在镜像上重放（幂等）。
 /// 事实的唯一生成者是主机，结构上无环。
 /// </summary>
-public abstract class Behavior<TSelf>
-    where TSelf : Behavior<TSelf>
+public abstract class Behavior
 {
     private PluginService? _host;
 

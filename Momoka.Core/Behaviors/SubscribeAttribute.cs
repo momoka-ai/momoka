@@ -19,7 +19,4 @@ public sealed class SubscribeAttribute : Attribute
 
     /// <summary>执行优先级（默认 <see cref="EventPriority.Normal"/>）。</summary>
     public EventPriority Priority { get; set; } = EventPriority.Normal;
-
-    /// <summary>预留：是否忽略事件取消（可取消事件随 Security/拦截需求再定，本期无效果）。</summary>
-    public bool IgnoreCancellation { get; set; }
 }
