@@ -63,7 +63,7 @@ internal static class Scenes
         Place(session, Floor(), new Float3(0, 0, 0));
         Place(session, Ceiling(), new Float3(0, 300, 0));
 
-        var midWall = Guid.Empty;
+        Guid midWall;
         BuildWall(session, new Int3(0, 1, 0), new Int3(10, 29, 1)); // 北 z=0
         BuildWall(session, new Int3(0, 1, 9), new Int3(10, 29, 1)); // 南 z=9
         BuildWall(session, new Int3(0, 1, 1), new Int3(1, 29, 8)); // 西 x=0
