@@ -7,11 +7,11 @@ Momoka.Core 是**插件宿主 + 核心能力库**：提供一组**通用机制**
 | 子系统 | 职责 | 状态 |
 |--------|------|------|
 | **Plugins** | 插件契约（`Plugin` 基类，OnEnable/OnDisable）、manifest、加载/启停/依赖图（PluginLoader） | ✅ 本期完成 |
-| **Events / Behaviors** | 事件中心（EventHub）：订阅表分桶、快照分发、订阅级顺序 / 并行发布、异常隔离；行为契约 `Behavior`（意图 → 事实） | ✅ 本期完成 |
+| **Events** | 事件中心（EventHub）：进程内订阅/发布、订阅级顺序 / 并行发布、异常隔离；`ICancellable` 事件可被其它插件阻断（Before），非可取消事件 fire-and-forget（After）；仅服务端插件间通信，绝不跨线 | ✅ 本期完成 |
 | **Registry** | 插件间服务发现表：同类型多注册、优先级/来源插件追踪 | ✅ 本期完成 |
 | **Configurations** | 统一配置 + 版本迁移：不透明值树 + 版本键 + 迁移链（文件 / 二进制 / 数据库三后端） | ✅ 本期完成 |
 | **Commands** | 指令定义 / 解析 / 执行（迷你语言 + 类型化参数，Minestom 风格，终端向） | ✅ 本期完成 |
-| **Gateway** | Ui 网关设施：单路由 SignalR（操作 request/response + 行为上报管线）+ 线上事件广播 + 客户端注册表 | ✅ 本期完成 |
+| **Gateway** | Ui 网关设施：连接握手（token）+ 设备注册表（clientId 主表）+ 广播原语；三层通信模型（Events 进程内 / Post 控制面 / Packet 数据面）契约已定案 | 🟡 连接与广播已实现；Post/Packet 契约定案，实现下一期 |
 | **Scheduling / Notifications / Profiles / State / Security** | 定时 / 通知 / 家庭成员 / 状态发布订阅 / 安全守卫 | 📋 后续迭代（契约见 §8） |
 
 > 依赖方向：**子模块引用 Core**；Core 不引用任何子模块。本期删除 `Core→Home` 工程引用与 Home 专属网关存根（`HomeService`/`IHomeClient`），依赖方向反转。
@@ -32,7 +32,7 @@ Momoka.Core 是**插件宿主 + 核心能力库**：提供一组**通用机制**
 | **模块 Module** | 静态子工程 | 如 `Momoka.Home` / `Momoka.Ai` / `Momoka.Sense`，实现插件契约即被宿主托管 |
 | **服务 Service** | 能力接口 | 插件注册进服务注册表，供其它插件解析调用 |
 
-命名空间规划：本期 `Momoka.Core.Plugins`（含服务注册表）/ `Momoka.Core.Behaviors`（事件中心与行为契约）/ `Momoka.Core.Configurations` / `Momoka.Core.Commands`（含 `Arguments` / `Parsing` 子命名空间）；网关设施位于根命名空间 `Momoka.Core`；目标另含 `Scheduling` / `Notifications` / `Profiles` / `State` / `Security`。
+命名空间规划：本期 `Momoka.Core.Plugins`（含服务注册表）/ `Momoka.Core.Events`（事件中心）/ `Momoka.Core.Configurations` / `Momoka.Core.Commands`（含 `Arguments` / `Parsing` 子命名空间）；网关设施位于根命名空间 `Momoka.Core`；目标另含 `Scheduling` / `Notifications` / `Profiles` / `State` / `Security`。
 
 ## 4. 依赖方向与工程结构
 
@@ -50,10 +50,9 @@ Momoka.Core/
 │   ├── Plugin.cs / PluginState.cs / PluginService.cs
 │   ├── PluginInfo.cs / PluginLoader.cs / PluginExceptions.cs
 │   └── ServiceRegistry.cs / ServiceSource.cs / ServicePriority.cs
-├── Behaviors/                      # 事件中心与行为契约
-│   ├── EventHub.cs / EventPriority.cs / Publish/Subscribe/Subscribers.cs
-│   └── Behavior.cs / IntentSource.cs
-├── Gateway/                        # Ui 网关设施（Client / GatewayHub / 统一信封）
+├── Events/                         # 事件中心（进程内；Publish/PublishAsync + ICancellable 阻断）
+│   └── EventHub.cs / EventPriority.cs / SubscribeAttribute.cs / Subscribers.cs
+├── Gateway/                        # Ui 网关设施（Client / GatewayHub；连接握手 + 设备注册表 + 广播原语）
 ├── Configurations/                 # Configuration / Migration + File/Binary/Database 三种后端
 └── Commands/                       # Command / CommandExecutor / CommandManager / CommandParser
 ```
@@ -64,7 +63,7 @@ Momoka.Core/
 
 - **宿主能力经共享 `PluginService` 注入 `Plugin` 基类**（统一管理服务注册表 / 事件中心 / 日志工厂 / 插件根目录，全插件共用同一实例）；插件专属能力（日志器 / 插件目录 / 配置）由 `Plugin` 按自身名称派生，插件代码访问 `Host.Services` / `Host.Events` / `Logger` / `GetPluginFolder()`。
 - 插件构造器须**轻量无副作用**；业务服务用**服务定位**（`Host.Services.Resolve<T>()`，缺失报清晰错误）。
-- 预留扩展点（**不加空方法**）：`RegisterOperation<TReq,TRes>`（网关设施期）、指令/CLI 注册（Commands 期）。
+- 预留扩展点（**不加空方法**）：指令/CLI 注册（Commands 期）、网关 Packet 注册（`MapPacket<T>`，三层通信模型数据面，见 §11）。
 - 守卫：`Host` 注入前访问抛 `InvalidOperationException`。
 
 ```csharp
@@ -93,7 +92,7 @@ public sealed class PluginService
     // 宿主级共享（DI 注册，注入 PluginLoader 与全部 Plugin）
     public ServiceRegistry Services { get; }        // 服务注册表（富 API：多注册/优先级/来源插件）
     public EventHub Events { get; }                 // 事件中心
-    public Gateway Gateway { get; }                 // Ui 网关设施（操作注册 + 行为注册）
+    public Gateway Gateway { get; }                 // Ui 网关设施（连接握手 + 设备注册表 + 广播原语）
     public ILoggerFactory LoggerFactory { get; }    // 日志工厂
     public DirectoryInfo PluginsDirectory { get; }  // <base>/Plugins
 }
@@ -196,7 +195,9 @@ public enum ServicePriority { Highest, High, Normal, Low, Lowest }
 - `Dictionary<Type, List<Entry>>` + `lock`；Type 为**不透明键**（Core 不解释业务语义）。
 - **与 DI 容器分工**：宿主自身设施走 DI（Generic Host）；插件提供的业务服务走 Registry（插件反射实例化无法构造器注入）。
 
-## 7. 事件中心与行为契约（Behaviors）
+## 7. 事件中心（Events）
+
+> 进程内通信，**仅供服务端插件间通知与阻断**；不序列化、绝不跨线。跨客户端/服务端的传输由 Packet 承担（见 §11）。本节为 2026-08-31 三层通信模型定案后的目标形态；`ICancellable` / `Publish` / `PublishAsync` 与 §11 的 Packet 队列同批落地。
 
 ```csharp
 public enum EventPriority { Lowest, Low, Normal, High, Highest }
@@ -204,8 +205,8 @@ public enum EventPriority { Lowest, Low, Normal, High, Highest }
 public interface Subscribers { }                // 监听者标记接口（Bukkit Listener 风格）：
                                                 // 携带 [Subscribe] 方法的类型必须实现，订阅/退订只认本接口实例
 
-[AttributeUsage(AttributeTargets.Class)]
-public sealed class PublishAttribute { }        // 可传输契约标记：发布路径按属性判定是否广播全部终端
+public interface ICancellable { bool IsCancelled { get; void Reject(string reason); } }
+// 阻断门控：仅实现 ICancellable 的事件可被其它插件 veto（Before 语义）
 
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class SubscribeAttribute
@@ -218,18 +219,17 @@ public sealed class EventHub
 {
     void AddSubscribers(Subscribers sub, Plugin? plugin = null);    // 扫描 [Subscribe] 整体注册；零监听/重复实例 fail-fast
     void RemoveSubscribers(Subscribers sub);                        // 按实例整体退订（幂等）
-    Task InvokeAsync<TEvent>(TEvent @event, CancellationToken ct = default);          // 顺序发布（默认）
-    internal Task InvokeAsync(object @event, CancellationToken ct = default);         // 按运行期类型分发（wire-in 专用）
-    Task InvokeParallelAsync<TEvent>(TEvent @event, CancellationToken ct = default);  // 并行发布（Task.WhenAll）
-    // 构造注入：wire-sender（线上广播钩子）；发布审计为内建 Debug 日志
-    // 内部零嵌套类型：订阅簿记为文件级元组别名（事件类型+优先级+来源+类型擦除委托）
+    Task Publish<TEvent>(TEvent @event, CancellationToken ct = default);      // 同步顺序发布（Before/veto 专用）
+    void PublishAsync<TEvent>(TEvent @event);                       // fire-and-forget（After 专用；Tick 队列内串行执行）
+    Task PublishParallelAsync<TEvent>(TEvent @event, CancellationToken ct = default);  // 并行发布（Task.WhenAll）
 }
 ```
 
-- 订阅表按 `Type` 分桶 + 按实例索引（`Dictionary<Subscribers, …>`）+ `lock`；订阅/退订/发布线程安全；**发布时快照订阅表再分发**（分发中退订不影响本次）。
-- **分发默认顺序**：按 `EventPriority` 降序依次 await（高者先、同级按注册序）；`InvokeParallelAsync` 并行发布（全部监听者 `Task.WhenAll`，完成后返回）；handler 异常一律隔离记日志，绝不向发布方传播；每次发布写审计日志（Debug，EventHub 内建，无独立 recorder 类型）。
-- **监听自动化**：`AddSubscribers` 只认 `Subscribers` 实现，扫描 `[Subscribe]`（签名 = 单参数 Target + 返回 Task/void）；零监听方法 / 签名非法 / 重复实例 → fail-fast；`RemoveSubscribers` 按实例整体退订（幂等，插件 OnDisable 用）。无一次性 lambda 订阅。
-- **传输自动化**：携带 `PublishAttribute` 的类型（含行为嵌套 `Event` POD）在发布时经 wire-sender 广播全部终端（eventId = 类型 FullName），同时分发进程内监听者；未携带者仅进程内分发。**无事件 id 注册表**——可传输契约在发布路径按属性判定；wire-in 只进监听者、绝不广播回客户端（避免 echo）。wire-sender 失败只记日志，进程内分发不受影响。
+- **订阅**：订阅表按 `Type` 分桶 + 按实例索引 + `lock`；订阅/退订/发布线程安全；发布时快照订阅表再分发。`AddSubscribers` 只认 `Subscribers` 实现，扫描 `[Subscribe]`（签名 = 单参数 Target + 返回 Task/void）；零监听 / 签名非法 / 重复实例 → fail-fast；`RemoveSubscribers` 按实例整体退订（幂等，插件 OnDisable 用）。
+- **阻断（Before）**：`ICancellable` 事件**必须走同步 `Publish`**——按 `EventPriority` 降序依次 await（高者先、同级按注册序），订阅者 `Reject(reason)` 即阻断；**收集全部原因而非短路**。阻断结果必须在提交前确定，故不可异步。
+- **反应（After）**：非 `ICancellable` 事件 `PublishAsync` fire-and-forget——调用方不等待、不收集结果；若订阅者改世界状态，仍在 **Tick 队列内串行执行**（见 §11），绝不逃逸到线程池，避免两个 After 事件互相竞态。`PublishParallelAsync` 并行发布（`Task.WhenAll`）。
+- **异常隔离**：handler 异常一律记日志，绝不向发布方传播；每次发布写审计日志（Debug，EventHub 内建）。
+- **传输契约退役**：原 `[Publish]` 可传输标记 + wire-sender 广播随 Packet 模型落地退役——事件不再跨线，跨线传输归 Packet（当前实现保留 wire-sender 为过渡态）。
 - 事件类型由插件自声明；**Core 不定义业务事件**。
 
 ## 8. 配置（Configurations）
@@ -329,51 +329,78 @@ public sealed class CommandQueryResult { Matched; Syntax; Arguments; RawArgument
 
 **边界**：Memory/LLM/Agentic→Ai；家庭模型/设备语义→Home；感知采集→Sense；传输（网关设施）→下一期。
 
-## 11. Ui 传输范式（Core 网关设施）
+## 11. Ui 传输范式（三层通信模型）
 
-**单路由（通用操作路由）** 已落地（`Momoka.Core/Gateway/`，命名空间 `Momoka.Core`）：一个 SignalR Hub 承载操作与事件，不采用插件内手写传输中间件（Envelope 已删除的定案不变）。网关设施本身位于 Core（宿主设施），插件只注册操作与订阅事件。
+> **2026-08-31 定案**。Core 网关设施（`Momoka.Core/Gateway/`，命名空间 `Momoka.Core`）承载传输原语；三层各有归属，不重叠、不互相模拟。行为模型（`Behavior`/`IntentSource`/`GatewayRequest`/`GatewayResponse`）与网关操作分发表（`RegisterOperation`/`RegisterQuery`）已整体删除。
+
+### 11.1 三层划分
+
+| 层 | 方向 | 用途 | 形态 |
+|----|------|------|------|
+| **Events** | 服务端进程内 | 插件间通知与阻断（互相协作） | `EventHub`，`ICancellable` 门控（§7） |
+| **Post/Reply** | 客户端 → 服务端（发起方定向） | 查询 / 快照 / 控制（控制面） | Minimal API（HTTP），主要供第三方跨语言程序 |
+| **Packet** | 双向 | 状态变更与广播（数据面） | 统一信封 Send + Status，寻址 Target / Except / All |
+
+### 11.2 连接与身份（已实现）
+
+- 握手 query `?clientId=&role=&token=`；token 恒定时间比较（`Gateway:Token` 缺省空 = 全部拒绝）；角色本期仅记录（Security 期授权）。
+- **设备注册表**：`_devices`（clientId → `Client` 主表）+ `_connections`（connectionId → clientId 索引）；`Client` 为纯设备记录（`ClientId / Role / ConnectedAt / ConnectionId`），ConnectionId 只是当前可达路径（重连即变），"谁在使用该设备"由后续 Profile 模型承载。
+- **重连竞态**：`OnDisconnected` 仅当断开连接是设备当前路径时才移除设备；同 clientId 重连即替换路径。
+- 网关单例 `OnConnected / OnDisconnected / GetClient / Clients / BroadcastClientEvent`（v1 全员广播原语）；`GatewayHostBuilder` 走 DI 接线，token 直读配置，Hub 仅做握手 + 连接注册（无业务请求方法）。
+
+### 11.3 Packet 数据面（契约定案，实现下期）
+
+**Packet = 权威状态变更**：客户端收到即应用（无后续协商）。统一信封：
 
 ```csharp
-// 信封与线协议（STJ 全局 snake_case，GatewayJson.Options 一统：信封 + 载荷）
-public sealed record GatewayRequest(string Id, JsonNode? Payload);  // 统一请求：操作 = operationId，行为 = 事实类型 FullName
-public sealed record GatewayResponse(bool Success, JsonNode? Payload, string? Error);  // 统一响应（行为回执 Payload 恒 null）
-public sealed record OperationContext(string OperationId, Client Caller);
-public sealed class Client : IntentSource                  // 线上客户端：ConnectionId/ClientId/Role/ConnectedAt
-{                                                          // + Name/IsRemote/SendMessageAsync（direct 回拨，缺省 no-op）
-    ...
-}
-
-public sealed class Gateway
+public sealed record Packet
 {
-    IDisposable RegisterOperation<TRequest, TResponse>(string operationId,
-        Func<OperationContext, TRequest, CancellationToken, Task<TResponse>> handler);
-    IDisposable RegisterOperation<TRequest>(string operationId,
-        Func<OperationContext, TRequest, CancellationToken, Task> handler);          // void 操作
-    Task<GatewayResponse> InvokeAsync(string operationId, JsonNode? payload,
-        Client caller, CancellationToken ct = default);
-    internal void RegisterBehavior(Type behaviorType, PluginService? host = null);   // 加载期扫描注册行为（四件套契约）
-    internal Task<GatewayResponse> HandlePostAsync(GatewayRequest request, Client caller, ...);  // wire-in 行为管线
-    IReadOnlyCollection<Client> Clients { get; }                                     // 客户端注册表（connectionId→Client）
-    void OnConnected(Client client);  void OnDisconnected(string connectionId);
-    internal Client? GetClient(string connectionId);                                // Hub 取调用者
-    internal Task BroadcastClientEvent(string eventId, object? payload, ...);       // EventHub wire-sender 钩子
+    string Id;              // 客户端生成，请求关联
+    string Type;            // 契约名（= 类型 FullName 或显式注册名）
+    JsonNode? Data;         // 载荷
 }
-
-public sealed class GatewayHub : Hub<IGatewayClient>                                // MapHub<GatewayHub>("/hubs/gateway")
-{
-    Task<GatewayResponse> InvokeOperation(GatewayRequest request);                  // 取调用者 → Gateway.InvokeAsync
-    Task<GatewayResponse> Post(GatewayRequest request);                             // 行为上报 → 执行 + 发布事实
-}
-public interface IGatewayClient { Task ClientEvent(string eventId, JsonNode? payload); }  // 服务器→客户端（Clients.All v1 全员）
+public enum PacketStatus { Ok, Rejected, NotFound, InvalidArgument, Unauthorized, … }
+public sealed record PacketStatusResult(PacketStatus Status, IReadOnlyList<string> Reasons, JsonNode? Payload);
 ```
 
-- **两条通道**：操作（request/response）+ 行为上报（request/response：意图 → 主机执行 → 事实经 EventHub 广播全部终端 + 分发监听者）；进程内事件（EventHub 服务端唯一总线）。
-- **鉴权与身份**：握手 query `?clientId=&role=&token=`；token 恒定时间比较（`Gateway:Token` 缺省空 = 全部拒绝）；`Client` 断连清理；角色本期仅记录（Security 期授权）；操作处理器经 `OperationContext.Caller` 取调用者。`GatewayOptions` 类型已删——token 由 `Gateway` 构造器 `string?` 直注。
-- **操作 fail-soft**：未知 operationId / handler 异常 / 反序列化失败 → 错误响应；取消 → "Cancelled"；重复注册 operationId fail-fast；插件 OnEnable 注册、OnDisable 释放令牌。
-- **行为管线**：`Behavior` 派生类（四件套：具体类型 + 嵌套 `Intent` / `Event`（携带 `[Publish]`）+ `Execute(Intent, IntentSource?)`）由 `PluginLoader.Load` 扫描并经 `RegisterBehavior` 注册；`Post`（wire-in）反查注册表 → 反序列化意图 → `Execute` 生成规范事实 → `EventHub.InvokeAsync` 发布（[Publish] 广播全部终端 + 监听者）。未知事件 / 反序列化失败 / Execute 异常 → 错误回执（fail-soft）；wire-in **绝不自动广播回客户端**。
-- **意图来源**：`IntentSource`（`Name` / `IsRemote` / `SendMessageAsync`）——`Client`（线上，直通其连接）为现成实现；本地模态来源随语音 / 自动化 / Agent 期补充。
-- **宿主接线**：`Program.cs` 为 WebApplication（`AddSignalR` + snake_case JSON 协议 + 单例 DI：ServiceRegistry/EventHub/Gateway/PluginService/PluginLoader），EventHub 的 wire-sender 经 DI 工厂闭包注入（延迟解析 Gateway 打破构造环），Gateway token 直读配置。
-- **后续**：按终端/档案定向广播（Profiles 期）、按角色授权（Security 期）、Home 领域事件挂属性 + 网关面 DTO STJ 化（HomePlugin 转换期）。
+- **写入唯一入口：Tick 队列**。网关收包入队（bounded channel 背压，防单客户端刷爆）→ Tick 循环按到达序串行排空 → 按 `Type` 路由到插件 handler → 校验 → Before 事件（veto，§7）→ 提交 → After 事件 → **tick 末批量 flush 出站**（Reply + Except(发送者) + All(派生广播)），全部带 tick/seq。
+- 一条包的全生命周期留在同一 tick 内 → 因果序天然成立：**校验与提交、handler 写入与 After 订阅者写入、不同类型包对同一实体的并发，全部消解**（世界状态单写入点，无锁、无原子性顾虑）。
+- **handler 是 Minimal API / MediatR 风格**（`MapPacket<T>` 类型化注册，插件 OnEnable 注册）：
+
+```csharp
+gateway.MapPacket<EntityPlacePacket>(async (PacketContext ctx, EntityPlacePacket p) =>
+{
+    var before = new EntityPlaceBefore(p.Entity, p.Position);
+    await bus.Publish(before);                       // Before：可被其它插件阻断
+    if (before.IsCancelled) return PacketOutcome.Rejected(before.Reasons);
+
+    store.Place(p.Entity, p.Position);               // 提交（本 tick 内原子）
+    bus.PublishAsync(new EntityPlaced(p.Entity, p.Position));  // After：fire-and-forget，仍串行
+
+    return PacketOutcome.Ok(payload: store.Snapshot(p.Entity)); // 回发送者（Target）
+    // + 自动 Except(发送者) 转发 + 声明式 All 派生广播（体素等）
+});
+```
+
+- **寻址默认全量同步**（无兴趣域）：任何已提交变更一律 **Except(发送者)** 转发（handler 无需声明 Forward，统一策略）；派生更新（体素等）以 **All** 广播，变更多时经 tick 批量合并（如 `VoxelChunkPacket`）。
+- **客户端契约**：按 tick/seq 顺序应用权威数据；apply 幂等（或按期望前态应用）；检测到空洞 → 走 Post 补基线。
+
+### 11.4 Post/Reply 控制面（契约定案，实现下期）
+
+Minimal API（HTTP），主要面向第三方跨语言程序；语义为"读 / 控制"而非"写 / 变更"：
+
+- `POST /api/world/snapshot` → `{ tick, state }`（读**上一 tick 提交后**的一致快照，绝不在 handler 执行中途读）
+- `POST /api/world/replay?fromTick=N` → Packet 日志（断线重连补包：快照 + 追包）
+- `POST /api/packet` → 任意 Packet 桥接进**同一 Tick 队列**（第三方客户端与 WebSocket 客户端等权）
+
+### 11.5 断线重连（顺序保证归协议层）
+
+服务端 Tick 队列保证处理顺序，出站包带 tick/seq 保证客户端应用顺序。客户端重连 = POST 快照（`{tick, state}`）+ replay 追包（`fromTick`），再回到 tick/seq 正常应用。
+
+### 11.6 实现状态
+
+- ✅ 已实现：连接握手 / 设备注册表 / 广播原语 / 网关 HostBuilder 接线；事件总线收口进程内。
+- 📋 契约定案、下期实现：Packet 信封与 `MapPacket<T>` 路由、Tick 队列、`ICancellable` + `Publish/PublishAsync`、Post 控制面端点、客户端 tick/seq 与重连追包。
 
 ## 12. 与其它模块关系
 
@@ -383,7 +410,7 @@ public interface IGatewayClient { Task ClientEvent(string eventId, JsonNode? pay
 | **Ai** | Agentic / Memory / LLM，独立模块（不进 Core）；亦作为插件注册 |
 | **Sense** | 感知采集，输出标准化状态到 State；作为插件注册 |
 | **Voice** | Python HTTP 服务（TTS），经 Commands / 网关调用 |
-| **Ui** | 唯一远程边界（Godot C# .NET），经 Core 网关设施单路由连接（`/hubs/gateway`） |
+| **Ui** | 唯一远程边界（Godot C# .NET），经 Core 网关设施连接（`/hubs/gateway`，三层通信模型：Packet 数据面 + Post 控制面） |
 
 ## 13. 设计原则
 
