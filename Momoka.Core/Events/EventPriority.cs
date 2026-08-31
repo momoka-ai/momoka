@@ -1,4 +1,4 @@
-namespace Momoka.Core.Behaviors;
+namespace Momoka.Core.Events;
 
 /// <summary>
 /// 监听优先级：高者先执行，同级按注册先后（<see cref="Lowest"/> 即常规档位中最晚执行）。

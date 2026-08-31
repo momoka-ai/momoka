@@ -1,4 +1,4 @@
-using Momoka.Core.Behaviors;
+using Momoka.Core.Events;
 using Momoka.Core.Plugins;
 
 namespace Momoka.Core.Tests.Plugins.Events;
@@ -8,33 +8,8 @@ namespace Momoka.Core.Tests.Plugins.Events;
 public sealed record AnnounceEvent(string Message);
 
 /// <summary>
-/// 行为测试夹具：客户端 Post 意图 → 主机 Execute 生成事实（[Publish]，下行广播）→ 监听者可见。
-/// Execute 记录来源日志并返回事实（四件套契约由插件加载期扫描注册到 Gateway）。
-/// </summary>
-public sealed class GreetBehavior : Behavior
-{
-    /// <summary>事实（下行广播载荷，只由主机生成）。</summary>
-    [Publish]
-    public sealed record Event(string Message);
-
-    /// <summary>意图（上行请求载荷，客户端唯一构造的对象）。</summary>
-    public sealed record Intent(string Message);
-
-    /// <summary>逻辑执行：意图 → 事实。</summary>
-    public Event Execute(Intent intent, IntentSource? source = null)
-    {
-        lock (EventsPlugin.LogGate)
-        {
-            EventsPlugin.LogList.Add($"greet:{intent.Message}");
-        }
-
-        return new Event(intent.Message);
-    }
-}
-
-/// <summary>
-/// 路由/订阅测试插件：OnEnable 用 AddSubscribers(this) 扫描 [Subscribe] 订阅（载体实现 Subscribers），
-/// OnDisable 用 RemoveSubscribers 整体退订；监听 GreetBehavior 事实。
+/// 事件/广播集成测试插件：OnEnable 订阅自身（AddSubscribers）并广播 "enabled"
+/// （插件 → 事件总线 → wire-out 全部终端），OnDisable 整体退订。
 /// </summary>
 public sealed class EventsPlugin : Plugin, Subscribers
 {
@@ -50,7 +25,7 @@ public sealed class EventsPlugin : Plugin, Subscribers
         }
     }
 
-    /// <summary>监听日志快照（格式 <c>greet:&lt;message&gt;</c> / <c>fact:&lt;message&gt;</c>）。</summary>
+    /// <summary>监听日志快照（格式 <c>announce:&lt;message&gt;</c>）。</summary>
     public static IReadOnlyList<string> Log
     {
         get
@@ -65,6 +40,7 @@ public sealed class EventsPlugin : Plugin, Subscribers
     public override void OnEnable()
     {
         Host.Events.AddSubscribers(this);
+        Host.Events.InvokeAsync(new AnnounceEvent("enabled"));
     }
 
     public override void OnDisable()
@@ -72,12 +48,12 @@ public sealed class EventsPlugin : Plugin, Subscribers
         Host.Events.RemoveSubscribers(this);
     }
 
-    [Subscribe(typeof(GreetBehavior.Event))]
-    public Task OnGreetFact(GreetBehavior.Event @event)
+    [Subscribe(typeof(AnnounceEvent))]
+    public Task OnAnnounce(AnnounceEvent @event)
     {
         lock (LogGate)
         {
-            LogList.Add($"fact:{@event.Message}");
+            LogList.Add($"announce:{@event.Message}");
         }
 
         return Task.CompletedTask;

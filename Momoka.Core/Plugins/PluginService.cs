@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using Momoka.Core.Behaviors;
+using Momoka.Core.Events;
 
 namespace Momoka.Core.Plugins;
 
@@ -23,7 +23,7 @@ public sealed class PluginService
         Services = services ?? throw new ArgumentNullException(nameof(services));
         Events = events ?? throw new ArgumentNullException(nameof(events));
         LoggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
-        Gateway = gateway ?? new Gateway(events);
+        Gateway = gateway ?? new Gateway();
 
         string baseDir = baseDirectory ?? AppContext.BaseDirectory;
         PluginsDirectory = new DirectoryInfo(Path.Combine(baseDir, "Plugins"));
@@ -35,7 +35,7 @@ public sealed class PluginService
     /// <summary>强类型事件中心（共享）。</summary>
     public EventHub Events { get; }
 
-    /// <summary>Ui 网关设施（共享；操作经 <c>RegisterOperation</c> 注册，行为由插件加载期扫描注册）。</summary>
+    /// <summary>Ui 网关设施（共享；连接握手与广播原语，请求分发按需添加）。</summary>
     public Gateway Gateway { get; }
 
     /// <summary>日志工厂（共享；插件日志器经 <see cref="Plugin"/> 派生）。</summary>

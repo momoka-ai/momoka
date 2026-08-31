@@ -6,10 +6,10 @@ using Microsoft.Extensions.Logging;
 namespace Momoka.Core;
 
 /// <summary>
-/// 网关 Hub（SignalR 唯一路由，MapHub "/hubs/gateway"）：操作（request/response）+ 行为上报
-/// （request/response，意图 → 主机执行 → 事实广播）。握手校验 query <c>clientId / role / token</c>
-/// （token 恒定时间比较；缺省 token / 缺参数 → 断开，fail-fast）。Hub 每次连接新建（transient），
-/// 构造注入 <see cref="Gateway"/>。
+/// 网关 Hub（SignalR 唯一路由，MapHub "/hubs/gateway"）：握手（query <c>clientId / role / token</c>
+/// 校验，token 恒定时间比较；缺省 token / 缺参数 → 断开，fail-fast）+ 连接注册/注销 + 下行
+/// ClientEvent。客户端 → 主机的请求方法暂缺，待真实需求出现时按需添加。
+/// Hub 每次连接新建（transient），构造注入 <see cref="Gateway"/>。
 /// </summary>
 public sealed partial class GatewayHub : Hub<IGatewayClient>
 {
@@ -21,34 +21,6 @@ public sealed partial class GatewayHub : Hub<IGatewayClient>
     {
         _gateway = gateway ?? throw new ArgumentNullException(nameof(gateway));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
-
-    /// <summary>操作调用（客户端 → 服务器，request/response）：取调用者身份后交由 <see cref="Gateway"/> 执行。</summary>
-    public Task<GatewayResponse> InvokeOperation(GatewayRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-
-        Client? caller = _gateway.GetClient(Context.ConnectionId);
-        if (caller is null)
-        {
-            return Task.FromResult(new GatewayResponse(false, null, "Connection is not authenticated."));
-        }
-
-        return _gateway.InvokeAsync(request.Id, request.Payload, caller, Context.ConnectionAborted);
-    }
-
-    /// <summary>行为上报（客户端 → 主机，request/response）：网关执行行为并经事件总线发布事实。</summary>
-    public async Task<GatewayResponse> Post(GatewayRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-
-        Client? caller = _gateway.GetClient(Context.ConnectionId);
-        if (caller is null)
-        {
-            return new GatewayResponse(false, null, "Connection is not authenticated.");
-        }
-
-        return await _gateway.HandlePostAsync(request, caller, Context.ConnectionAborted).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -66,9 +38,7 @@ public sealed partial class GatewayHub : Hub<IGatewayClient>
             return;
         }
 
-        _gateway.OnConnected(new Client(
-            Context.ConnectionId, clientId!, role!, DateTimeOffset.UtcNow,
-            Clients.Client(Context.ConnectionId)));
+        _gateway.OnConnected(new Client(clientId!, role!, DateTimeOffset.UtcNow, Context.ConnectionId));
         await base.OnConnectedAsync().ConfigureAwait(false);
     }
 

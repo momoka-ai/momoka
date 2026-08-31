@@ -1,4 +1,4 @@
-namespace Momoka.Core.Behaviors;
+namespace Momoka.Core.Events;
 
 /// <summary>
 /// 事件订阅属性（标于监听方法上）：声明目标事件类型与执行优先级。

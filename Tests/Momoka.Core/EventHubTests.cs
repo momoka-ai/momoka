@@ -1,5 +1,5 @@
 using Xunit;
-using Momoka.Core.Behaviors;
+using Momoka.Core.Events;
 
 namespace Momoka.Core.Tests;
 
@@ -307,4 +307,96 @@ public sealed class EventHubTests
             return Task.CompletedTask;
         }
     }
+
+    [Fact]
+    public async Task Publish_Transmittable_BroadcastsToWireAndListeners()
+    {
+        var (hub, wire) = CreateWireHub();
+        var listener = new WireListener();
+        hub.AddSubscribers(listener);
+
+        await hub.InvokeAsync(new NotifyEvent("hi"));
+
+        Assert.Equal(1, listener.Count);
+        var sent = Assert.Single(wire);
+        Assert.Equal(typeof(NotifyEvent).FullName!, sent.EventId);
+        Assert.Equal("hi", Assert.IsType<NotifyEvent>(sent.Payload).Message);
+    }
+
+    [Fact]
+    public async Task Publish_NonTransmittable_IsLocalOnly()
+    {
+        var (hub, wire) = CreateWireHub();
+        var listener = new PlainListener();
+        hub.AddSubscribers(listener);
+
+        await hub.InvokeAsync(new PlainRecord("x"));
+
+        Assert.Equal(1, listener.Count);
+        Assert.Empty(wire);
+    }
+
+    [Fact]
+    public async Task WireSenderException_DoesNotBlockLocalDispatch()
+    {
+        var (hub, wire) = CreateWireHub(wireSenderThrows: true);
+        var listener = new WireListener();
+        hub.AddSubscribers(listener);
+
+        await hub.InvokeAsync(new NotifyEvent("x")); // 不抛出
+
+        Assert.Equal(1, listener.Count);
+        Assert.Empty(wire);
+    }
+
+    private static (EventHub Hub, List<(string EventId, object Payload)> Wire) CreateWireHub(
+        bool wireSenderThrows = false)
+    {
+        var wire = new List<(string, object)>();
+        var hub = new EventHub(
+            wireSender: (id, payload) =>
+            {
+                if (wireSenderThrows)
+                {
+                    throw new InvalidOperationException("wire exploded");
+                }
+
+                lock (wire)
+                {
+                    wire.Add((id, payload!));
+                }
+
+                return Task.CompletedTask;
+            });
+        return (hub, wire);
+    }
+
+    private sealed class WireListener : Subscribers
+    {
+        public int Count;
+
+        [Subscribe(typeof(NotifyEvent))]
+        public Task On(NotifyEvent _)
+        {
+            Interlocked.Increment(ref Count);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class PlainListener : Subscribers
+    {
+        public int Count;
+
+        [Subscribe(typeof(PlainRecord))]
+        public Task On(PlainRecord _)
+        {
+            Interlocked.Increment(ref Count);
+            return Task.CompletedTask;
+        }
+    }
+
+    [Publish]
+    private sealed record NotifyEvent(string Message);
+
+    private sealed record PlainRecord(string Value);
 }

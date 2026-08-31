@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Momoka.Core.Plugins;
 
-namespace Momoka.Core.Behaviors;
+namespace Momoka.Core.Events;
 
 // 私有簿记的文件级元组别名（无嵌套类型）：
 // Subscription = 一条订阅（事件类型 + 优先级 + 来源插件 + 类型擦除后的委托）。

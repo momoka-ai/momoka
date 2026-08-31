@@ -10,7 +10,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Momoka.Core;
-using Momoka.Core.Behaviors;
+using Momoka.Core.Events;
 using Momoka.Core.Plugins;
 using Xunit;
 
@@ -18,181 +18,21 @@ namespace Momoka.Core.Tests;
 
 /// <summary>
 /// 网关集成测试（自建内联 WebApplication + TestServer + SignalR 客户端，不走 Program.Main）：
-/// 操作往返（snake_case）/ 错误响应 / wire-in 全流程 / 鉴权拒绝 / 终端注册表 / 插件路由注册 / 事件记录器。
+/// 握手鉴权（clientId/role/token）/ 设备注册表（按 clientId 寻址、重连覆盖）/ 广播 /
+/// 插件 → 事件总线 → wire-out 全链路 / 事件记录器。
 /// </summary>
 public sealed class GatewayTests
 {
     [Fact]
-    public async Task InvokeOperation_RoundTrip_UsesSnakeCase()
+    public async Task Connection_EstablishesAndRegistersDevice()
     {
         await using var harness = await GatewayHarness.CreateAsync();
-        harness.Gateway.RegisterOperation<SetLightRequest, SetLightResponse>("set_light", (_, req, _) =>
-            Task.FromResult(new SetLightResponse($"ok:{req.RoomName}:{req.Brightness}")));
+        await using var connection = await harness.ConnectAsync(clientId: "my-ui", role: "admin");
 
-        await using var connection = await harness.ConnectAsync();
-        var response = await connection.InvokeCoreAsync<GatewayResponse>("InvokeOperation", new object[]
-        {
-            new GatewayRequest("set_light", JsonNode.Parse("""{"brightness":80,"room_name":"kitchen"}""")),
-        });
-
-        Assert.True(response.Success);
-        Assert.Null(response.Error);
-        Assert.Equal("ok:kitchen:80", response.Payload!["message"]!.GetValue<string>());
-    }
-
-    [Fact]
-    public async Task InvokeOperation_VoidOperation_ReturnsSuccessWithNullPayload()
-    {
-        await using var harness = await GatewayHarness.CreateAsync();
-        var executed = false;
-        harness.Gateway.RegisterOperation<string>("flip", (_, value, _) =>
-        {
-            executed = value == "on";
-            return Task.CompletedTask;
-        });
-
-        await using var connection = await harness.ConnectAsync();
-        var response = await connection.InvokeCoreAsync<GatewayResponse>("InvokeOperation", new object[]
-        {
-            new GatewayRequest("flip", JsonNode.Parse("\"on\"")),
-        });
-
-        Assert.True(response.Success);
-        Assert.Null(response.Payload);
-        Assert.Null(response.Error);
-        Assert.True(executed);
-    }
-
-    [Fact]
-    public async Task InvokeOperation_UnknownOperation_ReturnsError()
-    {
-        await using var harness = await GatewayHarness.CreateAsync();
-        await using var connection = await harness.ConnectAsync();
-
-        var response = await connection.InvokeCoreAsync<GatewayResponse>("InvokeOperation", new object[]
-        {
-            new GatewayRequest("no_such_op", null),
-        });
-
-        Assert.False(response.Success);
-        Assert.Contains("Unknown operation", response.Error);
-    }
-
-    [Fact]
-    public async Task InvokeOperation_HandlerException_ReturnsError()
-    {
-        await using var harness = await GatewayHarness.CreateAsync();
-        harness.Gateway.RegisterOperation<string>("boom", (_, _, _) =>
-            throw new InvalidOperationException("handler exploded"));
-
-        await using var connection = await harness.ConnectAsync();
-        var response = await connection.InvokeCoreAsync<GatewayResponse>("InvokeOperation", new object[]
-        {
-            new GatewayRequest("boom", null),
-        });
-
-        Assert.False(response.Success);
-        Assert.Contains("handler exploded", response.Error);
-    }
-
-    [Fact]
-    public async Task InvokeOperation_DeserializationFailure_ReturnsError()
-    {
-        await using var harness = await GatewayHarness.CreateAsync();
-        harness.Gateway.RegisterOperation<SetLightRequest, SetLightResponse>("set_light", (_, req, _) =>
-            Task.FromResult(new SetLightResponse(req.RoomName)));
-
-        await using var connection = await harness.ConnectAsync();
-        var response = await connection.InvokeCoreAsync<GatewayResponse>("InvokeOperation", new object[]
-        {
-            new GatewayRequest("set_light", JsonNode.Parse("""{"brightness":"high","room_name":"kitchen"}""")),
-        });
-
-        Assert.False(response.Success);
-        Assert.Contains("brightness", response.Error);
-    }
-
-    [Fact]
-    public async Task Post_ExecutesBehavior_AndBroadcastsFactToAllClients()
-    {
-        await using var harness = await GatewayHarness.CreateAsync();
-        ResetEventsPluginLog();
-        LoadEventsPlugin(harness);
-
-        await using var first = await harness.ConnectAsync(clientId: "ui-1");
-        await using var second = await harness.ConnectAsync(clientId: "ui-2");
-        var received = new TaskCompletionSource<(string EventId, JsonNode? Payload)>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        var receivedSecond = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-        first.On<string, JsonNode?>("ClientEvent", (eventId, payload) =>
-        {
-            received.TrySetResult((eventId, payload));
-            return Task.CompletedTask;
-        });
-        second.On<string, JsonNode?>("ClientEvent", (eventId, _) =>
-        {
-            receivedSecond.TrySetResult(eventId);
-            return Task.CompletedTask;
-        });
-
-        string eventId = GreetBehaviorEventId();
-        var response = await first.InvokeCoreAsync<GatewayResponse>("Post", new object[]
-        {
-            new GatewayRequest(eventId, JsonNode.Parse("""{"message":"hi"}""")),
-        });
-
-        Assert.True(response.Success);
-        Assert.Null(response.Error);
-        var (receivedEventId, payload) = await received.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.Equal(eventId, receivedEventId);
-        Assert.Equal("hi", payload!["message"]!.GetValue<string>());
-        Assert.Equal(eventId, await receivedSecond.Task.WaitAsync(TimeSpan.FromSeconds(10)));
-        Assert.Contains("greet:hi", EventsPluginLog());
-        Assert.Contains("fact:hi", EventsPluginLog());
-    }
-
-    [Fact]
-    public async Task Post_UnknownEvent_ReturnsError_NoBroadcast()
-    {
-        await using var harness = await GatewayHarness.CreateAsync();
-        ResetEventsPluginLog();
-        LoadEventsPlugin(harness);
-
-        await using var connection = await harness.ConnectAsync();
-        var received = false;
-        connection.On<string, JsonNode?>("ClientEvent", (_, _) =>
-        {
-            received = true;
-            return Task.CompletedTask;
-        });
-
-        var unknown = await connection.InvokeCoreAsync<GatewayResponse>("Post", new object[]
-        {
-            new GatewayRequest("no.such.event", JsonNode.Parse("{}")),
-        });
-        Assert.False(unknown.Success);
-        Assert.Contains("Unknown event", unknown.Error);
-
-        string announceId = AnnounceEventType().FullName!;
-        var notBehavior = await connection.InvokeCoreAsync<GatewayResponse>("Post", new object[]
-        {
-            new GatewayRequest(announceId, JsonNode.Parse("""{"message":"x"}""")),
-        });
-        Assert.False(notBehavior.Success);
-        Assert.Contains("Unknown event", notBehavior.Error);
-
-        Assert.False(received);
-        Assert.Empty(EventsPluginLog());
-    }
-
-    [Fact]
-    public async Task Connection_InvalidToken_IsRejected()
-    {
-        await using var harness = await GatewayHarness.CreateAsync(token: "right-token");
-        await using var connection = harness.BuildConnection(token: "wrong-token");
-
-        await AssertConnectionRejectedAsync(connection);
-        Assert.Empty(harness.Gateway.Clients);
+        var device = Assert.Single(harness.Gateway.Clients);
+        Assert.Equal("my-ui", device.ClientId);
+        Assert.Equal("admin", device.Role);
+        Assert.Equal(connection.ConnectionId, device.ConnectionId);
     }
 
     [Theory]
@@ -208,7 +48,17 @@ public sealed class GatewayTests
     }
 
     [Fact]
-    public async Task Disconnect_RemovesClientFromRegistry()
+    public async Task Connection_InvalidToken_IsRejected()
+    {
+        await using var harness = await GatewayHarness.CreateAsync();
+        await using var connection = harness.BuildConnection(token: "wrong-token");
+
+        await AssertConnectionRejectedAsync(connection);
+        Assert.Empty(harness.Gateway.Clients);
+    }
+
+    [Fact]
+    public async Task Disconnect_RemovesDeviceFromRegistry()
     {
         await using var harness = await GatewayHarness.CreateAsync();
         var connection = await harness.ConnectAsync(clientId: "ui-1");
@@ -221,64 +71,40 @@ public sealed class GatewayTests
     }
 
     [Fact]
-    public async Task InvokeOperation_CallerContext_IsSet()
+    public async Task Reconnect_SameClientId_ReplacesConnectionPath()
     {
         await using var harness = await GatewayHarness.CreateAsync();
-        Client? captured = null;
-        harness.Gateway.RegisterOperation<string, string>("whoami", (ctx, _, _) =>
-        {
-            captured = ctx.Caller;
-            return Task.FromResult(ctx.Caller.ClientId);
-        });
+        var first = await harness.ConnectAsync(clientId: "ui-1");
+        await first.DisposeAsync();
+        await WaitForAsync(() => harness.Gateway.Clients.Count == 0);
 
-        await using var connection = await harness.ConnectAsync(clientId: "my-ui", role: "admin");
-        var response = await connection.InvokeCoreAsync<GatewayResponse>("InvokeOperation", new object[]
-        {
-            new GatewayRequest("whoami", null),
-        });
+        var second = await harness.ConnectAsync(clientId: "ui-1");
 
-        Assert.True(response.Success);
-        Assert.Equal("my-ui", response.Payload!.GetValue<string>());
-        Assert.NotNull(captured);
-        Assert.Equal("my-ui", captured!.ClientId);
-        Assert.Equal("admin", captured.Role);
-        Assert.Equal(connection.ConnectionId, captured.ConnectionId);
+        var device = Assert.Single(harness.Gateway.Clients);
+        Assert.Equal("ui-1", device.ClientId);
+        Assert.Equal(second.ConnectionId, device.ConnectionId);
     }
 
     [Fact]
-    public async Task PluginLoad_ScansAndRegistersBehavior()
+    public async Task PluginPublish_BroadcastsToConnectedClients()
     {
         await using var harness = await GatewayHarness.CreateAsync();
         ResetEventsPluginLog();
-        LoadEventsPlugin(harness);
-
         await using var connection = await harness.ConnectAsync();
-        var received = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-        connection.On<string, JsonNode?>("ClientEvent", (eventId, _) =>
+        var received = new TaskCompletionSource<(string EventId, JsonNode? Payload)>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        connection.On<string, JsonNode?>("ClientEvent", (eventId, payload) =>
         {
-            received.TrySetResult(eventId);
+            received.TrySetResult((eventId, payload));
             return Task.CompletedTask;
         });
 
-        string greetEventId = GreetBehaviorEventId();
-        var response = await connection.InvokeCoreAsync<GatewayResponse>("Post", new object[]
-        {
-            new GatewayRequest(greetEventId, JsonNode.Parse("""{"message":"scanned"}""")),
-        });
+        LoadEventsPlugin(harness); // Enable → OnEnable 经事件总线广播 AnnounceEvent("enabled")
 
-        Assert.True(response.Success);
-        Assert.Equal(greetEventId, await received.Task.WaitAsync(TimeSpan.FromSeconds(10)));
-        Assert.Contains("greet:scanned", EventsPluginLog());
-    }
-
-    [Fact]
-    public async Task PluginLoad_MalformedBehavior_FailsFast()
-    {
-        await using var harness = await GatewayHarness.CreateAsync();
-        var loader = harness.App.Services.GetRequiredService<PluginLoader>();
-
-        var ex = Assert.Throws<ArgumentException>(() => loader.Load(RouterBadPath()));
-        Assert.Contains("Execute", ex.Message);
+        var (eventId, payload) = await received.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(AnnounceEventType().FullName!, eventId);
+        Assert.Equal("enabled", payload!["message"]!.GetValue<string>());
+        Assert.Contains("announce:enabled", EventsPluginLog());
     }
 
     [Fact]
@@ -338,11 +164,6 @@ public sealed class GatewayTests
         => LoadEventsPluginType().Assembly.GetType("Momoka.Core.Tests.Plugins.Events.AnnounceEvent")
             ?? throw new InvalidOperationException("AnnounceEvent type was not found.");
 
-    private static string GreetBehaviorEventId()
-        => (LoadEventsPluginType().Assembly.GetType("Momoka.Core.Tests.Plugins.Events.GreetBehavior")
-                ?? throw new InvalidOperationException("GreetBehavior type was not found."))
-            .GetNestedType("Event")!.FullName!;
-
     private static Type LoadEventsPluginType()
         => AssemblyLoadContext.Default.LoadFromAssemblyPath(EventsPluginPath())
             .GetType("Momoka.Core.Tests.Plugins.Events.EventsPlugin")
@@ -350,9 +171,6 @@ public sealed class GatewayTests
 
     private static string EventsPluginPath()
         => Path.Combine(AppContext.BaseDirectory, "Plugins", "events", "PluginEvents.dll");
-
-    private static string RouterBadPath()
-        => Path.Combine(AppContext.BaseDirectory, "Plugins", "routerbad", "PluginRouterBad.dll");
 
     private static async Task WaitForAsync(Func<bool> condition, int timeoutMs = 5000)
     {
@@ -367,10 +185,6 @@ public sealed class GatewayTests
             await Task.Delay(20);
         }
     }
-
-    private sealed record SetLightRequest(int Brightness, string RoomName);
-
-    private sealed record SetLightResponse(string Message);
 
     private sealed record LocalPlainEvent(string Value);
 

@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Momoka.Core.Behaviors;
+using Momoka.Core.Events;
 using Momoka.Core.Plugins;
 
 namespace Momoka.Core;
@@ -25,7 +25,6 @@ internal static class GatewayHostBuilder
         services.AddSingleton<ServiceRegistry>();
         services.AddSingleton(sp => CreateEventHub(sp));
         services.AddSingleton(sp => new Gateway(
-            sp.GetRequiredService<EventHub>(),
             sp.GetService<IHubContext<GatewayHub, IGatewayClient>>(),
             sp.GetService<ILogger<Gateway>>(),
             configuration["Gateway:Token"]));
