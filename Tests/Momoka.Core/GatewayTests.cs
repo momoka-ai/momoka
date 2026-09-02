@@ -1,6 +1,3 @@
-using System.Reflection;
-using System.Runtime.Loader;
-using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http.Connections;
@@ -11,15 +8,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Momoka.Core;
 using Momoka.Core.Events;
-using Momoka.Core.Plugins;
 using Xunit;
 
 namespace Momoka.Core.Tests;
 
 /// <summary>
 /// 网关集成测试（自建内联 WebApplication + TestServer + SignalR 客户端，不走 Program.Main）：
-/// 握手鉴权（clientId/role/token）/ 设备注册表（按 clientId 寻址、重连覆盖）/ 广播 /
-/// 插件 → 事件总线 → wire-out 全链路 / 事件记录器。
+/// 握手鉴权（clientId/role/token）/ 设备注册表（按 clientId 寻址、重连覆盖）/
+/// 事件总线发布与事件审计日志。
 /// </summary>
 public sealed class GatewayTests
 {
@@ -86,44 +82,14 @@ public sealed class GatewayTests
     }
 
     [Fact]
-    public async Task PluginPublish_BroadcastsToConnectedClients()
-    {
-        await using var harness = await GatewayHarness.CreateAsync();
-        ResetEventsPluginLog();
-        await using var connection = await harness.ConnectAsync();
-        var received = new TaskCompletionSource<(string EventId, JsonNode? Payload)>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        connection.On<string, JsonNode?>("ClientEvent", (eventId, payload) =>
-        {
-            received.TrySetResult((eventId, payload));
-            return Task.CompletedTask;
-        });
-
-        LoadEventsPlugin(harness); // Enable → OnEnable 经事件总线广播 AnnounceEvent("enabled")
-
-        var (eventId, payload) = await received.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.Equal(AnnounceEventType().FullName!, eventId);
-        Assert.Equal("enabled", payload!["message"]!.GetValue<string>());
-        Assert.Contains("announce:enabled", EventsPluginLog());
-    }
-
-    [Fact]
     public async Task EventHub_Publish_WritesAuditLog()
     {
         var logs = new CapturingLoggerProvider();
         await using var harness = await GatewayHarness.CreateAsync(logs: logs);
 
-        await harness.Events.InvokeAsync(new LocalPlainEvent("x"));
+        await harness.Events.Publish(new LocalPlainEvent("x"));
 
         Assert.Contains(logs.Messages, m => m.Contains("published") && m.Contains("LocalPlainEvent"));
-    }
-
-    private static Plugin LoadEventsPlugin(GatewayHarness harness)
-    {
-        var loader = harness.App.Services.GetRequiredService<PluginLoader>();
-        Plugin plugin = loader.Load(EventsPluginPath());
-        Assert.True(loader.EnableAsync(plugin));
-        return plugin;
     }
 
     private static async Task AssertConnectionRejectedAsync(HubConnection connection)
@@ -147,31 +113,6 @@ public sealed class GatewayTests
         await closed.Task.WaitAsync(TimeSpan.FromSeconds(10));
     }
 
-    private static void ResetEventsPluginLog()
-    {
-        Type type = LoadEventsPluginType();
-        type.GetMethod("Reset", BindingFlags.Public | BindingFlags.Static)!.Invoke(null, null);
-    }
-
-    private static IReadOnlyList<string> EventsPluginLog()
-    {
-        Type type = LoadEventsPluginType();
-        return (IReadOnlyList<string>)type.GetProperty("Log", BindingFlags.Public | BindingFlags.Static)!
-            .GetValue(null)!;
-    }
-
-    private static Type AnnounceEventType()
-        => LoadEventsPluginType().Assembly.GetType("Momoka.Core.Tests.Plugins.Events.AnnounceEvent")
-            ?? throw new InvalidOperationException("AnnounceEvent type was not found.");
-
-    private static Type LoadEventsPluginType()
-        => AssemblyLoadContext.Default.LoadFromAssemblyPath(EventsPluginPath())
-            .GetType("Momoka.Core.Tests.Plugins.Events.EventsPlugin")
-            ?? throw new InvalidOperationException("EventsPlugin type was not found.");
-
-    private static string EventsPluginPath()
-        => Path.Combine(AppContext.BaseDirectory, "Plugins", "events", "PluginEvents.dll");
-
     private static async Task WaitForAsync(Func<bool> condition, int timeoutMs = 5000)
     {
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
@@ -186,7 +127,7 @@ public sealed class GatewayTests
         }
     }
 
-    private sealed record LocalPlainEvent(string Value);
+    private sealed record class LocalPlainEvent(string Value) : Event<LocalPlainEvent>;
 
     private sealed class GatewayHarness : IAsyncDisposable
     {

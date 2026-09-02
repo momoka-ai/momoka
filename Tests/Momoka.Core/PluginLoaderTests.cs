@@ -1,29 +1,22 @@
-using Xunit;
-using System.Reflection;
-using System.Runtime.Loader;
 using Microsoft.Extensions.Logging.Abstractions;
 using Momoka.Core.Events;
 using Momoka.Core.Plugins;
+using Momoka.Core.Services;
+using Xunit;
 
 namespace Momoka.Core.Tests;
 
 /// <summary>
-/// 插件加载器集成测试：真实插件 DLL 拷入独立临时目录后经宿主加载。
-/// 覆盖 Load 记录 / 非法插件 fail-fast / 单插件与批量启停 / 依赖排序 / 跨插件程序集解析 /
-/// 失败状态 / 回滚 / 查询与静态内省原语。
+/// PluginLoader 生命周期：Load（manifest + 静态 Build）／Enable（服务注册 → 注入 → 监听器注册）／
+/// Disable（消费者守卫 → 反注册 → 按声明移除服务）／批量启停拓扑序。
 /// </summary>
 public sealed class PluginLoaderTests : IDisposable
 {
-    private static readonly string LifecyclePath =
-        Path.Combine(AppContext.BaseDirectory, "plugin-lifecycle.log");
-
     private readonly string _tempRoot;
-    private readonly string _pluginsDir;
 
     public PluginLoaderTests()
     {
         _tempRoot = Path.Combine(Path.GetTempPath(), "momoka-core-tests", Guid.NewGuid().ToString("N"));
-        _pluginsDir = Path.Combine(_tempRoot, "Plugins");
     }
 
     public void Dispose()
@@ -38,340 +31,166 @@ public sealed class PluginLoaderTests : IDisposable
         }
     }
 
-    [Fact]
-    public void EmptyPluginDirectory_NoPlugins()
+    private interface IShared<T>
     {
-        Directory.CreateDirectory(_pluginsDir);
-        using var loader = CreateLoader();
+    }
 
-        Assert.Empty(PluginLoader.GetPluginFiles(_pluginsDir));
-        Assert.Empty(loader.Plugins);
+    private interface IConsumer<T>
+    {
+    }
+
+    private interface IOther<T>
+    {
+    }
+
+    private sealed class SharedImpl<T> : IShared<T>
+    {
+    }
+
+    private sealed class ConsumerHolder<T> : IConsumer<T>
+    {
+        [ServiceInjection]
+        public IShared<T> Shared { get; set; } = null!;
+    }
+
+    private sealed class OtherImpl<T> : IOther<T>
+    {
+    }
+
+    private sealed class A
+    {
+    }
+
+    private sealed class B
+    {
+    }
+
+    private sealed class C
+    {
     }
 
     [Fact]
-    public void Load_RecordsAssemblyAndInstance()
+    public async Task Enable_RegistersEventHandlers_DisableUnregisters()
     {
-        CopyPlugins("alpha");
-        using var loader = CreateLoader();
+        var hub = new EventHub();
+        var loader = CreateLoader(hub);
+        var listener = new CountListener<E1>();
+        Plugin plugin = loader.RegisterPlugin(Info("p1"), ctx => ctx.AddEventHandler(listener));
 
-        var plugin = loader.Load(AlphaPath());
-
-        Assert.Equal("alpha", plugin.Name);
-        Assert.Equal("1.0.0", plugin.Version);
-        Assert.Equal(PluginState.Loaded, plugin.State);
-        Assert.Single(loader.PluginAssemblies);
-        Assert.Single(loader.Plugins);
-        Assert.Same(plugin, loader.Plugins[0]);
-        Assert.Equal(AlphaPath(), loader.PluginAssemblies[0].Path);
-    }
-
-    [Fact]
-    public void Load_NonPluginDll_Throws()
-    {
-        var dependencyDir = Directory.CreateDirectory(Path.Combine(_pluginsDir, "deps"));
-        string tomlynPath = Path.Combine(dependencyDir.FullName, "Tomlyn.dll");
-        File.Copy(typeof(Tomlyn.TomlSerializer).Assembly.Location, tomlynPath);
-        using var loader = CreateLoader();
-
-        var ex = Assert.Throws<InvalidPluginException>(() => loader.Load(tomlynPath));
-        Assert.Contains("missing plugin.toml", ex.Message);
-    }
-
-    [Fact]
-    public void Load_BadMain_Throws()
-    {
-        CopyPlugins("bad");
-        using var loader = CreateLoader();
-
-        Assert.Throws<InvalidPluginException>(() => loader.Load(BadPath()));
-    }
-
-    [Fact]
-    public void Load_NotPluginSubclass_Throws()
-    {
-        CopyPlugins("plain");
-        using var loader = CreateLoader();
-
-        var ex = Assert.Throws<InvalidPluginException>(() => loader.Load(PlainPath()));
-        Assert.Contains("Plugin", ex.Message);
-    }
-
-    [Fact]
-    public void Load_DuplicateName_Throws()
-    {
-        CopyPlugins("alpha");
-        using var loader = CreateLoader();
-
-        loader.Load(AlphaPath());
-        Assert.Throws<InvalidPluginException>(() => loader.Load(AlphaPath()));
-    }
-
-    [Fact]
-    public void EnableDisable_SinglePlugin_Lifecycle()
-    {
-        ClearLifecycle();
-        CopyPlugins("alpha");
-        using var loader = CreateLoader();
-        var plugin = loader.Load(AlphaPath());
-
+        Assert.Equal(PluginState.Loaded, loader.GetState(plugin));
         Assert.True(loader.EnableAsync(plugin));
-        Assert.Equal(PluginState.Enabled, plugin.State);
-        Assert.Equal(new[] { "alpha:enable" }, ReadLifecycle());
+        Assert.Equal(PluginState.Enabled, loader.GetState(plugin));
+
+        await hub.Publish(new E1());
+        Assert.Equal(1, listener.Count);
 
         Assert.True(loader.DisableAsync(plugin));
-        Assert.Equal(PluginState.Disabled, plugin.State);
-        Assert.Equal(new[] { "alpha:enable", "alpha:disable" }, ReadLifecycle());
+        Assert.Equal(PluginState.Disabled, loader.GetState(plugin));
+        await hub.Publish(new E1());
+        Assert.Equal(1, listener.Count);
     }
 
     [Fact]
-    public void Enable_AlreadyEnabled_ReturnsFalse()
+    public void EnableAll_TopologyOrder_ServicesResolvable_DisableProviderGuarded()
     {
-        CopyPlugins("alpha");
-        using var loader = CreateLoader();
-        var plugin = loader.Load(AlphaPath());
+        var hub = new EventHub();
+        var loader = CreateLoader(hub);
+        var impl = new SharedImpl<A>();
+        var holder = new ConsumerHolder<A>();
+        Plugin provider = loader.RegisterPlugin(Info("provider"), ctx => ctx.AddService<IShared<A>>(impl));
+        Plugin consumer = loader.RegisterPlugin(
+            Info("consumer", dependency: "provider"),
+            ctx => ctx.AddService<IConsumer<A>>(holder));
 
-        Assert.True(loader.EnableAsync(plugin));
+        Assert.True(loader.EnableAsync());
+
+        Assert.Same(impl, Service<IShared<A>>.TryResolve());
+        Assert.Same(impl, holder.Shared);
+
+        Assert.Throws<InvalidOperationException>(() => loader.DisableAsync(provider));
+
+        Assert.True(loader.DisableAsync());
+        Assert.Null(Service<IShared<A>>.TryResolve());
+        Assert.Null(Service<IConsumer<A>>.TryResolve());
+        Assert.Equal(PluginState.Disabled, loader.GetState(consumer));
+        Assert.Equal(PluginState.Disabled, loader.GetState(provider));
+    }
+
+    [Fact]
+    public async Task Enable_FailedInjection_ReturnsFalse_RollsBack()
+    {
+        var hub = new EventHub();
+        var loader = CreateLoader(hub);
+        var listener = new CountListener<E2>();
+        Plugin plugin = loader.RegisterPlugin(Info("broken"), ctx => ctx
+            .AddService<IOther<B>>(new OtherImpl<B>())
+            .AddService<IConsumer<C>>(new ConsumerHolder<C>()) // IShared<C> 缺失 → 注入必炸
+            .AddEventHandler(listener));
+
         Assert.False(loader.EnableAsync(plugin));
+        Assert.Equal(PluginState.Failed, loader.GetState(plugin));
+
+        Assert.Null(Service<IOther<B>>.TryResolve());
+        Assert.Null(Service<IConsumer<C>>.TryResolve());
+        await hub.Publish(new E2());
+        Assert.Equal(0, listener.Count);
     }
 
     [Fact]
-    public void Enable_NotLoaded_ReturnsFalse()
+    public void RegisterPlugin_DuplicateName_Fails()
     {
-        using var loader = CreateLoader();
+        var loader = CreateLoader(new EventHub());
+        loader.RegisterPlugin(Info("dup"), _ => { });
 
-        Assert.False(loader.EnableAsync(new UnloadedPlugin()));
+        Assert.Throws<InvalidPluginException>(() => loader.RegisterPlugin(Info("dup"), _ => { }));
     }
 
     [Fact]
-    public void Enable_Failure_MarksFailed()
+    public void Load_FromAssemblyPath_ResolvesManifestAndStaticBuild()
     {
-        CopyPlugins("explode");
-        using var loader = CreateLoader();
-        var plugin = loader.Load(ExplodePath());
-        SetStaticBool(ExplodePath(), "ThrowOnEnable", true);
+        var hub = new EventHub();
+        var loader = CreateLoader(hub);
+        string selfPath = typeof(SelfPluginEntry).Assembly.Location;
 
-        Assert.False(loader.EnableAsync(plugin));
-        Assert.Equal(PluginState.Failed, plugin.State);
-    }
+        Plugin plugin = loader.Load(selfPath);
 
-    [Fact]
-    public void Disable_Failure_MarksFailed()
-    {
-        CopyPlugins("explode");
-        using var loader = CreateLoader();
-        var plugin = loader.Load(ExplodePath());
-
+        Assert.Equal("self", plugin.Name);
+        Assert.Equal(PluginState.Loaded, loader.GetState(plugin));
         Assert.True(loader.EnableAsync(plugin));
-        SetStaticBool(ExplodePath(), "ThrowOnDisable", true);
-
-        Assert.False(loader.DisableAsync(plugin));
-        Assert.Equal(PluginState.Failed, plugin.State);
+        Assert.Same(plugin, Service<ISelfServiceMarker>.CurrentRegistration?.Source);
+        Assert.True(loader.DisableAsync(plugin));
+        Assert.Null(Service<ISelfServiceMarker>.TryResolve());
     }
 
-    [Fact]
-    public async Task EnableAll_OrdersDependenciesAndResolvesCrossAssemblyServices()
-    {
-        ClearLifecycle();
-        CopyPlugins("alpha", "beta");
-        using var loader = CreateLoader();
-        loader.Load(AlphaPath());
-        loader.Load(BetaPath());
+    private PluginLoader CreateLoader(EventHub hub)
+        => new(PluginsRoot, hub, NullLoggerFactory.Instance);
 
-        Assert.True(await loader.EnableAsync());
+    private string PluginsRoot => Path.Combine(_tempRoot, "Plugins");
 
-        var betaAssembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(BetaPath());
-        var betaType = betaAssembly.GetType("Momoka.Core.Tests.Plugins.Beta.BetaPlugin", throwOnError: true)!;
-        Assert.Equal("hello from alpha", betaType.GetProperty("ResolvedGreeting")!.GetValue(null));
-        Assert.Equal(new[] { "alpha:enable", "beta:enable" }, ReadLifecycle());
-    }
-
-    [Fact]
-    public async Task DisableAll_DisablesInReverseGraphOrder()
-    {
-        ClearLifecycle();
-        CopyPlugins("alpha", "beta");
-        using var loader = CreateLoader();
-        loader.Load(AlphaPath());
-        loader.Load(BetaPath());
-        await loader.EnableAsync();
-
-        Assert.True(await loader.DisableAsync());
-
-        Assert.Equal(
-            new[] { "alpha:enable", "beta:enable", "beta:disable", "alpha:disable" },
-            ReadLifecycle());
-    }
-
-    [Fact]
-    public async Task EnableAll_Failure_RollsBackEnabledPlugins()
-    {
-        CopyPlugins("alpha", "explode");
-        using var loader = CreateLoader();
-        var alpha = loader.Load(AlphaPath());
-        var explode = loader.Load(ExplodePath());
-        SetStaticBool(ExplodePath(), "ThrowOnEnable", true);
-
-        Assert.False(await loader.EnableAsync());
-        Assert.Equal(PluginState.Disabled, alpha.State);  // 回滚
-        Assert.Equal(PluginState.Failed, explode.State);
-    }
-
-    [Fact]
-    public void GetPlugin_FindsByName()
-    {
-        CopyPlugins("alpha");
-        using var loader = CreateLoader();
-        var plugin = loader.Load(AlphaPath());
-
-        Assert.Same(plugin, loader.GetPlugin("alpha"));
-        Assert.Null(loader.GetPlugin("missing"));
-    }
-
-    [Fact]
-    public void GetPluginDependencies_ReturnsForwardDependencies()
-    {
-        CopyPlugins("alpha", "beta");
-        using var loader = CreateLoader();
-        var alpha = loader.Load(AlphaPath());
-        var beta = loader.Load(BetaPath());
-
-        var dependencies = loader.GetPluginDependencies(beta);
-
-        Assert.Single(dependencies);
-        Assert.Same(alpha, dependencies.Single());
-        Assert.Empty(loader.GetPluginDependencies(alpha));
-    }
-
-    [Fact]
-    public void GetPluginDependents_ReturnsReverseDependencies()
-    {
-        CopyPlugins("alpha", "beta");
-        using var loader = CreateLoader();
-        var alpha = loader.Load(AlphaPath());
-        loader.Load(BetaPath());
-
-        var dependents = loader.GetPluginDependents(alpha);
-
-        Assert.Single(dependents);
-        Assert.Equal("beta", dependents.Single().Name);
-    }
-
-    [Fact]
-    public void GetPluginInfo_ReadsManifest()
-    {
-        CopyPlugins("alpha");
-
-        var info = PluginLoader.GetPluginInfo(AlphaPath());
-
-        Assert.NotNull(info);
-        Assert.Equal("alpha", info.Name);
-        Assert.Equal("1.0.0", info.Version);
-    }
-
-    [Fact]
-    public void GetPluginInfo_NonPluginAssembly_ReturnsNull()
-    {
-        var dependencyDir = Directory.CreateDirectory(Path.Combine(_pluginsDir, "deps"));
-        string tomlynPath = Path.Combine(dependencyDir.FullName, "Tomlyn.dll");
-        File.Copy(typeof(Tomlyn.TomlSerializer).Assembly.Location, tomlynPath);
-
-        Assert.Null(PluginLoader.GetPluginInfo(tomlynPath));
-    }
-
-    [Fact]
-    public void GetPluginResource_ReturnsStream()
-    {
-        CopyPlugins("alpha");
-        string resourceName = AssemblyLoadContext.Default.LoadFromAssemblyPath(AlphaPath()).GetManifestResourceNames()
-            .Single(n => n.EndsWith(".plugin.toml", StringComparison.OrdinalIgnoreCase));
-
-        using var stream = PluginLoader.GetPluginResource(AlphaPath(), resourceName);
-
-        Assert.NotNull(stream);
-        Assert.True(stream.Length > 0);
-    }
-
-    [Fact]
-    public void GetPluginFiles_ListsCandidateDlls()
-    {
-        CopyPlugins("alpha", "beta");
-
-        var files = PluginLoader.GetPluginFiles(_pluginsDir);
-
-        Assert.Contains(AlphaPath(), files);
-        Assert.Contains(BetaPath(), files);
-    }
-
-    [Fact]
-    public void GetPluginMainType_ResolvesConcretePluginSubclass()
-    {
-        CopyPlugins("alpha");
-        var info = PluginLoader.GetPluginInfo(AlphaPath())!;
-        var assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(AlphaPath());
-
-        var type = PluginLoader.GetPluginMainType(info, assembly);
-
-        Assert.NotNull(type);
-        Assert.Equal("Momoka.Core.Tests.Plugins.Alpha.AlphaPlugin", type.FullName);
-        Assert.True(typeof(Plugin).IsAssignableFrom(type));
-    }
-
-    private PluginLoader CreateLoader()
-    {
-        var service = new PluginService(
-            new ServiceRegistry(), new EventHub(), NullLoggerFactory.Instance, _tempRoot);
-        return new PluginLoader(service);
-    }
-
-    private void CopyPlugins(params string[] pluginIds)
-    {
-        foreach (var id in pluginIds)
+    private static PluginInfo Info(string name, string? dependency = null)
+        => new()
         {
-            var source = Path.Combine(AppContext.BaseDirectory, "Plugins", id);
-            var target = Path.Combine(_pluginsDir, id);
-            Directory.CreateDirectory(target);
-            foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
-            {
-                var relative = Path.GetRelativePath(source, file);
-                var destination = Path.Combine(target, relative);
-                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-                File.Copy(file, destination, overwrite: true);
-            }
-        }
-    }
+            Name = name,
+            Version = "1.0.0",
+            Main = $"{name}.Entry, Fake",
+            Dependency = dependency is null
+                ? Array.Empty<string>()
+                : new[] { dependency },
+        };
 
-    private string AlphaPath() => Path.Combine(_pluginsDir, "alpha", "PluginAlpha.dll");
+    private sealed record class E1 : Event<E1>;
 
-    private string BetaPath() => Path.Combine(_pluginsDir, "beta", "PluginBeta.dll");
+    private sealed record class E2 : Event<E2>;
 
-    private string BadPath() => Path.Combine(_pluginsDir, "bad", "PluginBad.dll");
-
-    private string PlainPath() => Path.Combine(_pluginsDir, "plain", "PluginPlain.dll");
-
-    private string ExplodePath() => Path.Combine(_pluginsDir, "explode", "PluginExplode.dll");
-
-    private static void SetStaticBool(string assemblyPath, string propertyName, bool value)
+    private sealed class CountListener<TEvent> : IEventHandler<TEvent>
+        where TEvent : Event<TEvent>
     {
-        var assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(assemblyPath);
-        var type = assembly.GetType("Momoka.Core.Tests.Plugins.Explode.ExplodePlugin", throwOnError: true)!;
-        type.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Static)!.SetValue(null, value);
-    }
+        public int Count;
 
-    private static void ClearLifecycle()
-    {
-        if (File.Exists(LifecyclePath))
+        public Task OnInvoke(TEvent _)
         {
-            File.Delete(LifecyclePath);
+            Count++;
+            return Task.CompletedTask;
         }
-    }
-
-    private static List<string> ReadLifecycle() =>
-        File.Exists(LifecyclePath)
-            ? File.ReadAllLines(LifecyclePath).Where(l => !string.IsNullOrWhiteSpace(l)).ToList()
-            : new List<string>();
-
-    /// <summary>未加载的测试插件（验证 EnableAsync 对非本加载器实例返回 false）。</summary>
-    private sealed class UnloadedPlugin : Plugin
-    {
     }
 }

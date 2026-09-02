@@ -1,3 +1,0 @@
-name = "alpha"
-version = "1.0.0"
-main = "Momoka.Core.Tests.Plugins.Alpha.AlphaPlugin, PluginAlpha"

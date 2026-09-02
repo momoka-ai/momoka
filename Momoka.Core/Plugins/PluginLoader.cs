@@ -1,37 +1,41 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Runtime.Loader;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Momoka.Core.Events;
+using Momoka.Core.Services;
 
 namespace Momoka.Core.Plugins;
 
 /// <summary>
-/// 插件宿主加载器：Load 逐插件实例化并记录（<see cref="PluginAssembly"/> + <see cref="Plugin"/>），
-/// EnableAsync / DisableAsync 驱动生命周期（OnEnable / OnDisable），批量启停按依赖图拓扑顺序执行；
-/// 静态内省原语提供文件级扫描 / manifest / 资源 / 主类解析。生命周期与主程序同步，无内置状态机。
+/// 插件宿主加载器（声明式生命周期）：Load 扫描单文件（plugin.toml → 主类静态
+/// <c>Build(Plugin)</c> → 声明填充）；Enable 应用声明（服务注册 → [ServiceInjection] 注入 →
+/// 事件监听器注册）；Disable 逆序回收（先守卫服务消费者 → 反注册监听器 → 按声明类型移除服务）。
+/// 批量启停按 manifest 依赖图拓扑序执行；运行期单插件启停受 <see cref="ServiceUsageGraph"/> 守卫
+/// （提供商仍有已启用消费者时禁用 → fail-fast）。生命周期与主程序同步，无内置状态机。
 /// </summary>
-public sealed class PluginLoader : IDisposable
+public sealed class PluginLoader
 {
-    private readonly PluginService _pluginService;
+    private static readonly ConcurrentDictionary<Type, MethodInfo> TryRegisterMethods = new();
+    private static readonly ConcurrentDictionary<Type, MethodInfo> RemoveMethods = new();
+
+    private readonly string _pluginsDirectory;
+    private readonly EventHub _events;
+    private readonly ILoggerFactory? _loggerFactory;
     private readonly object _gate = new();
-    private readonly List<PluginAssembly> _assemblies = new();
     private readonly List<Plugin> _plugins = new();
+    private readonly Dictionary<Plugin, PluginState> _states = new();
+    private readonly ServiceUsageGraph _graph = new();
 
-    /// <summary>创建插件加载器（注入宿主级 <see cref="PluginService"/>）。</summary>
-    public PluginLoader(PluginService pluginService)
+    /// <summary>创建插件加载器。插件根目录（Plugins）与事件中心由宿主注入。</summary>
+    public PluginLoader(string pluginsDirectory, EventHub events, ILoggerFactory? loggerFactory = null)
     {
-        _pluginService = pluginService ?? throw new ArgumentNullException(nameof(pluginService));
-        AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;
-    }
-
-    /// <summary>已加载插件文件记录（快照，按加载顺序）。</summary>
-    public IReadOnlyList<PluginAssembly> PluginAssemblies
-    {
-        get
-        {
-            lock (_gate)
-            {
-                return _assemblies.ToList();
-            }
-        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(pluginsDirectory);
+        ArgumentNullException.ThrowIfNull(events);
+        _pluginsDirectory = Path.GetFullPath(pluginsDirectory);
+        _events = events;
+        _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
     }
 
     /// <summary>已加载插件实例（快照，按加载顺序）。</summary>
@@ -46,10 +50,20 @@ public sealed class PluginLoader : IDisposable
         }
     }
 
+    /// <summary>插件当前生命周期状态（未知插件返回 Loaded）。</summary>
+    public PluginState GetState(Plugin plugin)
+    {
+        ArgumentNullException.ThrowIfNull(plugin);
+        lock (_gate)
+        {
+            return _states.TryGetValue(plugin, out PluginState state) ? state : PluginState.Loaded;
+        }
+    }
+
     /// <summary>
-    /// 从程序集文件加载插件：解析 manifest → 校验并解析主类 → 实例化 → 注入宿主能力 →
-    /// 记录进 <see cref="PluginAssemblies"/> 与 <see cref="Plugins"/>（状态 Loaded），不调用 OnEnable。
-    /// 非插件程序集 / 主类非法 / 重复名 → 抛 <see cref="InvalidPluginException"/>。
+    /// 从程序集文件加载插件：解析内嵌 plugin.toml → 主类（info.Main）静态 Build(Plugin) 签名校验 →
+    /// 构造 Plugin 声明面并执行 Build。非插件程序集 / 主类或 Build 缺失 / 重复名 → 抛
+    /// <see cref="InvalidPluginException"/>。Build 抛异常 → 同样 fail-fast（解包 TargetInvocationException）。
     /// </summary>
     public Plugin Load(string path)
     {
@@ -65,11 +79,32 @@ public sealed class PluginLoader : IDisposable
             throw new InvalidPluginException($"Failed to load assembly '{path}'.", ex);
         }
 
-        PluginInfo? info = GetPluginInfo(path);
-        if (info is null)
+        PluginInfo info = ReadManifest(assembly)
+            ?? throw new InvalidPluginException($"Assembly '{path}' is not a plugin (missing plugin.toml).");
+
+        Type mainType = ResolveMainType(info, assembly);
+        MethodInfo build = FindBuild(mainType, path);
+
+        try
         {
-            throw new InvalidPluginException($"Assembly '{path}' is not a plugin (missing plugin.toml).");
+            return RegisterPlugin(info, plugin => build.Invoke(null, new object[] { plugin }));
         }
+        catch (TargetInvocationException ex)
+        {
+            throw new InvalidPluginException(
+                $"Plugin '{info.Name}' Build failed: {ex.InnerException?.Message}", ex.InnerException ?? ex);
+        }
+    }
+
+    /// <summary>
+    /// 进程内注册插件（宿主内嵌/测试用）：以 <paramref name="info"/> 构造 Plugin 声明面并执行
+    /// <paramref name="build"/>，记录进加载器（状态 Loaded）。重复名 → fail-fast。
+    /// <see cref="Load(string)"/> 亦经由本入口落地（build = 主类静态 Build）。
+    /// </summary>
+    internal Plugin RegisterPlugin(PluginInfo info, Action<Plugin> build)
+    {
+        ArgumentNullException.ThrowIfNull(info);
+        ArgumentNullException.ThrowIfNull(build);
 
         lock (_gate)
         {
@@ -79,39 +114,20 @@ public sealed class PluginLoader : IDisposable
             }
         }
 
-        Type? mainType = GetPluginMainType(info, assembly);
-        if (mainType is null)
-        {
-            throw new InvalidPluginException(
-                $"Plugin '{info.Name}' main type '{info.Main}' was not found or is not a concrete {nameof(Plugin)} subclass.");
-        }
-
-        Plugin plugin;
-        try
-        {
-            plugin = (Plugin)Activator.CreateInstance(mainType)!;
-        }
-        catch (Exception ex) when (ex is TargetInvocationException or MemberAccessException
-            or TypeLoadException or TypeInitializationException or NotSupportedException)
-        {
-            throw new InvalidPluginException(
-                $"Plugin '{info.Name}' main type '{mainType.FullName}' could not be instantiated.", ex);
-        }
-
-        plugin.InjectHost(info, _pluginService);
+        var plugin = new Plugin(info, _pluginsDirectory, _loggerFactory);
+        build(plugin);
 
         lock (_gate)
         {
-            _assemblies.Add(new PluginAssembly(path, info, assembly));
             _plugins.Add(plugin);
+            _states[plugin] = PluginState.Loaded;
         }
 
         return plugin;
     }
 
-    /// <summary>
-    /// 启用单个插件（须已加载且状态为 Loaded 或 Disabled）：调用 OnEnable。
-    /// 插件未加载 / 不在可启用状态（如已启用或 Failed）→ false；OnEnable 抛异常 → 置 Failed 并返回 false。
+    /// <summary>启用单个插件（须已加载且状态 Loaded/Disabled）：确保服务已注册 → [ServiceInjection] 注入并记录
+    /// 使用边 → 注册事件监听器 → Enabled。注入/注册抛异常 → 回滚已生效部分并置 Failed，返回 false。
     /// </summary>
     public bool EnableAsync(Plugin plugin)
     {
@@ -124,28 +140,35 @@ public sealed class PluginLoader : IDisposable
             }
         }
 
-        if (plugin.State is not (PluginState.Loaded or PluginState.Disabled))
+        if (GetState(plugin) is not (PluginState.Loaded or PluginState.Disabled))
         {
             return false;
         }
 
         try
         {
-            plugin.OnEnable();
+            EnsureServicesRegistered(plugin);
+            ServiceInjector.Inject(plugin, _graph);
+            foreach (object listener in plugin.EventHandlers)
+            {
+                _events.Register(listener);
+            }
         }
         catch (Exception)
         {
-            plugin.State = PluginState.Failed;
+            UndoEnable(plugin);
+            SetState(plugin, PluginState.Failed);
             return false;
         }
 
-        plugin.State = PluginState.Enabled;
+        SetState(plugin, PluginState.Enabled);
         return true;
     }
 
     /// <summary>
-    /// 停用单个插件（须已启用）：调用 OnDisable（清理由插件自行完成）。
-    /// 插件未加载 / 未启用 → false；OnDisable 抛异常 → 置 Failed 并返回 false。
+    /// 停用单个插件（须已启用）：提供商仍有已启用消费者 → fail-fast 抛
+    /// <see cref="InvalidOperationException"/>（须先停用消费者）；否则反注册监听器 → 按声明类型
+    /// 移除服务 → Disabled。
     /// </summary>
     public bool DisableAsync(Plugin plugin)
     {
@@ -158,34 +181,45 @@ public sealed class PluginLoader : IDisposable
             }
         }
 
-        if (plugin.State != PluginState.Enabled)
+        if (GetState(plugin) != PluginState.Enabled)
         {
             return false;
+        }
+
+        IReadOnlyList<Plugin> users = _graph.GetUsers(plugin)
+            .Where(user => GetState(user) == PluginState.Enabled)
+            .ToList();
+        if (users.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"Plugin '{plugin.Name}' is still used by enabled plugin(s): " +
+                $"{string.Join(", ", users.Select(u => u.Name))}. Disable consumers first.");
         }
 
         try
         {
-            plugin.OnDisable();
+            foreach (object listener in plugin.EventHandlers)
+            {
+                _events.Unregister(listener);
+            }
+
+            RemoveServices(plugin);
         }
         catch (Exception)
         {
-            plugin.State = PluginState.Failed;
+            SetState(plugin, PluginState.Failed);
             return false;
         }
 
-        plugin.State = PluginState.Disabled;
+        SetState(plugin, PluginState.Disabled);
         return true;
     }
 
-    /// <summary>
-    /// 按依赖图拓扑顺序启用全部已加载插件。任一启用失败 → 逆序回滚已启用插件并返回 false；
-    /// 依赖图结构性错误（重复名 / 环）→ fail-fast 抛 <see cref="InvalidPluginException"/>。
-    /// </summary>
-    public Task<bool> EnableAsync()
+    /// <summary>按依赖图拓扑序启用全部已加载插件；任一失败 → 逆序回滚并返回 false。</summary>
+    public bool EnableAsync()
     {
-        var ordered = GetPluginsInDependencyOrder();
         var enabled = new List<Plugin>();
-        foreach (var plugin in ordered)
+        foreach (Plugin plugin in GetPluginsInDependencyOrder())
         {
             if (!EnableAsync(plugin))
             {
@@ -194,110 +228,32 @@ public sealed class PluginLoader : IDisposable
                     DisableAsync(enabled[i]);
                 }
 
-                return Task.FromResult(false);
+                return false;
             }
 
             enabled.Add(plugin);
         }
 
-        return Task.FromResult(true);
+        return true;
     }
 
-    /// <summary>
-    /// 按依赖图逆拓扑顺序停用全部插件。任一停用失败 → 返回 false（已停用的保持停用）。
-    /// 依赖图结构性错误（重复名 / 环）→ fail-fast 抛 <see cref="InvalidPluginException"/>。
-    /// </summary>
-    public Task<bool> DisableAsync()
+    /// <summary>按依赖图逆拓扑序停用全部已加载插件；任一失败返回 false（已停用的保持停用）。</summary>
+    public bool DisableAsync()
     {
-        var ordered = GetPluginsInDependencyOrder();
-        for (int i = ordered.Count - 1; i >= 0; i--)
+        List<Plugin> order = GetPluginsInDependencyOrder();
+        for (int i = order.Count - 1; i >= 0; i--)
         {
-            if (!DisableAsync(ordered[i]))
+            if (!DisableAsync(order[i]))
             {
-                return Task.FromResult(false);
+                return false;
             }
         }
 
-        return Task.FromResult(true);
+        return true;
     }
 
-    /// <summary>按名称查找已加载插件；未找到返回 null。</summary>
-    public Plugin? GetPlugin(string name)
+    private static PluginInfo? ReadManifest(Assembly assembly)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        lock (_gate)
-        {
-            return _plugins.FirstOrDefault(p => p.Name == name);
-        }
-    }
-
-    /// <summary>该插件依赖的已加载插件（硬前置 + 可解析的软前置）。</summary>
-    public IReadOnlyCollection<Plugin> GetPluginDependencies(Plugin plugin)
-    {
-        ArgumentNullException.ThrowIfNull(plugin);
-        lock (_gate)
-        {
-            Plugin? source = _plugins.FirstOrDefault(p => ReferenceEquals(p, plugin) || p.Name == plugin.Name);
-            if (source is null)
-            {
-                return Array.Empty<Plugin>();
-            }
-
-            var byName = _plugins.ToDictionary(p => p.Name, StringComparer.Ordinal);
-            return source.Info.Dependency
-                .Concat(source.Info.DependencyOptional)
-                .Where(byName.ContainsKey)
-                .Select(n => byName[n])
-                .ToList();
-        }
-    }
-
-    /// <summary>依赖该插件的全部已加载插件（反向依赖）。</summary>
-    public IReadOnlyCollection<Plugin> GetPluginDependents(Plugin plugin)
-    {
-        ArgumentNullException.ThrowIfNull(plugin);
-        lock (_gate)
-        {
-            return _plugins
-                .Where(p => p.Info.Dependency.Contains(plugin.Name)
-                    || p.Info.DependencyOptional.Contains(plugin.Name))
-                .ToList();
-        }
-    }
-
-    /// <summary>递归枚举目录内所有候选插件文件（<c>*.dll</c>，仅路径，不做内部解析）。</summary>
-    public static IEnumerable<string> GetPluginFiles(string path)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        return Directory.EnumerateFiles(path, "*.dll", SearchOption.AllDirectories);
-    }
-
-    /// <summary>从程序集文件按内部资源路径读取嵌入资源，返回可读流；资源不存在抛 <see cref="InvalidPluginException"/>。</summary>
-    public static Stream GetPluginResource(string path, string inner)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        ArgumentException.ThrowIfNullOrWhiteSpace(inner);
-
-        Assembly assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(path);
-        Stream? stream = assembly.GetManifestResourceStream(inner);
-        return stream ?? throw new InvalidPluginException($"Resource '{inner}' was not found in assembly '{path}'.");
-    }
-
-    /// <summary>尝试从程序集文件读取插件描述（内嵌 plugin.toml）；非插件程序集或读取失败返回 null。</summary>
-    public static PluginInfo? GetPluginInfo(string path)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
-
-        Assembly assembly;
-        try
-        {
-            assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(path);
-        }
-        catch (Exception ex) when (ex is IOException or BadImageFormatException or FileLoadException)
-        {
-            return null;
-        }
-
         string? resourceName = assembly.GetManifestResourceNames()
             .FirstOrDefault(n => n.EndsWith(".plugin.toml", StringComparison.OrdinalIgnoreCase));
         if (resourceName is null)
@@ -305,55 +261,85 @@ public sealed class PluginLoader : IDisposable
             return null;
         }
 
-        using Stream stream = GetPluginResource(path, resourceName);
+        using Stream stream = assembly.GetManifestResourceStream(resourceName)!;
         using var reader = new StreamReader(stream);
         return PluginInfo.Parse(reader.ReadToEnd(), resourceName);
     }
 
-    /// <summary>从程序集中解析插件主类（info.Main，须为具体 <see cref="Plugin"/> 子类）；非法返回 null。</summary>
-    public static Type? GetPluginMainType(PluginInfo info, Assembly assembly)
+    private static Type ResolveMainType(PluginInfo info, Assembly assembly)
     {
-        ArgumentNullException.ThrowIfNull(info);
-        ArgumentNullException.ThrowIfNull(assembly);
-
-        string mainTypeName = info.Main;
-        int comma = mainTypeName.IndexOf(',');
+        string typeName = info.Main;
+        int comma = typeName.IndexOf(',');
         if (comma >= 0)
         {
-            mainTypeName = mainTypeName[..comma].Trim();
+            typeName = typeName[..comma].Trim();
         }
 
-        if (string.IsNullOrWhiteSpace(mainTypeName))
+        Type? type = assembly.GetType(typeName);
+        if (type is null)
         {
-            return null;
-        }
-
-        Type? type;
-        try
-        {
-            type = assembly.GetType(mainTypeName);
-        }
-        catch (Exception ex) when (ex is ArgumentException or TypeLoadException
-            or IOException or BadImageFormatException)
-        {
-            return null;
-        }
-
-        if (type is null || type.IsAbstract || type.IsInterface || !typeof(Plugin).IsAssignableFrom(type))
-        {
-            return null;
+            throw new InvalidPluginException(
+                $"Plugin '{info.Name}' main type '{info.Main}' was not found.");
         }
 
         return type;
     }
 
-    /// <inheritdoc />
-    public void Dispose()
+    private static MethodInfo FindBuild(Type mainType, string path)
     {
-        AppDomain.CurrentDomain.AssemblyResolve -= OnAssemblyResolve;
+        const BindingFlags flags = BindingFlags.Public | BindingFlags.Static;
+        MethodInfo? build = mainType.GetMethod("Build", flags, null, new[] { typeof(Plugin) }, null);
+        if (build is null || build.ReturnType != typeof(void))
+        {
+            throw new InvalidPluginException(
+                $"Plugin main type '{mainType.FullName}' must declare a static void Build({nameof(Plugin)}).");
+        }
+
+        return build;
     }
 
-    /// <summary>快照全部已加载插件并按依赖图拓扑排序（结构性错误 fail-fast）。</summary>
+    private void EnsureServicesRegistered(Plugin plugin)
+    {
+        foreach (Plugin.ServiceProviderRegistration registration in plugin.ServiceProviders)
+        {
+            MethodInfo register = TryRegisterMethods.GetOrAdd(
+                registration.ServiceType,
+                serviceType => typeof(Service<>).MakeGenericType(serviceType)
+                    .GetMethod("TryRegister", BindingFlags.Public | BindingFlags.Static)!);
+            register.Invoke(null, new object?[] { registration.Provider, plugin });
+        }
+    }
+
+    private void RemoveServices(Plugin plugin)
+    {
+        foreach (Plugin.ServiceProviderRegistration registration in plugin.ServiceProviders)
+        {
+            MethodInfo remove = RemoveMethods.GetOrAdd(
+                registration.ServiceType,
+                serviceType => typeof(Service<>).MakeGenericType(serviceType)
+                    .GetMethod("Remove", BindingFlags.Public | BindingFlags.Static)!);
+            remove.Invoke(null, new object[] { plugin });
+        }
+    }
+
+    private void UndoEnable(Plugin plugin)
+    {
+        foreach (object listener in plugin.EventHandlers)
+        {
+            _events.Unregister(listener);
+        }
+
+        RemoveServices(plugin);
+    }
+
+    private void SetState(Plugin plugin, PluginState state)
+    {
+        lock (_gate)
+        {
+            _states[plugin] = state;
+        }
+    }
+
     private List<Plugin> GetPluginsInDependencyOrder()
     {
         List<Plugin> snapshot;
@@ -362,38 +348,9 @@ public sealed class PluginLoader : IDisposable
             snapshot = _plugins.ToList();
         }
 
-        var byInfo = snapshot.ToDictionary(p => p.Info);
+        var byName = snapshot.ToDictionary(p => p.Name, StringComparer.Ordinal);
         return PluginDependencyGraph.Order(snapshot.Select(p => p.Info))
-            .Select(i => byInfo[i])
+            .Select(i => byName[i.Name])
             .ToList();
     }
-
-    private Assembly? OnAssemblyResolve(object? sender, ResolveEventArgs args)
-    {
-        string? assemblyName = new AssemblyName(args.Name).Name;
-        if (string.IsNullOrEmpty(assemblyName))
-        {
-            return null;
-        }
-
-        FileInfo? candidate = _pluginService.PluginsDirectory
-            .EnumerateFiles(assemblyName + ".dll", SearchOption.AllDirectories)
-            .FirstOrDefault();
-        if (candidate is null)
-        {
-            return null;
-        }
-
-        try
-        {
-            return AssemblyLoadContext.Default.LoadFromAssemblyPath(candidate.FullName);
-        }
-        catch (Exception ex) when (ex is IOException or BadImageFormatException or FileLoadException)
-        {
-            return null;
-        }
-    }
-
-    /// <summary>已加载插件文件的记录（文件级元数据，与 <see cref="Plugin"/> 实例一一对应）。</summary>
-    public sealed record PluginAssembly(string Path, PluginInfo Info, Assembly Assembly);
 }

@@ -1,0 +1,3 @@
+name = "self"
+version = "1.0.0"
+main = "Momoka.Core.Tests.SelfPluginEntry, Momoka.Core.Tests"

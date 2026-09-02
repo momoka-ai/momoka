@@ -32,38 +32,6 @@
 
   <ItemGroup>
     <ProjectReference Include="../../Momoka.Core/Momoka.Core.csproj" />
-    <ProjectReference Include="Plugins/PluginAlpha/PluginAlpha.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="Plugins/PluginBeta/PluginBeta.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="Plugins/PluginBad/PluginBad.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="Plugins/PluginPlain/PluginPlain.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="Plugins/PluginExplode/PluginExplode.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="Plugins/PluginEvents/PluginEvents.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
-
-  <!-- 嵌套插件工程由各自 csproj 独立编译；测试工程排除其源码与 obj 产物 -->
-  <ItemGroup>
-    <Compile Remove="Plugins/**" />
-  </ItemGroup>
-
-  <!--
-    构建后把各测试插件产物拷入测试输出目录 plugins/<id>/，
-    PluginLoaderTests 再把它们拷入独立临时目录进行加载测试。
-  -->
-  <Target Name="CopyTestPlugins" AfterTargets="Build">
-    <ItemGroup>
-      <_PluginAlphaFiles Include="Plugins/PluginAlpha/bin/$(Configuration)/net8.0/**/*" />
-      <_PluginBetaFiles Include="Plugins/PluginBeta/bin/$(Configuration)/net8.0/**/*" />
-      <_PluginBadFiles Include="Plugins/PluginBad/bin/$(Configuration)/net8.0/**/*" />
-      <_PluginPlainFiles Include="Plugins/PluginPlain/bin/$(Configuration)/net8.0/**/*" />
-      <_PluginExplodeFiles Include="Plugins/PluginExplode/bin/$(Configuration)/net8.0/**/*" />
-      <_PluginEventsFiles Include="Plugins/PluginEvents/bin/$(Configuration)/net8.0/**/*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(_PluginAlphaFiles)" DestinationFolder="$(TargetDir)Plugins/alpha/" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(_PluginBetaFiles)" DestinationFolder="$(TargetDir)Plugins/beta/" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(_PluginBadFiles)" DestinationFolder="$(TargetDir)Plugins/bad/" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(_PluginPlainFiles)" DestinationFolder="$(TargetDir)Plugins/plain/" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(_PluginExplodeFiles)" DestinationFolder="$(TargetDir)Plugins/explode/" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(_PluginEventsFiles)" DestinationFolder="$(TargetDir)Plugins/events/" SkipUnchangedFiles="true" />
-  </Target>
 
 </Project>

@@ -1,3 +1,0 @@
-name = "bad"
-version = "1.0.0"
-main = "Momoka.Core.Tests.Plugins.Bad.NonexistentPlugin, PluginBad"
