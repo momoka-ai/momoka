@@ -1,37 +1,22 @@
-using System.Text.Json;
-using System.Text.Json.Nodes;
-using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-
 namespace Momoka.Core;
 
 /// <summary>
 /// Ui 网关设施（Core 单例，最小核心）：握手 token + 设备注册表（按 clientId 寻址）+
-/// 线上广播原语（EventHub wire-sender 钩子）。客户端 → 主机的请求分发（Post/Query）暂缺，
-/// 待真实需求出现时以类型化 handler 形式按需添加。广播经 <see cref="IHubContext{T,T}"/>（构造注入）。
+/// 连接路径索引（connectionId → clientId，重连竞态安全）。客户端 → 主机的请求分发
+/// （Post/Packet）与线上广播原语随 Packet 层实现（见 DESIGN_CORE §11）。
 /// </summary>
-public sealed partial class Gateway
+public sealed class Gateway
 {
     private readonly object _gate = new();
     private readonly Dictionary<string, Client> _devices = new(StringComparer.Ordinal); // clientId → 设备（主表）
     private readonly Dictionary<string, string> _connections = new(StringComparer.Ordinal); // connectionId → clientId
-    private readonly IHubContext<GatewayHub, IGatewayClient>? _hubClients;
-    private readonly ILogger<Gateway> _logger;
     private readonly string? _token;
 
     /// <summary>
-    /// 创建网关。<paramref name="hubClients"/> 缺省（无 SignalR 宿主 / 单元测试）时广播为 no-op；
-    /// <paramref name="logger"/> 缺省取 NullLogger；<paramref name="token"/> 为握手 token
-    /// （缺省空 = 拒绝全部连接）。
+    /// 创建网关。<paramref name="token"/> 为握手 token（缺省空 = 拒绝全部连接）。
     /// </summary>
-    public Gateway(
-        IHubContext<GatewayHub, IGatewayClient>? hubClients = null,
-        ILogger<Gateway>? logger = null,
-        string? token = null)
+    public Gateway(string? token = null)
     {
-        _hubClients = hubClients;
-        _logger = logger ?? NullLogger<Gateway>.Instance;
         _token = token;
     }
 
@@ -87,40 +72,4 @@ public sealed partial class Gateway
                 : null;
         }
     }
-
-    /// <summary>广播线上事件（EventHub wire-sender 钩子）：全员发送（v1），序列化失败只记日志。</summary>
-    internal async Task BroadcastClientEvent(string eventId, object? payload, CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(eventId);
-
-        if (_hubClients is null)
-        {
-            LogNoHubClients(eventId);
-            return;
-        }
-
-        try
-        {
-            JsonNode? node = payload is null
-                ? null
-                : JsonSerializer.SerializeToNode(payload, GatewayJson.Options);
-            await _hubClients.Clients.All.ClientEvent(eventId, node).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            LogBroadcastError(ex, eventId);
-        }
-    }
-
-    [LoggerMessage(
-        EventId = 1,
-        Level = LogLevel.Debug,
-        Message = "Cannot broadcast event '{EventId}': no hub context is configured.")]
-    private partial void LogNoHubClients(string eventId);
-
-    [LoggerMessage(
-        EventId = 2,
-        Level = LogLevel.Debug,
-        Message = "Broadcast of event '{EventId}' failed.")]
-    private partial void LogBroadcastError(Exception exception, string eventId);
 }

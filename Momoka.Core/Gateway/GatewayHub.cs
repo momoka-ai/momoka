@@ -7,11 +7,11 @@ namespace Momoka.Core;
 
 /// <summary>
 /// 网关 Hub（SignalR 唯一路由，MapHub "/hubs/gateway"）：握手（query <c>clientId / role / token</c>
-/// 校验，token 恒定时间比较；缺省 token / 缺参数 → 断开，fail-fast）+ 连接注册/注销 + 下行
-/// ClientEvent。客户端 → 主机的请求方法暂缺，待真实需求出现时按需添加。
-/// Hub 每次连接新建（transient），构造注入 <see cref="Gateway"/>。
+/// 校验，token 恒定时间比较；缺省 token / 缺参数 → 断开，fail-fast）+ 连接注册/注销。客户端 → 主机
+/// 的请求方法与下行通道随 Packet 层实现（见 DESIGN_CORE §11）。Hub 每次连接新建（transient），
+/// 构造注入 <see cref="Gateway"/>。
 /// </summary>
-public sealed partial class GatewayHub : Hub<IGatewayClient>
+public sealed partial class GatewayHub : Hub
 {
     private readonly Gateway _gateway;
     private readonly ILogger<GatewayHub> _logger;

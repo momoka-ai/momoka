@@ -4,7 +4,7 @@ namespace Momoka.Core;
 
 /// <summary>
 /// 全局单一序列化选项（STJ 一统）：snake_case 命名策略。
-/// 信封（SignalR JSON 协议）、操作载荷与事件 wire-in/out 共用同一 options。
+/// SignalR JSON 协议与 Packet / Post 层信封、载荷共用同一 options。
 /// </summary>
 public static class GatewayJson
 {
