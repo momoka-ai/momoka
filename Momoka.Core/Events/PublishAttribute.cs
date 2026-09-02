@@ -1,9 +1,9 @@
 namespace Momoka.Core.Events;
 
 /// <summary>
-/// 可传输事件契约（标于具体事件类型上）：携带本属性的类型视作可线上传输的事件，
-/// 发布时经 wire-sender 广播全部终端并分发进程内监听者（事件即客户端与主机沟通的桥梁，
-/// 默认互相分发）；未携带本属性的类型仅进程内分发。eventId = 类型 FullName。
+/// 可传输事件契约（标于具体事件类型上，暂保留）：原语义为发布时经 wire-sender 广播全部终端。
+/// 当前事件总线已收口为进程内（发布不触达任何线上终端）；本属性保留待 Packet 期重新定义
+/// （eventId = 类型 FullName）。
 /// </summary>
 [AttributeUsage(AttributeTargets.Class)]
 public sealed class PublishAttribute : Attribute

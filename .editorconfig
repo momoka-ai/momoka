@@ -30,6 +30,15 @@ dotnet_diagnostic.CA1822.severity = none
 # concrete-first house style; the type name is the contract
 dotnet_diagnostic.CA1715.severity = none
 
+# EventHandler / EventHandler<T> are deliberate Bukkit-RegisteredListener analogues
+# (per-event typed handler entries); the reserved-suffix naming is the contract
+dotnet_diagnostic.CA1711.severity = none
+
+# Event<T> deliberately uses per-constructed-type static members (static per-type handler table)
+# and a public volatile array field — that is the whole point of the CRTP design
+dotnet_diagnostic.CA1000.severity = none
+dotnet_diagnostic.CA2211.severity = none
+
 # xUnit assertions with inline arrays (Assert.Equal(new[] {...}, ...)) are idiomatic in tests
 [Tests/**/*.cs]
 dotnet_diagnostic.CA1861.severity = none

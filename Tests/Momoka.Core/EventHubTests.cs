@@ -3,144 +3,111 @@ using Momoka.Core.Events;
 
 namespace Momoka.Core.Tests;
 
-/// <summary>事件中心：顺序分发（优先级降序）/并行发布/异常隔离/按实例退订/快照。</summary>
+/// <summary>事件中心（Bukkit 风格）：处理器接口扫描/类级优先级降序/按实例退订/异常隔离/快照/ICancellable 阻断。</summary>
 public sealed class EventHubTests
 {
     [Fact]
-    public async Task Sequential_InvokesListenersInRegistrationOrder()
+    public async Task Publish_InvokesListenersInRegistrationOrder()
     {
         var hub = new EventHub();
-        var first = new StringListener("first");
-        var second = new StringListener("second");
-        hub.AddSubscribers(first);
-        hub.AddSubscribers(second);
+        var first = new RecordingListener("first");
+        var second = new RecordingListener("second");
+        hub.Register(first);
+        hub.Register(second);
 
-        await hub.InvokeAsync("x");
+        await hub.Publish(new TestEvent("x"));
 
         Assert.Equal(new[] { "first:x" }, first.Calls);
         Assert.Equal(new[] { "second:x" }, second.Calls);
     }
 
     [Fact]
-    public async Task Sequential_HandlerException_IsIsolatedAndDoesNotBlockOthers()
+    public async Task Publish_HandlerException_IsIsolatedAndDoesNotBlockOthers()
     {
         var hub = new EventHub();
         var throwing = new ThrowingListener();
-        var ok = new StringListener("ok");
-        hub.AddSubscribers(throwing);
-        hub.AddSubscribers(ok);
+        var ok = new RecordingListener("ok");
+        hub.Register(throwing);
+        hub.Register(ok);
 
-        await hub.InvokeAsync("x"); // 不抛出
+        await hub.Publish(new TestEvent("x")); // 不抛出
 
         Assert.True(throwing.Called);
         Assert.Equal(new[] { "ok:x" }, ok.Calls);
     }
 
     [Fact]
-    public async Task PriorityOrdering_HighestFirst_LowestLast()
+    public async Task Publish_PriorityOrdering_HighestFirst_LowestLast()
     {
         var hub = new EventHub();
-        var listener = new OrderedListener();
-        hub.AddSubscribers(listener);
+        var calls = new List<string>();
+        hub.Register(new LowOrderedListener(calls));
+        hub.Register(new HighOrderedListener(calls));
+        hub.Register(new NormalOrderedListener(calls));
 
-        await hub.InvokeAsync(1);
+        await hub.Publish(new TestEvent("x"));
 
-        Assert.Equal(new[] { "highest", "high", "normal", "low", "lowest" }, listener.Calls);
+        Assert.Equal(new[] { "high", "normal", "low" }, calls);
     }
 
     [Fact]
-    public async Task Parallel_RunsAllHandlersConcurrently()
+    public async Task Unregister_StopsDelivering()
     {
         var hub = new EventHub();
-        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var listener = new BlockingListener(started, release);
-        hub.AddSubscribers(listener);
-        var second = new CountingListener();
-        hub.AddSubscribers(second);
+        var listener = new RecordingListener("log");
+        hub.Register(listener);
 
-        var publish = hub.InvokeParallelAsync(1);
-
-        // 两个 handler 都在 release 前开始执行 → 并行分发成立
-        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.False(publish.IsCompleted);
-
-        release.SetResult();
-        await publish.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(1, second.Count);
-    }
-
-    [Fact]
-    public async Task Parallel_HandlerException_DoesNotPropagate()
-    {
-        var hub = new EventHub();
-        hub.AddSubscribers(new ThrowingListener());
-        var ok = new CountingListener();
-        hub.AddSubscribers(ok);
-
-        await hub.InvokeParallelAsync(1); // 不抛出
-
-        Assert.Equal(1, ok.Count);
-    }
-
-    [Fact]
-    public async Task RemoveSubscribers_StopsDelivering()
-    {
-        var hub = new EventHub();
-        var listener = new StringListener("log");
-        hub.AddSubscribers(listener);
-
-        await hub.InvokeAsync("a");
-        hub.RemoveSubscribers(listener);
-        await hub.InvokeAsync("b");
+        await hub.Publish(new TestEvent("a"));
+        hub.Unregister(listener);
+        await hub.Publish(new TestEvent("b"));
 
         Assert.Equal(new[] { "log:a" }, listener.Calls);
     }
 
     [Fact]
-    public async Task RemoveSubscribers_IsIdempotent()
+    public async Task Unregister_IsIdempotent()
     {
         var hub = new EventHub();
-        var listener = new StringListener("");
-        hub.AddSubscribers(listener);
+        var listener = new RecordingListener("");
+        hub.Register(listener);
 
-        hub.RemoveSubscribers(listener);
-        hub.RemoveSubscribers(listener); // 未注册 → no-op
+        hub.Unregister(listener);
+        hub.Unregister(listener); // 未注册 → no-op
 
-        await hub.InvokeAsync("x");
+        await hub.Publish(new TestEvent("x"));
         Assert.Empty(listener.Calls);
     }
 
     [Fact]
-    public async Task AddSubscribers_DuplicateInstance_Fails_AndReregisterAfterRemove()
+    public async Task Register_DuplicateInstance_Fails_AndReregisterAfterUnregister()
     {
         var hub = new EventHub();
-        var listener = new StringListener("log");
-        hub.AddSubscribers(listener);
+        var listener = new RecordingListener("log");
+        hub.Register(listener);
 
-        Assert.Throws<InvalidOperationException>(() => hub.AddSubscribers(listener));
+        Assert.Throws<InvalidOperationException>(() => hub.Register(listener));
 
-        hub.RemoveSubscribers(listener);
-        hub.AddSubscribers(listener);
-        await hub.InvokeAsync("x");
+        hub.Unregister(listener);
+        hub.Register(listener);
+        await hub.Publish(new TestEvent("x"));
         Assert.Equal(new[] { "log:x" }, listener.Calls);
     }
 
     [Fact]
-    public void AddSubscribers_ZeroHandlerType_Fails()
+    public void Register_ZeroHandlerInterface_Fails()
     {
         var hub = new EventHub();
 
-        Assert.Throws<InvalidOperationException>(() => hub.AddSubscribers(new EmptyListener()));
+        Assert.Throws<InvalidOperationException>(() => hub.Register(new EmptyListener()));
     }
 
     [Fact]
-    public void AddSubscribers_NullListener_Throws()
+    public void Register_NullListener_Throws()
     {
         var hub = new EventHub();
 
-        Assert.Throws<ArgumentNullException>(() => hub.AddSubscribers(null!));
-        Assert.Throws<ArgumentNullException>(() => hub.RemoveSubscribers(null!));
+        Assert.Throws<ArgumentNullException>(() => hub.Register(null!));
+        Assert.Throws<ArgumentNullException>(() => hub.Unregister(null!));
     }
 
     [Fact]
@@ -148,7 +115,7 @@ public sealed class EventHubTests
     {
         var hub = new EventHub();
 
-        await hub.InvokeAsync(42); // 不抛出
+        await hub.Publish(new TestEvent("x")); // 不抛出
     }
 
     [Fact]
@@ -158,15 +125,15 @@ public sealed class EventHubTests
         var first = new CountingListener();
         var second = new CountingListener();
         var remover = new SelfRemovingListener(hub, second);
-        hub.AddSubscribers(first);
-        hub.AddSubscribers(remover);
-        hub.AddSubscribers(second);
+        hub.Register(first);
+        hub.Register(remover);
+        hub.Register(second);
 
-        await hub.InvokeAsync(1);
+        await hub.Publish(new TestEvent("one"));
         Assert.Equal(1, first.Count);
         Assert.Equal(1, second.Count); // 快照：本次分发仍送达
 
-        await hub.InvokeAsync(2);
+        await hub.Publish(new TestEvent("two"));
         Assert.Equal(2, first.Count);
         Assert.Equal(1, second.Count); // 已退订
     }
@@ -176,20 +143,63 @@ public sealed class EventHubTests
     {
         var hub = new EventHub();
 
-        await Assert.ThrowsAsync<ArgumentNullException>(() => hub.InvokeAsync<string>(null!));
-        await Assert.ThrowsAsync<ArgumentNullException>(() => hub.InvokeParallelAsync<string>(null!));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => hub.Publish<TestEvent>(null!));
     }
 
-    private sealed class StringListener : Subscribers
+    [Fact]
+    public async Task Publish_CancellableEvent_Veto_IsHeardByAllAndSkipsIgnoreCancelled()
+    {
+        var hub = new EventHub();
+        var veto = new VetoListener<VetoEvent>(cancel: true);
+        var skipped = new IgnoreCancelledListener<VetoEvent>();
+        var heard = new VetoListener<VetoEvent>(cancel: false);
+        hub.Register(veto);
+        hub.Register(skipped);
+        hub.Register(heard);
+
+        var e = new VetoEvent(1);
+        await hub.Publish(e);
+
+        Assert.True(e.IsCancelled);
+        Assert.Equal(1, veto.Count);
+        Assert.Equal(0, skipped.Count); // ignoreCancelled → 跳过已取消事件
+        Assert.Equal(1, heard.Count);   // 其余照常接收（全部否决意见都能被听到）
+    }
+
+    [Fact]
+    public async Task Publish_CancellableEvent_NoVeto_DispatchesAll()
+    {
+        var hub = new EventHub();
+        var first = new VetoListener<NoVetoEvent>(cancel: false);
+        var second = new VetoListener<NoVetoEvent>(cancel: false);
+        hub.Register(first);
+        hub.Register(second);
+
+        var e = new NoVetoEvent(1);
+        await hub.Publish(e);
+
+        Assert.False(e.IsCancelled);
+        Assert.Equal(1, first.Count);
+        Assert.Equal(1, second.Count);
+    }
+
+    private sealed record class NoVetoEvent(int Value) : Event<NoVetoEvent>, ICancellable
+    {
+        public bool IsCancelled { get; set; }
+    }
+
+    private sealed record class TestEvent(string Value) : Event<TestEvent>;
+
+    private sealed record class VetoEvent(int Value) : Event<VetoEvent>, ICancellable
+    {
+        public bool IsCancelled { get; set; }
+    }
+
+    private sealed class RecordingListener(string prefix) : IEventHandler<TestEvent>
     {
         private readonly object _gate = new();
 
-        public StringListener(string prefix)
-        {
-            Prefix = prefix;
-        }
-
-        private string Prefix { get; }
+        private List<string> CallsList { get; } = new();
 
         public List<string> Calls
         {
@@ -202,201 +212,121 @@ public sealed class EventHubTests
             }
         }
 
-        private List<string> CallsList { get; } = new();
-
-        [Subscribe(typeof(string))]
-        public Task On(string value)
+        public Task OnInvoke(TestEvent e)
         {
             lock (_gate)
             {
-                CallsList.Add($"{Prefix}:{value}");
+                CallsList.Add($"{prefix}:{e.Value}");
             }
 
             return Task.CompletedTask;
         }
     }
 
-    private sealed class CountingListener : Subscribers
+    private sealed class CountingListener : IEventHandler<TestEvent>
     {
         public int Count;
 
-        [Subscribe(typeof(int))]
-        public Task On(int _)
+        public Task OnInvoke(TestEvent _)
         {
             Interlocked.Increment(ref Count);
             return Task.CompletedTask;
         }
     }
 
-    private sealed class ThrowingListener : Subscribers
+    private sealed class ThrowingListener : IEventHandler<TestEvent>
     {
         public bool Called { get; private set; }
 
-        [Subscribe(typeof(string))]
-        public Task On(string _)
+        public Task OnInvoke(TestEvent _)
         {
             Called = true;
             throw new InvalidOperationException("handler failure");
         }
     }
 
-    private sealed class EmptyListener : Subscribers
+    private sealed class EmptyListener 
     {
     }
 
-    private sealed class OrderedListener : Subscribers
+    [Subscribe(Priority = EventPriority.High)]
+    private sealed class HighOrderedListener(List<string> calls)
+        : IEventHandler<TestEvent>
     {
-        public readonly List<string> Calls = new();
-
-        [Subscribe(typeof(int), Priority = EventPriority.Highest)]
-        public Task OnHighest(int _) => Record("highest");
-
-        [Subscribe(typeof(int), Priority = EventPriority.High)]
-        public Task OnHigh(int _) => Record("high");
-
-        [Subscribe(typeof(int))]
-        public Task OnNormal(int _) => Record("normal");
-
-        [Subscribe(typeof(int), Priority = EventPriority.Low)]
-        public Task OnLow(int _) => Record("low");
-
-        [Subscribe(typeof(int), Priority = EventPriority.Lowest)]
-        public Task OnLowest(int _) => Record("lowest");
-
-        private Task Record(string name)
+        public Task OnInvoke(TestEvent _)
         {
-            Calls.Add(name);
+            calls.Add("high");
             return Task.CompletedTask;
         }
     }
 
-    private sealed class BlockingListener : Subscribers
+    [Subscribe(Priority = EventPriority.Normal)]
+    private sealed class NormalOrderedListener(List<string> calls)
+        : IEventHandler<TestEvent>
     {
-        private readonly TaskCompletionSource _started;
-        private readonly TaskCompletionSource _release;
-
-        public BlockingListener(TaskCompletionSource started, TaskCompletionSource release)
+        public Task OnInvoke(TestEvent _)
         {
-            _started = started;
-            _release = release;
-        }
-
-        [Subscribe(typeof(int))]
-        public Task On(int _)
-        {
-            _started.TrySetResult();
-            return _release.Task;
+            calls.Add("normal");
+            return Task.CompletedTask;
         }
     }
 
-    private sealed class SelfRemovingListener : Subscribers
+    [Subscribe(Priority = EventPriority.Low)]
+    private sealed class LowOrderedListener(List<string> calls)
+        : IEventHandler<TestEvent>
+    {
+        public Task OnInvoke(TestEvent _)
+        {
+            calls.Add("low");
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class SelfRemovingListener : IEventHandler<TestEvent>
     {
         private readonly EventHub _hub;
-        private readonly Subscribers _target;
+        private readonly object _target;
 
-        public SelfRemovingListener(EventHub hub, Subscribers target)
+        public SelfRemovingListener(EventHub hub, object target)
         {
             _hub = hub;
             _target = target;
         }
 
-        [Subscribe(typeof(int))]
-        public Task On(int _)
+        public Task OnInvoke(TestEvent _)
         {
-            _hub.RemoveSubscribers(_target);
+            _hub.Unregister(_target);
             return Task.CompletedTask;
         }
     }
 
-    [Fact]
-    public async Task Publish_Transmittable_BroadcastsToWireAndListeners()
+    private sealed class VetoListener<TEvent>(bool cancel) : IEventHandler<TEvent>
+        where TEvent : Event<TEvent>, ICancellable
     {
-        var (hub, wire) = CreateWireHub();
-        var listener = new WireListener();
-        hub.AddSubscribers(listener);
+        public int Count;
 
-        await hub.InvokeAsync(new NotifyEvent("hi"));
-
-        Assert.Equal(1, listener.Count);
-        var sent = Assert.Single(wire);
-        Assert.Equal(typeof(NotifyEvent).FullName!, sent.EventId);
-        Assert.Equal("hi", Assert.IsType<NotifyEvent>(sent.Payload).Message);
-    }
-
-    [Fact]
-    public async Task Publish_NonTransmittable_IsLocalOnly()
-    {
-        var (hub, wire) = CreateWireHub();
-        var listener = new PlainListener();
-        hub.AddSubscribers(listener);
-
-        await hub.InvokeAsync(new PlainRecord("x"));
-
-        Assert.Equal(1, listener.Count);
-        Assert.Empty(wire);
-    }
-
-    [Fact]
-    public async Task WireSenderException_DoesNotBlockLocalDispatch()
-    {
-        var (hub, wire) = CreateWireHub(wireSenderThrows: true);
-        var listener = new WireListener();
-        hub.AddSubscribers(listener);
-
-        await hub.InvokeAsync(new NotifyEvent("x")); // 不抛出
-
-        Assert.Equal(1, listener.Count);
-        Assert.Empty(wire);
-    }
-
-    private static (EventHub Hub, List<(string EventId, object Payload)> Wire) CreateWireHub(
-        bool wireSenderThrows = false)
-    {
-        var wire = new List<(string, object)>();
-        var hub = new EventHub(
-            wireSender: (id, payload) =>
+        public Task OnInvoke(TEvent e)
+        {
+            Interlocked.Increment(ref Count);
+            if (cancel)
             {
-                if (wireSenderThrows)
-                {
-                    throw new InvalidOperationException("wire exploded");
-                }
+                e.IsCancelled = true;
+            }
 
-                lock (wire)
-                {
-                    wire.Add((id, payload!));
-                }
-
-                return Task.CompletedTask;
-            });
-        return (hub, wire);
+            return Task.CompletedTask;
+        }
     }
 
-    private sealed class WireListener : Subscribers
+    [Subscribe(IgnoreCancelled = true)]
+    private sealed class IgnoreCancelledListener<TEvent> : IEventHandler<TEvent>
+        where TEvent : Event<TEvent>
     {
         public int Count;
 
-        [Subscribe(typeof(NotifyEvent))]
-        public Task On(NotifyEvent _)
+        public Task OnInvoke(TEvent _)
         {
             Interlocked.Increment(ref Count);
             return Task.CompletedTask;
         }
     }
-
-    private sealed class PlainListener : Subscribers
-    {
-        public int Count;
-
-        [Subscribe(typeof(PlainRecord))]
-        public Task On(PlainRecord _)
-        {
-            Interlocked.Increment(ref Count);
-            return Task.CompletedTask;
-        }
-    }
-
-    [Publish]
-    private sealed record NotifyEvent(string Message);
-
-    private sealed record PlainRecord(string Value);
 }

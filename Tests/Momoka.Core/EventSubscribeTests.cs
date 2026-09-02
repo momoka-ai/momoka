@@ -1,152 +1,99 @@
 using Xunit;
 using Momoka.Core.Events;
-using Momoka.Core.Plugins;
 
 namespace Momoka.Core.Tests;
 
 /// <summary>
-/// 监听自动化（[Subscribe] + Subscribers + EventHub.AddSubscribers/RemoveSubscribers）：
-/// 实例扫描注册 / 优先级降序 / 按实例退订 / 签名校验与零监听、重复注册 fail-fast / 插件作载体。
+/// 监听自动化（单方法接口模型）：实例实现多个 <see cref="IEventHandler{TEvent}"/> → 整体注册 /
+/// 类级选项（优先级）/ 同级按注册序 / 按实例退订 / 零处理器与重复注册 fail-fast。
 /// </summary>
 public sealed class EventSubscribeTests
 {
     [Fact]
-    public async Task AddSubscribers_ScansAndRegistersHandlers()
+    public async Task Register_RegistersAllImplementedHandlerInterfaces()
     {
         var hub = new EventHub();
         var subscriber = new RecordingSubscriber();
 
-        hub.AddSubscribers(subscriber);
+        hub.Register(subscriber);
 
-        await hub.InvokeAsync("hello");
-        await hub.InvokeAsync(7);
+        await hub.Publish(new MessageEvent("hello"));
+        await hub.Publish(new NumberEvent(7));
 
-        Assert.Equal(new[] { "hello", "high:7", "low:7" }, subscriber.Calls);
+        Assert.Equal(new[] { "hello", "number:7" }, subscriber.Calls);
     }
 
     [Fact]
-    public async Task PriorityOrdering_HighestFirst_LowestLast()
+    public async Task PriorityOrdering_HighestFirst_LowestLast_AcrossListeners()
     {
         var hub = new EventHub();
-        var subscriber = new OrderedSubscriber();
-        hub.AddSubscribers(subscriber);
+        var calls = new List<string>();
+        hub.Register(new LowestOrderedListener(calls));
+        hub.Register(new NormalOrderedListener(calls));
+        hub.Register(new HighestOrderedListener(calls));
 
-        await hub.InvokeAsync(1);
+        await hub.Publish(new NumberEvent(1));
 
-        Assert.Equal(new[] { "highest", "high", "normal", "low", "lowest" }, subscriber.Calls);
+        Assert.Equal(new[] { "highest", "normal", "lowest" }, calls);
     }
 
     [Fact]
-    public async Task SamePriority_PreservesRegistrationOrder()
+    public async Task SamePriority_PreservesRegistrationOrder_AcrossListeners()
     {
         var hub = new EventHub();
-        var subscriber = new SamePrioritySubscriber();
-        hub.AddSubscribers(subscriber);
+        var calls = new List<string>();
+        hub.Register(new FirstListener(calls));
+        hub.Register(new SecondListener(calls));
 
-        await hub.InvokeAsync("x");
+        await hub.Publish(new MessageEvent("x"));
 
-        Assert.Equal(new[] { "first", "second" }, subscriber.Calls);
+        Assert.Equal(new[] { "first", "second" }, calls);
     }
 
     [Fact]
-    public async Task RemoveSubscribers_UnsubscribesAllScannedMethods()
+    public async Task Unregister_UnsubscribesAllImplementedInterfaces()
     {
         var hub = new EventHub();
         var subscriber = new RecordingSubscriber();
-        hub.AddSubscribers(subscriber);
+        hub.Register(subscriber);
 
-        hub.RemoveSubscribers(subscriber);
-        hub.RemoveSubscribers(subscriber); // 幂等
+        hub.Unregister(subscriber);
+        hub.Unregister(subscriber); // 幂等
 
-        await hub.InvokeAsync("a");
-        await hub.InvokeAsync(1);
+        await hub.Publish(new MessageEvent("a"));
+        await hub.Publish(new NumberEvent(1));
 
         Assert.Empty(subscriber.Calls);
     }
 
     [Fact]
-    public async Task VoidMethod_And_TaskMethod_AreBothSupported()
+    public void Register_NoHandlerInterface_Fails()
+    {
+        var hub = new EventHub();
+
+        Assert.Throws<InvalidOperationException>(() => hub.Register(new object()));
+    }
+
+    [Fact]
+    public void Register_DuplicateInstance_Fails_AndReregisterAfterUnregister()
     {
         var hub = new EventHub();
         var subscriber = new RecordingSubscriber();
-        hub.AddSubscribers(subscriber);
+        hub.Register(subscriber);
 
-        await hub.InvokeAsync("x");
-        await hub.InvokeAsync(5);
+        Assert.Throws<InvalidOperationException>(() => hub.Register(subscriber));
 
-        Assert.Contains("x", subscriber.Calls);
-        Assert.Contains("high:5", subscriber.Calls);
-        Assert.Contains("low:5", subscriber.Calls);
+        hub.Unregister(subscriber);
+        hub.Register(subscriber);
     }
 
     [Fact]
-    public void AddSubscribers_ZeroSubscribeMethods_Fails()
+    public void Register_NullListener_Throws()
     {
         var hub = new EventHub();
 
-        Assert.Throws<InvalidOperationException>(() => hub.AddSubscribers(new EmptySubscriber()));
-    }
-
-    [Fact]
-    public void AddSubscribers_InvalidParameterCount_FailsFast()
-    {
-        var hub = new EventHub();
-
-        Assert.Throws<InvalidOperationException>(() => hub.AddSubscribers(new TwoParametersSubscriber()));
-    }
-
-    [Fact]
-    public void AddSubscribers_WrongParameterType_FailsFast()
-    {
-        var hub = new EventHub();
-
-        Assert.Throws<InvalidOperationException>(() => hub.AddSubscribers(new WrongTypeSubscriber()));
-    }
-
-    [Fact]
-    public void AddSubscribers_InvalidReturnType_FailsFast()
-    {
-        var hub = new EventHub();
-
-        Assert.Throws<InvalidOperationException>(() => hub.AddSubscribers(new WrongReturnTypeSubscriber()));
-    }
-
-    [Fact]
-    public void AddSubscribers_DuplicateInstance_Fails()
-    {
-        var hub = new EventHub();
-        var subscriber = new RecordingSubscriber();
-        hub.AddSubscribers(subscriber);
-
-        Assert.Throws<InvalidOperationException>(() => hub.AddSubscribers(subscriber));
-    }
-
-    [Fact]
-    public void AddSubscribers_NullSubscriber_Throws()
-    {
-        var hub = new EventHub();
-
-        Assert.Throws<ArgumentNullException>(() => hub.AddSubscribers(null!));
-    }
-
-    [Fact]
-    public void RemoveSubscribers_NullSubscriber_Throws()
-    {
-        var hub = new EventHub();
-
-        Assert.Throws<ArgumentNullException>(() => hub.RemoveSubscribers(null!));
-    }
-
-    [Fact]
-    public async Task PluginItself_CanBeSubscriber()
-    {
-        var hub = new EventHub();
-        var plugin = new SubscriberPlugin();
-        hub.AddSubscribers(plugin);
-
-        await hub.InvokeAsync("from-plugin");
-
-        Assert.Equal(new[] { "from-plugin" }, plugin.Calls);
+        Assert.Throws<ArgumentNullException>(() => hub.Register(null!));
+        Assert.Throws<ArgumentNullException>(() => hub.Unregister(null!));
     }
 
     [Fact]
@@ -154,14 +101,18 @@ public sealed class EventSubscribeTests
     {
         var hub = new EventHub();
         var subscriber = new ThrowingSubscriber();
-        hub.AddSubscribers(subscriber);
+        hub.Register(subscriber);
 
-        await hub.InvokeAsync("x"); // 不抛出
+        await hub.Publish(new MessageEvent("x")); // 不抛出
 
         Assert.True(subscriber.Called);
     }
 
-    private sealed class RecordingSubscriber : Subscribers
+    private sealed record class MessageEvent(string Value) : Event<MessageEvent>;
+
+    private sealed record class NumberEvent(int Value) : Event<NumberEvent>;
+
+    private sealed class RecordingSubscriber : IEventHandler<MessageEvent>, IEventHandler<NumberEvent>
     {
         private readonly object _gate = new();
         private readonly List<string> _calls = new();
@@ -177,137 +128,80 @@ public sealed class EventSubscribeTests
             }
         }
 
-        [Subscribe(typeof(string))]
-        public Task OnString(string value)
+        public Task OnInvoke(MessageEvent e)
         {
             lock (_gate)
             {
-                _calls.Add(value);
+                _calls.Add(e.Value);
             }
 
             return Task.CompletedTask;
         }
 
-        [Subscribe(typeof(int), Priority = EventPriority.Low)]
-        public void OnIntLow(int value)
+        public Task OnInvoke(NumberEvent e)
         {
             lock (_gate)
             {
-                _calls.Add($"low:{value}");
-            }
-        }
-
-        [Subscribe(typeof(int), Priority = EventPriority.Highest)]
-        public Task OnIntHigh(int value)
-        {
-            lock (_gate)
-            {
-                _calls.Add($"high:{value}");
+                _calls.Add($"number:{e.Value}");
             }
 
             return Task.CompletedTask;
         }
     }
 
-    private sealed class OrderedSubscriber : Subscribers
+    [Subscribe(Priority = EventPriority.Highest)]
+    private sealed class HighestOrderedListener(List<string> calls) : IEventHandler<NumberEvent>
     {
-        public readonly List<string> Calls = new();
-
-        [Subscribe(typeof(int), Priority = EventPriority.Highest)]
-        public Task OnHighest(int _)
+        public Task OnInvoke(NumberEvent _)
         {
-            Calls.Add("highest");
-            return Task.CompletedTask;
-        }
-
-        [Subscribe(typeof(int), Priority = EventPriority.High)]
-        public Task OnHigh(int _)
-        {
-            Calls.Add("high");
-            return Task.CompletedTask;
-        }
-
-        [Subscribe(typeof(int))]
-        public Task OnNormal(int _)
-        {
-            Calls.Add("normal");
-            return Task.CompletedTask;
-        }
-
-        [Subscribe(typeof(int), Priority = EventPriority.Low)]
-        public Task OnLow(int _)
-        {
-            Calls.Add("low");
-            return Task.CompletedTask;
-        }
-
-        [Subscribe(typeof(int), Priority = EventPriority.Lowest)]
-        public Task OnLowest(int _)
-        {
-            Calls.Add("lowest");
+            calls.Add("highest");
             return Task.CompletedTask;
         }
     }
 
-    private sealed class SamePrioritySubscriber : Subscribers
+    [Subscribe(Priority = EventPriority.Normal)]
+    private sealed class NormalOrderedListener(List<string> calls) : IEventHandler<NumberEvent>
     {
-        public readonly List<string> Calls = new();
-
-        [Subscribe(typeof(string))]
-        public Task OnFirst(string _)
+        public Task OnInvoke(NumberEvent _)
         {
-            Calls.Add("first");
-            return Task.CompletedTask;
-        }
-
-        [Subscribe(typeof(string))]
-        public Task OnSecond(string _)
-        {
-            Calls.Add("second");
+            calls.Add("normal");
             return Task.CompletedTask;
         }
     }
 
-    private sealed class EmptySubscriber : Subscribers
+    [Subscribe(Priority = EventPriority.Lowest)]
+    private sealed class LowestOrderedListener(List<string> calls) : IEventHandler<NumberEvent>
     {
-    }
-
-    private sealed class TwoParametersSubscriber : Subscribers
-    {
-        [Subscribe(typeof(string))]
-        public Task On(string a, string b) => Task.CompletedTask;
-    }
-
-    private sealed class WrongTypeSubscriber : Subscribers
-    {
-        [Subscribe(typeof(string))]
-        public Task On(int value) => Task.CompletedTask;
-    }
-
-    private sealed class WrongReturnTypeSubscriber : Subscribers
-    {
-        [Subscribe(typeof(string))]
-        public int On(string value) => 1;
-    }
-
-    private sealed class SubscriberPlugin : Plugin, Subscribers
-    {
-        public readonly List<string> Calls = new();
-
-        [Subscribe(typeof(string))]
-        public Task On(string value)
+        public Task OnInvoke(NumberEvent _)
         {
-            Calls.Add(value);
+            calls.Add("lowest");
             return Task.CompletedTask;
         }
     }
 
-    private sealed class ThrowingSubscriber : Subscribers
+    private sealed class FirstListener(List<string> calls) : IEventHandler<MessageEvent>
+    {
+        public Task OnInvoke(MessageEvent _)
+        {
+            calls.Add("first");
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class SecondListener(List<string> calls) : IEventHandler<MessageEvent>
+    {
+        public Task OnInvoke(MessageEvent _)
+        {
+            calls.Add("second");
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ThrowingSubscriber : IEventHandler<MessageEvent>
     {
         public bool Called { get; private set; }
 
-        [Subscribe(typeof(string))]
-        public Task On(string _)
+        public Task OnInvoke(MessageEvent _)
         {
             Called = true;
             throw new InvalidOperationException("subscriber failure");
