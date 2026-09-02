@@ -6,12 +6,12 @@ Momoka.Core 是**插件宿主 + 核心能力库**：提供一组**通用机制**
 
 | 子系统 | 职责 | 状态 |
 |--------|------|------|
-| **Plugins** | 插件契约（`Plugin` 基类，OnEnable/OnDisable）、manifest、加载/启停/依赖图（PluginLoader） | ✅ 本期完成 |
-| **Events** | 事件中心（EventHub）：进程内订阅/发布、订阅级顺序 / 并行发布、异常隔离；`ICancellable` 事件可被其它插件阻断（Before），非可取消事件 fire-and-forget（After）；仅服务端插件间通信，绝不跨线 | ✅ 本期完成 |
+| **Plugins** | 插件契约（plugin.toml + 静态 `Build(Plugin)` 声明面）、Service\<T\>/注入、加载/启停/依赖图（PluginLoader） | ✅ 本期完成 |
+| **Events** | 事件中心（EventHub，Bukkit 风格 · CRTP）：每事件类型一张静态处理器表（volatile 复制写，发布无锁）+ 注册期一次反射、触发期强类型直调；`ICancellable` 事件可被其它插件否决（置 IsCancelled；ignoreCancelled 处理器跳过）；仅服务端插件间通信，绝不跨线 | ✅ 本期完成；After 语义设计中 |
 | **Registry** | 插件间服务发现表：同类型多注册、优先级/来源插件追踪 | ✅ 本期完成 |
 | **Configurations** | 统一配置 + 版本迁移：不透明值树 + 版本键 + 迁移链（文件 / 二进制 / 数据库三后端） | ✅ 本期完成 |
 | **Commands** | 指令定义 / 解析 / 执行（迷你语言 + 类型化参数，Minestom 风格，终端向） | ✅ 本期完成 |
-| **Gateway** | Ui 网关设施：连接握手（token）+ 设备注册表（clientId 主表）+ 广播原语；三层通信模型（Events 进程内 / Post 控制面 / Packet 数据面）契约已定案 | 🟡 连接与广播已实现；Post/Packet 契约定案，实现下一期 |
+| **Gateway** | Ui 网关设施：连接握手（token）+ 设备注册表（clientId 主表）；三层通信模型（Events 进程内 / Post 控制面 / Packet 数据面）契约已定案 | 🟡 连接与注册表已实现；Post/Packet 契约定案，实现下一期 |
 | **Scheduling / Notifications / Profiles / State / Security** | 定时 / 通知 / 家庭成员 / 状态发布订阅 / 安全守卫 | 📋 后续迭代（契约见 §8） |
 
 > 依赖方向：**子模块引用 Core**；Core 不引用任何子模块。本期删除 `Core→Home` 工程引用与 Home 专属网关存根（`HomeService`/`IHomeClient`），依赖方向反转。
@@ -44,68 +44,66 @@ Momoka.Sense┘
 
 ```
 Momoka.Core/
-├── Program.cs                      # 宿主入口：WebApplication + PluginLoader
-├── Momoka.Core.csproj              # Microsoft.AspNetCore.App + Tomlyn（无子模块引用）
-├── Plugins/                        # 插件子系统
-│   ├── Plugin.cs / PluginState.cs / PluginService.cs
-│   ├── PluginInfo.cs / PluginLoader.cs / PluginExceptions.cs
-│   └── ServiceRegistry.cs / ServiceSource.cs / ServicePriority.cs
-├── Events/                         # 事件中心（进程内；Publish/PublishAsync + ICancellable 阻断）
-│   └── EventHub.cs / EventPriority.cs / SubscribeAttribute.cs / Subscribers.cs
-├── Gateway/                        # Ui 网关设施（Client / GatewayHub；连接握手 + 设备注册表 + 广播原语）
-├── Configurations/                 # Configuration / Migration + File/Binary/Database 三种后端
-└── Commands/                       # Command / CommandExecutor / CommandManager / CommandParser
+├── Program.cs / GatewayHostBuilder.cs      # 宿主入口：WebApplication + SignalR 网关（插件引导接线待重建）
+├── Momoka.Core.csproj                      # Microsoft.AspNetCore.App + Tomlyn（无子模块引用）
+├── Plugins/                                # 插件子系统（声明式生命周期：静态 Build(Plugin)）
+│   ├── Plugin.cs                           # 插件声明面（身份/日志/目录 + 服务/指令/事件监听器声明）
+│   ├── PluginInfo.cs / PluginState.cs / PluginExceptions.cs    # manifest / 状态 / 异常（含依赖图 PluginDependencyGraph）
+│   ├── PluginLoader.cs                     # 加载（manifest → 主类静态 Build）→ 启用/停用
+│   ├── ServiceInjector.cs / ServiceUsageGraph.cs   # [ServiceInjection] 注入 pass 与使用图（disable 守卫）
+├── Services/                               # Service<T> 泛型静态注册表 + 注入标记
+│   └── Service.cs / ServiceInjectionAttribute.cs
+├── Events/                                 # 事件中心（进程内 · Bukkit 风格 · CRTP；IEventHandler<T> 单方法契约）
+│   └── Event.cs / EventHub.cs / IEventHandler.cs / RegisteredHandler.cs / EventPriority.cs / ICancellable.cs / SubscribeAttribute.cs / PublishAttribute.cs
+├── Gateway/                                # Ui 网关设施（Client / GatewayHub；连接握手 + 设备注册表）
+├── Configurations/                         # Configuration / Migration + File/Binary/Database 三种后端
+└── Commands/                               # Command / CommandExecutor / CommandManager / CommandParser
 ```
 
 ## 5. 插件系统
 
-### 5.1 契约：`Plugin` 基类
+### 5.1 契约：声明式 `Plugin` + 静态 Build 入口
 
-- **宿主能力经共享 `PluginService` 注入 `Plugin` 基类**（统一管理服务注册表 / 事件中心 / 日志工厂 / 插件根目录，全插件共用同一实例）；插件专属能力（日志器 / 插件目录 / 配置）由 `Plugin` 按自身名称派生，插件代码访问 `Host.Services` / `Host.Events` / `Logger` / `GetPluginFolder()`。
-- 插件构造器须**轻量无副作用**；业务服务用**服务定位**（`Host.Services.Resolve<T>()`，缺失报清晰错误）。
-- 预留扩展点（**不加空方法**）：指令/CLI 注册（Commands 期）、网关 Packet 注册（`MapPacket<T>`，三层通信模型数据面，见 §11）。
-- 守卫：`Host` 注入前访问抛 `InvalidOperationException`。
-
-```csharp
-public abstract class Plugin
-{
-    public PluginInfo Info { get; }                 // 插件信息（manifest，注入时回填）
-    public string Name => Info.Name;                // 由 Info 提供
-    public string Version => Info.Version;
-    public PluginState State { get; }               // Loaded/Enabled/Disabled/Failed，由 Loader 推进
-
-    protected PluginService Host { get; }           // 宿主能力束（共享实例，唯一注入点）
-    protected ILogger Logger { get; }               // 专属日志器（类别 = 插件名，懒创建）
-    protected DirectoryInfo GetPluginFolder();      // Plugins/<name>/，按需即时生成，编排由插件自行决定
-    protected FileInfo GetPluginConfig();           // Plugins/<name>/config.toml，按需即时生成
-    protected Stream? GetPluginResource(string path); // 提取本插件打包的嵌入资源流（内嵌名），未找到返回 null
-
-    public virtual void OnEnable() { }              // 启用钩子：注册服务/订阅事件
-    public virtual void OnDisable() { }             // 停用钩子：清理由插件自行完成
-    internal void InjectHost(PluginInfo info, PluginService host); // Loader 注入
-}
-```
+- **插件 = 声明数据，不控制生命周期**：`plugin.toml` 的 `main` 指向**静态入口类型**，其上须声明 `public static void Build(Plugin plugin)`。宿主构造声明面（注入身份/环境）后回调一次，插件只做声明（AddService / AddCommand / AddEventHandler）；生命周期（启用/停用/注入）完全由 `PluginLoader` 接管，无 OnEnable/OnDisable。
+- **服务**：`AddService<T>(provider, overwrite: false)` 立即写入 `Service<T>` 泛型注册表（来源 = 本插件）。默认**先到先得**（后续同类型注册成为可选提供商）；`overwrite: true` 显式替换当前提供商。
+- **注入**：`[ServiceInjection]` 属性注入仅作用于服务提供者实例（可空性即硬失败开关：`T?` 缺失留 null、`T` 缺失 fail-fast）；注入时记录服务使用边（disable 守卫，见 §5.4）。
+- **指令与监听器是 Core 管理对象**：`AddCommand(Command)` / `AddEventHandler(object listener)`（listener 实现 ≥1 个 `IEventHandler<TEvent>`）；不参与 [ServiceInjection]。
+- 专属能力按自身名称派生：`Logger`（类别 = 插件名）/ `GetPluginFolder()`（Plugins/&lt;name&gt;/）/ `GetPluginConfig()`。
 
 ```csharp
-public sealed class PluginService
+public sealed class Plugin   // 宿主注入身份与环境后的声明面
 {
-    // 宿主级共享（DI 注册，注入 PluginLoader 与全部 Plugin）
-    public ServiceRegistry Services { get; }        // 服务注册表（富 API：多注册/优先级/来源插件）
-    public EventHub Events { get; }                 // 事件中心
-    public Gateway Gateway { get; }                 // Ui 网关设施（连接握手 + 设备注册表 + 广播原语）
-    public ILoggerFactory LoggerFactory { get; }    // 日志工厂
-    public DirectoryInfo PluginsDirectory { get; }  // <base>/Plugins
+    public PluginInfo Info { get; }                       // manifest（身份）
+    public string Name => Info.Name;  public string Version => Info.Version;
+    public ILogger Logger { get; }                        // 专属日志器（类别 = 插件名）
+    public IList<Command> Commands { get; }               // 指令（Core 管理）
+    public IList<object> EventHandlers { get; }           // 监听器（实现 ≥1 IEventHandler<TEvent>）
+
+    public Plugin AddService<T>(T provider, bool overwrite = false);  // → Service<T>（来源 = 本插件）
+    public Plugin AddCommand(Command command);
+    public Plugin AddEventHandler(object listener);
+    public DirectoryInfo GetPluginFolder();               // Plugins/<name>/，按需即时生成
+    public FileInfo GetPluginConfig();                    // Plugins/<name>/config.toml，按需即时生成
+}
+
+// plugin.toml main 指向的静态入口（示例）：
+public static class HomePlugin
+{
+    public static void Build(Plugin plugin)
+    {
+        plugin.AddService<INavigationService>(new NavService());
+        plugin.AddCommand(new MoveCommand());
+        plugin.AddEventHandler(new MovementListener());   // class MovementListener : IEventHandler<PlacedEvent>
+    }
 }
 ```
-
-插件代码示例：`Host.Services.Register<ITestService>(...)`、`Host.Events.AddSubscribers(listener)`、`Logger.LogInformation(...)`、`GetPluginFolder()`。
 
 ### 5.2 plugin.toml（只读内嵌元数据，一个程序集 = 一个插件）
 
 ```toml
 name = "home"                  # 必填，全局唯一
 version = "1.2.3"              # 必填，SemVer 风格（string：可含预发布/构建元数据）
-main = "Momoka.Home.HomePlugin, Momoka.Home"   # 必填，Plugin 子类全名（string：程序集加载后惰性解析，不能用 System.Type）
+main = "Momoka.Home.HomePlugin, Momoka.Home"   # 必填，静态 Build(Plugin) 入口类型全名（string：程序集加载后惰性解析）
 dependency = ["ai"]            # 可选，硬前置插件名数组；引用未知 → fail-fast
 dependencyOptional = ["vision"] # 可选，软前置插件名数组；缺失静默跳过，存在则参与排序
 authors = ["alice", "bob"]     # 可选，作者与贡献者
@@ -134,26 +132,25 @@ Plugins/                          # 唯一运行时根目录（<base>/Plugins，
 | 插件设置 | `Plugins/<name>/config.toml` | `GetPluginConfig()` 按需即时生成；后续 Configurations 提供类型化/版本化访问 |
 | 插件数据 | `Plugins/<name>/` | `GetPluginFolder()` 按需即时生成，返回插件目录本身；数据库/缓存等由插件自行编排 |
 
-不再有顶层 `Config/` / `Data/` 目录；插件根目录硬编码于基目录（`AppContext.BaseDirectory`，可经配置 `Plugins:BaseDirectory` 覆写）之下，由 `PluginService` 持有；`Plugins/` 目录启动时自动创建。无 `PluginLoaderOptions`。
+不再有顶层 `Config/` / `Data/` 目录；插件根目录硬编码于基目录（`AppContext.BaseDirectory`，可经配置 `Plugins:BaseDirectory` 覆写）之下；`Plugins/` 目录启动时自动创建。无 `PluginLoaderOptions`。
 
 ### 5.4 PluginLoader 流程
 
 **Load(path)**：加载单个插件（出错抛 `InvalidPluginException`）：
-
 1. `Assembly.LoadFrom(path)`（失败 → fail-fast）
 2. 读内嵌 `plugin.toml` → `PluginInfo`；无 → 非插件程序集（fail-fast）
-3. 重复 name → fail-fast；`GetPluginMainType` 解析 main 并校验为具体 `Plugin` 子类
-4. 实例化（public 无参构造器）→ `InjectHost(Info, PluginService)` → 记录 `PluginAssembly` + `Plugin`（State=Loaded），**不调用 OnEnable**
+3. 重复 name → fail-fast；按 `main` 解析入口类型并校验静态 `void Build(Plugin)` 签名
+4. 构造 `Plugin` 声明面（注入 Info / 插件根目录 / 日志工厂）→ 调用 `Build(plugin)` 填充声明（**不实例化插件类、不调用生命周期**）→ 记录（State=Loaded）
 
-**EnableAsync(Plugin) / DisableAsync(Plugin)**：单插件启停，返回 bool（未加载 / 已处于目标状态 → false；回调抛异常 → 置 Failed 返回 false）。
+**EnableAsync(plugin)**：服务确保注册（disable 后重建）→ `[ServiceInjection]` 注入本插件服务提供者并记录使用边 → 逐个注册 `EventHandlers` 进事件总线 → State=Enabled；注入/注册抛异常 → 回滚已生效部分并置 Failed、返回 false。
 
-**EnableAsync()**：构建依赖图（硬前置 `dependency` 引用未知 → fail-fast；软前置 `dependencyOptional` 可解析则构成排序边；检测环 → fail-fast）→ 拓扑排序 → 依序 `OnEnable`（State=Enabled）；任一失败 → 逆序回滚已启用插件 → 返回 false。
+**DisableAsync(plugin)**：**disable 守卫**——本插件提供的服务仍被已启用消费者（ServiceUsageGraph 记录）使用时 fail-fast 抛 `InvalidOperationException`（须先停用消费者）；否则逐个反注册监听器 → 按服务声明类型整组 `Service<T>.Remove(plugin)` → State=Disabled。
 
-**DisableAsync()**：逆拓扑序 `OnDisable`（State=Disabled，清理由插件自行完成）；任一失败 → 返回 false。
+**EnableAsync() / DisableAsync()**：构建依赖图（硬前置 `dependency` 引用未知 → fail-fast；软前置 `dependencyOptional` 可解析则构成排序边；检测环 → fail-fast）→ 拓扑排序依序启用；任一失败 → 逆序回滚并返回 false。停用走逆拓扑序。
 
-**状态**：`Loaded → Enabled ↔ Disabled / Failed`，记于 `Plugin.State`。加载器无内置状态机，**生命周期与主程序同步**。
+**状态**：`Loaded → Enabled ↔ Disabled / Failed`，记于 `PluginLoader`（`GetState`）。加载器无内置状态机，**生命周期与主程序同步**；运行期单插件启停（热插拔 = 运行时启用/停用）受使用图守卫。
 
-**实现约定**：`AssemblyResolve` 兜底探询**所有插件子目录**（跨插件引用与插件本地依赖解析）；静态内省原语 `GetPluginFiles` / `GetPluginInfo` / `GetPluginResource` / `GetPluginMainType` 供宿主与外部按文件级访问；`PluginLoader` 构造器注入宿主级 `PluginService`。
+**实现约定**：`AssemblyResolve` 兜底探询**所有插件子目录**（跨插件引用与插件本地依赖解析）；`PluginLoader` 构造器注入插件根目录 + `EventHub`（进程内注册插件经 `RegisterPlugin`，磁盘路径经 `Load`）。
 
 ### 5.5 打包约定
 
@@ -165,72 +162,89 @@ Plugins/                          # 唯一运行时根目录（<base>/Plugins，
 
 | 异常 | 场景 |
 |------|------|
-| `InvalidPluginException` | 插件结构不合法：DLL 不可加载 / main 类型不存在、非 `Plugin` 子类或无法实例化 / 重复插件名 / 依赖环 / 签名校验失败 |
+| `InvalidPluginException` | 插件结构不合法：DLL 不可加载 / 入口类型不存在或未声明静态 `Build(Plugin)` / Build 抛异常 / 重复插件名 / 依赖环 |
 | `InvalidInfoException` | 插件信息不合法：plugin.toml 缺失或不可读 / TOML 格式非法 / 缺关键字段 / 类型不符 |
 | `UnknownDependencyException` | `dependency`（硬前置）引用未知或当前不可用（禁用）的插件 |
 
-另：重复 `Load` 抛 `InvalidOperationException`；运行期 Load/Start 失败不包装，原样上抛。
+另：进程内 `RegisterPlugin` 重复注册同 name 抛 `InvalidPluginException`；EnableAsync 单插件注入/注册失败不包装，置 Failed 返回 false，disable 守卫直接上抛。
 
-## 6. 服务注册表（Registry，位于 `Momoka.Core.Plugins`）
+## 6. 服务（Service<T> 泛型静态注册表，位于 `Momoka.Core.Services`）
+
+与事件系统同构（`Event<T>` 的镜像）：每服务类型一张静态表，volatile 复制写，解析热路径无锁直读。
 
 ```csharp
-public sealed class ServiceRegistry
+public static class Service<T> where T : class
 {
-    void Register<TService>(TService instance, ServicePriority priority = Normal, Plugin? plugin = null);
-    void Register(Type serviceType, object instance, ServicePriority priority = Normal, Plugin? plugin = null);
-    TService Resolve<TService>() where TService : class;   // 最高优先级；缺失抛 InvalidOperationException（fail-fast）
-    TService? TryResolve<TService>() where TService : class;
-    bool TryGetService<TService>(out TService? value) where TService : class;
-    IEnumerable<ServiceSource<TService>> GetRegistrations<TService>();                  // 全部（优先级降序）
-    IEnumerable<ServiceSource<TService>> GetRegistrations<TService>(Type serviceType);  // 指定注册键
-    IEnumerable<ServiceSource<TService>> GetRegistrations<TService>(Plugin plugin);    // 指定来源插件
-    bool IsRegistered(Type serviceType);
+    public static T? Current { get; }                                    // 当前提供商（先到先得或显式覆盖）
+    public static T Resolve();  public static T? TryResolve();
+    public static IReadOnlyList<T> All { get; }                          // 当前 + 可选提供商（注册序）
+    public static ServiceRegistration<T>? CurrentRegistration { get; }   // 含来源（插件实例）
+    public static bool TryRegister(T provider, object? source = null);   // 先到先得；后续同型注册成为 fallback
+    public static void Register(T provider, object? source = null);      // 显式覆盖当前提供商（原当前降级）
+    public static int Remove(object source);                             // 按来源整组移除；当前被移除自动提升 fallback
 }
-
-public readonly record struct ServiceSource<T>(Type Service, T Source, ServicePriority Priority, Plugin? Plugin);
-public enum ServicePriority { Highest, High, Normal, Low, Lowest }
+public sealed record ServiceRegistration<T>(T Provider, object? Source) where T : class;
 ```
 
-- 同类型允许多注册，每项记录来源插件与优先级；单值解析取**优先级最高**者（同级按先注册先得）；`GetRegistrations` 按优先级降序返回，可滤按注册键或来源插件。
-- `Dictionary<Type, List<Entry>>` + `lock`；Type 为**不透明键**（Core 不解释业务语义）。
-- **与 DI 容器分工**：宿主自身设施走 DI（Generic Host）；插件提供的业务服务走 Registry（插件反射实例化无法构造器注入）。
+- **语义**：首个注册成为当前提供商（先到先得）；后续注册作为可选提供商（fallback）保留，当前被移除（disable）时自动提升。`Plugin.AddService` 默认走 `TryRegister`（先到先得），`overwrite: true` 走 `Register`（显式设置服务提供者）。
+- **来源 = 插件实例**：disable 时按来源整组移除，防静态表滞留。
 
-## 7. 事件中心（Events）
-
-> 进程内通信，**仅供服务端插件间通知与阻断**；不序列化、绝不跨线。跨客户端/服务端的传输由 Packet 承担（见 §11）。本节为 2026-08-31 三层通信模型定案后的目标形态；`ICancellable` / `Publish` / `PublishAsync` 与 §11 的 Packet 队列同批落地。
+### 6.1 注入 `[ServiceInjection]`（仅服务提供者）
 
 ```csharp
-public enum EventPriority { Lowest, Low, Normal, High, Highest }
+[AttributeUsage(AttributeTargets.Property)]
+public sealed class ServiceInjectionAttribute : Attribute { }
 
-public interface Subscribers { }                // 监听者标记接口（Bukkit Listener 风格）：
-                                                // 携带 [Subscribe] 方法的类型必须实现，订阅/退订只认本接口实例
+// 服务提供者类内（可空性即硬失败开关）：
+[ServiceInjection] public INavigationService Nav { get; set; }   // 缺失 → 注入 pass fail-fast
+[ServiceInjection] public ISenseApi? Sense { get; set; }         // 缺失 → 留 null 不炸
+```
 
-public interface ICancellable { bool IsCancelled { get; void Reject(string reason); } }
-// 阻断门控：仅实现 ICancellable 的事件可被其它插件 veto（Before 语义）
+- 注入时机：**全部插件 Build 完成后**、启用时（`EnableAsync` 内），跨插件服务已可解析（两相：Build 只注册不解析）。
+- 仅扫描 `AddService` 注册的**服务提供者**；Command / 监听器等 Core 管理对象不参与。
+- 注入时记录使用边到 `ServiceUsageGraph`（消费者插件 → 提供商插件，自注入不成边），供 disable 守卫与将来 enable 排序。
 
-[AttributeUsage(AttributeTargets.Method)]
-public sealed class SubscribeAttribute
+## 7. 事件中心（Events · Bukkit 风格 / CRTP）
+
+> 进程内通信，**仅供服务端插件间通知与阻断**；不序列化、绝不跨线，跨客户端/服务端的传输由 Packet 承担（见 §11）。2026-09 定案：**CRTP 泛型事件基类 + `IEventHandler<T>` 单方法处理器接口**——签名由编译器静态保证，注册期仅一次接口枚举反射，触发期接口方法直调；每事件类型一张静态处理器表（volatile 复制写，发布热路径无锁）。
+
+```csharp
+public abstract record class Event<T> where T : Event<T>      // 事件基类（CRTP）：身份 = 类型本身，无 Name 字符串
 {
-    Type Target { get; }                            // 事件类型
-    EventPriority Priority { get; set; } = EventPriority.Normal;
+    public static volatile RegisteredHandler<T>[] Handlers = ...;  // 每类型静态条目表（复制写：写侧整体换数组，读侧无锁）
+    public static void Add(RegisteredHandler<T> handler);          // 复制写 + 优先级降序稳定排序（同级按注册序）
+    public static void Register(IEventHandler<T> handler, object source,
+        EventPriority priority = Normal, bool ignoreCancelled = false);  // EventHub 反射路由调用
+    public static void Remove(object source);                      // 按来源监听者移除（复制写）
 }
+
+public interface IEventHandler<in TEvent> where TEvent : Event<TEvent>  // 处理器契约（单方法接口）
+{ Task OnInvoke(TEvent e); }                                        // 实现 N 个接口 = 监听 N 类事件
+
+public sealed class RegisteredHandler<TEvent> where TEvent : Event<TEvent>  // 注册条目（Bukkit RegisteredListener 对应物）
+{   // Source(object 监听者) / Handler(IEventHandler<TEvent>) / Priority / IgnoreCancelled / InvokeAsync(TEvent) 直调 }
+
+public interface ICancellable { bool IsCancelled { get; set; } }   // 阻断门控（Before 语义）
+
+[AttributeUsage(AttributeTargets.Class)]
+public sealed class SubscribeAttribute { EventPriority Priority; bool IgnoreCancelled; }  // 类级选项，作用于该类全部处理器接口
 
 public sealed class EventHub
 {
-    void AddSubscribers(Subscribers sub, Plugin? plugin = null);    // 扫描 [Subscribe] 整体注册；零监听/重复实例 fail-fast
-    void RemoveSubscribers(Subscribers sub);                        // 按实例整体退订（幂等）
-    Task Publish<TEvent>(TEvent @event, CancellationToken ct = default);      // 同步顺序发布（Before/veto 专用）
-    void PublishAsync<TEvent>(TEvent @event);                       // fire-and-forget（After 专用；Tick 队列内串行执行）
-    Task PublishParallelAsync<TEvent>(TEvent @event, CancellationToken ct = default);  // 并行发布（Task.WhenAll）
+    void Register(object listener);     // 枚举实现的 IEventHandler<TEvent> → Event<TEvent>.Register；零接口 / 重复实例 fail-fast
+    void Unregister(object listener);   // 同路径反向 → Event<TEvent>.Remove（幂等）
+    Task Publish<TEvent>(TEvent e, CancellationToken ct = default) where TEvent : Event<TEvent>;
 }
 ```
 
-- **订阅**：订阅表按 `Type` 分桶 + 按实例索引 + `lock`；订阅/退订/发布线程安全；发布时快照订阅表再分发。`AddSubscribers` 只认 `Subscribers` 实现，扫描 `[Subscribe]`（签名 = 单参数 Target + 返回 Task/void）；零监听 / 签名非法 / 重复实例 → fail-fast；`RemoveSubscribers` 按实例整体退订（幂等，插件 OnDisable 用）。
-- **阻断（Before）**：`ICancellable` 事件**必须走同步 `Publish`**——按 `EventPriority` 降序依次 await（高者先、同级按注册序），订阅者 `Reject(reason)` 即阻断；**收集全部原因而非短路**。阻断结果必须在提交前确定，故不可异步。
-- **反应（After）**：非 `ICancellable` 事件 `PublishAsync` fire-and-forget——调用方不等待、不收集结果；若订阅者改世界状态，仍在 **Tick 队列内串行执行**（见 §11），绝不逃逸到线程池，避免两个 After 事件互相竞态。`PublishParallelAsync` 并行发布（`Task.WhenAll`）。
-- **异常隔离**：handler 异常一律记日志，绝不向发布方传播；每次发布写审计日志（Debug，EventHub 内建）。
-- **传输契约退役**：原 `[Publish]` 可传输标记 + wire-sender 广播随 Packet 模型落地退役——事件不再跨线，跨线传输归 Packet（当前实现保留 wire-sender 为过渡态）。
-- 事件类型由插件自声明；**Core 不定义业务事件**。
+- **每事件类型一张静态处理器表，发布无锁**：`Event<T>` 泛型静态字段按构造泛型各占一份（`Event<EntityPlacedEvent>.Handlers` 独立于 `Event<WallBrokenEvent>`）；表为 **volatile 复制写**——发布直接读 volatile 数组引用并遍历（无锁、无快照分配），注册/退订整体换新数组（写侧竞争极小，插件启用由 Loader 依序串行）。并发集合只在真正合适处用：重复检测 `ConcurrentDictionary`。
+- **编译期保证 + 零热路径反射**：接口化后无方法级 `[Subscribe]` 反射与签名/CRTP 运行期校验（`IEventHandler<TEvent>` 的约束与 `Task` 返回由编译器保证）；注册仅一次 `GetInterfaces()` 枚举定位事件类型；触发期 `OnInvoke` 接口直调，无反射、无装箱。
+- **订阅（插件侧）**：Build 内 `AddEventHandler(listener)` 声明，`PluginLoader` 启用时 `EventHub.Register`、停用时 `Unregister`（监听器 GC）；底层机制测试与宿主直接使用。零处理器接口 / 重复实例 → fail-fast。
+- **退订同路径反向**：`Unregister(listener)` 在**同一监听者实例**上枚举处理器接口 → 定位事件表 → 逐个 `Event<T>.Remove`（按来源过滤复制写）。无需全局索引——注册进哪些表，反扫就能定位哪些表（幂等）。
+- **阻断（Before）**：事件实现 `ICancellable` 时，监听者置 `IsCancelled = true` 即表达否决；标记 `IgnoreCancelled` 的处理器对已取消事件跳过，**其余照常接收**（全部否决意见都能被听到，非短路），发布方在返回后检查标志决定提交/回滚。
+- **异常隔离**：handler 异常一律隔离记录，绝不向发布方传播；每次发布写审计日志（Debug，EventHub 内建）。
+- **传输契约退役**：原 `[Publish]` 可传输标记与 wire-sender 广播已随收口删除——事件不再跨线，跨线传输归 Packet（`PublishAttribute` 保留待 Packet 期重新定义）。
+- 事件类型由插件自声明（派生自 `Event<T>`）；**Core 不定义业务事件**。
 
 ## 8. 配置（Configurations）
 
@@ -327,26 +341,30 @@ public sealed class CommandQueryResult { Matched; Syntax; Arguments; RawArgument
 
 **数据流**：Sense 采集→标准化→State；Home 设备状态→State；用户指令/LLM 意图→Commands（经 Security 校验）→设备执行；Scheduling→定时触发 Command/事件；事件→Notifications→终端（网关通道）；Profiles↔连接身份↔Security↔Ai 记忆。
 
-**边界**：Memory/LLM/Agentic→Ai；家庭模型/设备语义→Home；感知采集→Sense；传输（网关设施）→下一期。
+**边界**：Memory/LLM/Agentic→Ai；家庭模型/设备语义→Home；感知采集→Sense；Packet 层传输 → 下一期（见 §11）。
 
 ## 11. Ui 传输范式（三层通信模型）
 
-> **2026-08-31 定案**。Core 网关设施（`Momoka.Core/Gateway/`，命名空间 `Momoka.Core`）承载传输原语；三层各有归属，不重叠、不互相模拟。行为模型（`Behavior`/`IntentSource`/`GatewayRequest`/`GatewayResponse`）与网关操作分发表（`RegisterOperation`/`RegisterQuery`）已整体删除。
+> **2026-08-31 定案**。传输原语由 Core 网关设施（`Momoka.Core/Gateway/`，命名空间 `Momoka.Core`）承载；三层各有归属，不重叠、不互相模拟。行为模型（`Behavior` / `IntentSource` / `GatewayRequest` / `GatewayResponse`）与网关操作分发表（`RegisterOperation` / `RegisterQuery`）已整体删除。
 
-### 11.1 三层划分
+### 11.1 模型总览
 
-| 层 | 方向 | 用途 | 形态 |
-|----|------|------|------|
-| **Events** | 服务端进程内 | 插件间通知与阻断（互相协作） | `EventHub`，`ICancellable` 门控（§7） |
-| **Post/Reply** | 客户端 → 服务端（发起方定向） | 查询 / 快照 / 控制（控制面） | Minimal API（HTTP），主要供第三方跨语言程序 |
-| **Packet** | 双向 | 状态变更与广播（数据面） | 统一信封 Send + Status，寻址 Target / Except / All |
+| 层 | 方向 | 用途 | 形态 | 关键不变量 |
+|----|------|------|------|-----------|
+| **Events** | 服务端进程内 | 插件间通知与阻断 | `EventHub` + `ICancellable`（§7）；After 语义设计中 | 不序列化、绝不跨线 |
+| **Post/Reply** | 客户端 → 服务端 | 查询 / 快照 / 控制（控制面） | Minimal API（HTTP） | 只读，读上一 tick 一致快照 |
+| **Packet** | 双向 | 状态变更与广播（数据面） | 统一信封 Send + Status，寻址 Target / Except / All | 所有写入经 Tick 队列串行 |
+
+- **写入唯一入口 = Tick 队列**：所有包（含 `POST /api/packet` 桥接）按到达序进入 bounded 队列，由 Tick 循环串行排空——世界状态单写入点，**校验与提交、handler 与 After 订阅者、不同类型包对同一实体**的并发全部消解（无锁、无原子性顾虑）。
+- **默认全量同步（无兴趣域）**：任何已提交变更一律 Except(发送者) 转发；派生更新 All 广播。
+- **顺序保证归协议层**：服务端 Tick 队列保证处理顺序，出站包带 tick/seq 保证客户端应用顺序。
 
 ### 11.2 连接与身份（已实现）
 
 - 握手 query `?clientId=&role=&token=`；token 恒定时间比较（`Gateway:Token` 缺省空 = 全部拒绝）；角色本期仅记录（Security 期授权）。
 - **设备注册表**：`_devices`（clientId → `Client` 主表）+ `_connections`（connectionId → clientId 索引）；`Client` 为纯设备记录（`ClientId / Role / ConnectedAt / ConnectionId`），ConnectionId 只是当前可达路径（重连即变），"谁在使用该设备"由后续 Profile 模型承载。
 - **重连竞态**：`OnDisconnected` 仅当断开连接是设备当前路径时才移除设备；同 clientId 重连即替换路径。
-- 网关单例 `OnConnected / OnDisconnected / GetClient / Clients / BroadcastClientEvent`（v1 全员广播原语）；`GatewayHostBuilder` 走 DI 接线，token 直读配置，Hub 仅做握手 + 连接注册（无业务请求方法）。
+- 网关单例 `OnConnected / OnDisconnected / GetClient / Clients`；`GatewayHostBuilder` 走 DI 接线（token 直读配置），Hub 仅做握手 + 连接注册（无业务请求方法）。
 
 ### 11.3 Packet 数据面（契约定案，实现下期）
 
@@ -363,29 +381,84 @@ public enum PacketStatus { Ok, Rejected, NotFound, InvalidArgument, Unauthorized
 public sealed record PacketStatusResult(PacketStatus Status, IReadOnlyList<string> Reasons, JsonNode? Payload);
 ```
 
-- **写入唯一入口：Tick 队列**。网关收包入队（bounded channel 背压，防单客户端刷爆）→ Tick 循环按到达序串行排空 → 按 `Type` 路由到插件 handler → 校验 → Before 事件（veto，§7）→ 提交 → After 事件 → **tick 末批量 flush 出站**（Reply + Except(发送者) + All(派生广播)），全部带 tick/seq。
-- 一条包的全生命周期留在同一 tick 内 → 因果序天然成立：**校验与提交、handler 写入与 After 订阅者写入、不同类型包对同一实体的并发，全部消解**（世界状态单写入点，无锁、无原子性顾虑）。
-- **handler 是 Minimal API / MediatR 风格**（`MapPacket<T>` 类型化注册，插件 OnEnable 注册）：
+**通用流水**（所有写操作包一致，①②③④ 为 §11.4 示例的引用点）：
+
+```
+客户端 → 网关（Target 请求包）
+  → Tick 队列入队（bounded channel 背压，防单客户端刷爆）
+  → Tick 循环串行排空 → MapPacket<T> 路由到插件 handler
+      ① 校验（entity 有效 / position 在 bound 内 / 无 uuid 冲突…）
+      ② Before 事件（ICancellable，同步 Publish，任一订阅者置 IsCancelled = true 即否决 → Rejected）
+      ③ 提交（世界状态本 tick 内原子）
+      ④ After 反应（新事件系统定案后接入；仍在 tick 内串行）
+  → tick 末批量 flush 出站（全部带 tick/seq）：
+      Target：Status 回请求者（可带权威结果 payload，如吸附后位置 / 分配的 id）
+      Except：转发原包给其它客户端（统一策略，handler 无需声明 Forward）
+      All：派生广播（体素等；变更多时批量合并为 VoxelChunkPacket）
+客户端：按 tick/seq 顺序应用权威数据（apply 幂等；检测空洞 → Post 补基线）
+```
+
+handler 是 Minimal API / MediatR 风格（`MapPacket<T>` 类型化注册，插件 Build 内声明，届时挂载 Packet 处理器接口）：
 
 ```csharp
 gateway.MapPacket<EntityPlacePacket>(async (PacketContext ctx, EntityPlacePacket p) =>
 {
     var before = new EntityPlaceBefore(p.Entity, p.Position);
-    await bus.Publish(before);                       // Before：可被其它插件阻断
-    if (before.IsCancelled) return PacketOutcome.Rejected(before.Reasons);
+    await bus.Publish(before);                              // ② Before：可被其它插件否决
+    if (before.IsCancelled) return PacketOutcome.Rejected();
 
-    store.Place(p.Entity, p.Position);               // 提交（本 tick 内原子）
-    bus.PublishAsync(new EntityPlaced(p.Entity, p.Position));  // After：fire-and-forget，仍串行
+    store.Place(p.Entity, p.Position);                      // ③ 提交（本 tick 内原子）
+    // ④ After 反应（新事件系统定案后接入）
 
-    return PacketOutcome.Ok(payload: store.Snapshot(p.Entity)); // 回发送者（Target）
-    // + 自动 Except(发送者) 转发 + 声明式 All 派生广播（体素等）
+    return PacketOutcome.Ok(payload: store.Snapshot(p.Entity)); // Target 回执
+    // + 自动 Except(发送者) 转发 + 声明式 All 派生广播
 });
 ```
 
-- **寻址默认全量同步**（无兴趣域）：任何已提交变更一律 **Except(发送者)** 转发（handler 无需声明 Forward，统一策略）；派生更新（体素等）以 **All** 广播，变更多时经 tick 批量合并（如 `VoxelChunkPacket`）。
-- **客户端契约**：按 tick/seq 顺序应用权威数据；apply 幂等（或按期望前态应用）；检测到空洞 → 走 Post 补基线。
+### 11.4 完整示例：Home 插件墙体操作（拉墙与放置）
 
-### 11.4 Post/Reply 控制面（契约定案，实现下期）
+> 客户端从一个现有墙体节点**拉出新的墙并放置**，拆为多个原子操作。每个操作都走 §11.3 通用流水；下表只列各操作的语义（①-④ 对应通用流水步骤）。
+
+**① 实体模板实例化（从节点拉出墙体模板）**
+
+| # | 参与方 | 动作 |
+|---|--------|------|
+| 1 | 客户端 → 服务端 | Target：`EntityTemplateInstantiationPacket(template = 墙体模板)` |
+| 2-3 | 网关 → Home | 入队 → Tick 串行 → `MapPacket` 路由到 Home 执行器 |
+| 4-5 | Home | ① 校验（无 uuid 冲突、template 有效）→ ② Before（可阻断）→ ③ 提交 |
+| 6 | 服务端 → 客户端 | Target：`Status = Ok`（可带实例化后的权威实体 id） |
+| 7 | 服务端 → 其它客户端 | Except：转发 `EntityTemplateInstantiationPacket` |
+| 8 | 客户端 | 收到转发包，权威数据直接应用 |
+
+**② 实体放置（点墙体节点 → 原地新建墙体）**
+
+| # | 参与方 | 动作 |
+|---|--------|------|
+| 1 | 客户端 → 服务端 | Target：`EntityPlacePacket(entity = 新墙体, position = 节点位置)` |
+| 2-3 | 网关 → Home | 入队 → Tick 串行 → 路由 |
+| 4 | Home | ① 校验（entity 有效、position 在 bound 中） |
+| 5 | Home | ② Before `EntityPlaceBefore`（可阻断）→ ③ 提交 |
+| 6 | Home | ④ After `EntityPlacedEvent`（After 语义，随新事件系统定案；放置已确定、不可取消） |
+| 7 | 服务端 → 客户端 | Target：`Status = Ok` |
+| 8 | 服务端 → 其它客户端 | Except：转发 `EntityPlacePacket` |
+| 9 | 客户端 | 权威数据直接应用 |
+| 10 | Home → 服务端 | After 异步派生 `VoxelChunkEvent` → **All** 广播 `VoxelPacket`（变更多则批量 `VoxelChunkPacket`） |
+| 11 | 客户端 | 权威数据直接应用 |
+
+**③ 实体重新放置（Relocate）**
+
+- 与 ② 同一流水，但**合并为一个原子操作**：单个 `EntityRelocatePacket` + 单个 `EntityRelocateBefore`（一次阻断覆盖全体）→ ③ 提交 → ④ After `EntityRelocateEvent`。客户端也只收一条 Relocate 包——避免 Break + Place 两次事件/两次包造成的部分生效与状态闪烁。派生体素更新同 ② 步骤 10-11。
+
+**④ 实体组件更新（如更新形状组件）**
+
+- 同一流水，使用 `EntityComponentPacket`（与 ② 同构；组件派生更新视需要走 All 广播）。
+
+**示例体现的模型要点**
+
+- 每个"原子操作" = 一个 Packet：校验、Before 阻断、提交、After 反应、Target 回执、Except 转发、All 派生广播全部收束在同一 tick 内 → 因果序天然成立。
+- 客户端永远只做两件事：发 Target 请求、按 tick/seq 应用权威数据（自己的回执 + 别人转发的包 + 派生广播），无本地裁决。
+
+### 11.5 Post/Reply 控制面（契约定案，实现下期）
 
 Minimal API（HTTP），主要面向第三方跨语言程序；语义为"读 / 控制"而非"写 / 变更"：
 
@@ -393,14 +466,14 @@ Minimal API（HTTP），主要面向第三方跨语言程序；语义为"读 / �
 - `POST /api/world/replay?fromTick=N` → Packet 日志（断线重连补包：快照 + 追包）
 - `POST /api/packet` → 任意 Packet 桥接进**同一 Tick 队列**（第三方客户端与 WebSocket 客户端等权）
 
-### 11.5 断线重连（顺序保证归协议层）
+### 11.6 断线重连
 
-服务端 Tick 队列保证处理顺序，出站包带 tick/seq 保证客户端应用顺序。客户端重连 = POST 快照（`{tick, state}`）+ replay 追包（`fromTick`），再回到 tick/seq 正常应用。
+客户端重连 = POST 快照（`{tick, state}`）+ replay 追包（`fromTick`），回到 tick/seq 正常应用；重连期间不产生状态分歧（服务端权威、客户端只追）。
 
-### 11.6 实现状态
+### 11.7 实现状态
 
-- ✅ 已实现：连接握手 / 设备注册表 / 广播原语 / 网关 HostBuilder 接线；事件总线收口进程内。
-- 📋 契约定案、下期实现：Packet 信封与 `MapPacket<T>` 路由、Tick 队列、`ICancellable` + `Publish/PublishAsync`、Post 控制面端点、客户端 tick/seq 与重连追包。
+- ✅ 已实现：连接握手 / 设备注册表 / 网关 HostBuilder 接线；事件总线收口为最小发布/订阅基座（订阅 / 顺序分发 / 异常隔离 / 审计日志 / `ICancellable` 阻断）。
+- 📋 契约定案、下期实现：Events After 语义（新事件系统设计）、Packet 信封与 `MapPacket<T>` 路由、Tick 队列、Post 控制面端点、客户端 tick/seq 与重连追包。
 
 ## 12. 与其它模块关系
 

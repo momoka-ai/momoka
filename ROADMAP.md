@@ -27,9 +27,9 @@
 | Momoka.Ui | 🔴 <10% | 仅 GDExtension 入口骨架 |
 | Momoka.Stage | 🔴 <5% | 仅目录与占位 README |
 | Momoka.Voice | 🟡 ~20% | HTTP 骨架完成；TTS 引擎未集成 |
-| Momoka.Core | 🟡 ~70% | 插件宿主内核（Plugins + Events + Registry）+ 配置（Configurations）+ 指令（Commands，含 Minestom 风格 Builder/类型化参数，终端向裁剪）+ Ui 网关设施（连接握手 + 设备注册表 + 广播原语；事件总线收口进程内——ICancellable 阻断 / Publish / PublishAsync），139 测试全绿；三层通信模型（Events / Post 控制面 / Packet 数据面 + Tick 队列）契约已定案，实现下期；其余设施（Scheduling/Notifications/Profiles/State/Security）后续 |
+| Momoka.Core | 🟡 ~70% | 插件宿主内核（声明式 Plugins：静态 Build(Plugin) + Service\<T\>/注入 + Events：IEventHandler\<T\> 接口化）+ 配置（Configurations）+ 指令（Commands，含 Minestom 风格 Builder/类型化参数，终端向裁剪）+ Ui 网关设施（连接握手 + 设备注册表；事件总线收口进程内），109 测试全绿；三层通信模型（Events / Post 控制面 / Packet 数据面 + Tick 队列）契约已定案，实现下期；其余设施（Scheduling/Notifications/Profiles/State/Security）后续 |
 | Momoka.Ai / Sense | 🔴 <10% | 仅程序入口骨架 |
-| 测试 / CI | 🟢 ~90% | 513 个测试全绿（Home 374 + Core 139）；CI = dotnet 构建+测试 / Godot 检查 / Python ruff |
+| 测试 / CI | 🟢 ~90% | 483 个测试全绿（Home 374 + Core 109）；CI = dotnet 构建+测试 / Godot 检查 / Python ruff |
 
 ---
 
@@ -37,8 +37,8 @@
 
 > 系统拓扑与模块通信的既定决策，落地时参照。**当前主做 Home 模块；Core 一期已落地插件宿主内核（Plugins + Events + Registry）+ 配置（Configurations）+ 指令（Commands），见 Phase 5。**
 
-- **Momoka.Core = 插件宿主 + 核心能力库**（2026-08-24）：`Plugin` 子类契约 + `PluginLoader` 生命周期（Load/EnableAsync/DisableAsync）；**编译期统一**（同解决方案），推迟 Roslyn 运行期编译 / 第三方动态加载 / `AssemblyLoadContext` 热插拔
-- **Core 只认识通用契约** `Plugin` 基类（Name/Version + OnEnable/OnDisable）；**不内置任何模块能力契约**；插件能力经服务注册表 / 事件订阅表启用时自填充（**能力不声明**）
+- **Momoka.Core = 插件宿主 + 核心能力库**（2026-08-24）：声明式插件契约（静态 `Build(Plugin)`）+ `PluginLoader` 生命周期（Load/EnableAsync/DisableAsync，disable 守卫 + [ServiceInjection] 注入）；**编译期统一**（同解决方案），推迟 Roslyn 运行期编译 / 第三方动态加载 / `AssemblyLoadContext` 热卸载（热插拔 = 运行时启用/停用）
+- **Core 只认识通用契约**：插件 = plugin.toml（manifest）+ 静态 Build 入口 + `Service<T>`/`IEventHandler<TEvent>` 泛型契约；**不内置任何模块能力契约**；插件能力经服务注册表 / 事件订阅表声明时自填充（**能力声明于 Build**）
 - **模块契约由模块自声明**：接口 + DTO + 事件类型定义在模块内，Core 零编写；模块对外只暴露门面接口（如 `IHomeService`）
 - **类型安全（2026-08-24 修订）**：编译期统一——模块与 Core 同解决方案编译，类型一致；第三方动态加载（Roslyn 契约编译 / 二进制校验）推迟至插件生态需要时再评估
 - **类型身份陷阱规避**：不"重编译接口制造类型副本"；同解决方案内编译期统一，动态加载路径不引入契约类型副本
@@ -46,7 +46,7 @@
 - **Core 零业务语义（2026-08-24 修订）**：设施可持有不透明数据（注册表/状态表/调度表/档案），**不解释业务语义**；语义全在模块
 - **Security**：机制在 Core（`ISecurityGuard`），规则由插件注册（2026-08-24 修订，取代「Security 内嵌 Core 不可裁剪」）
 - **Agentic 独立模块**：LLM 推理/意图/工具调用/记忆归 Momoka.Ai；Core 不依赖 LLM
-- **Ui = 唯一远程边界**：Godot C# .NET 客户端经 Core 的 Ui 网关连接（网关设施位于 Core：连接握手 + 设备注册表 + 广播原语已落地；三层通信模型见下）
+- **Ui = 唯一远程边界**：Godot C# .NET 客户端经 Core 的 Ui 网关连接（网关设施位于 Core：连接握手 + 设备注册表已落地；三层通信模型见下）
 - **三层通信模型（2026-08-31 定案）**：Events（进程内，`ICancellable` 阻断 = Before、非可取消 = After fire-and-forget）/ Post/Reply（控制面：查询 / 快照 / 第三方桥接，Minimal API）/ Packet（数据面：权威状态变更，Target / Except / All 寻址，**Tick 队列串行处理全部写入**消解竞态）；默认全量同步（无兴趣域）；顺序保证归协议层（tick/seq），断线重连 = POST 快照 + 追包
 - **Sense 数据不属 Home**：心率/体温/心情等用户状态仅供 LLM 推理决策，不写入 Home 孪生模型
 - **Home = 纯模型库**：零外部依赖、零网络；将实现 `Plugin`（`HomePlugin`）作为插件由 Core 托管（适配器下一期，当前 Plugins/ 由测试插件占位）
@@ -169,7 +169,7 @@
 - [ ] Scheduling / Notifications / Profiles / State / Security：逐期实现（契约已定义，见 DESIGN_CORE §10；Security 机制在 Core、规则由插件注册）
 - [x] **Ui 网关（2026-08-26）**：Core 网关设施 · 单路由（`/hubs/gateway`，SignalR 受管传输）+ 三通道（操作 request/response + 线上事件双向 + 进程内 EventHub）+ 信封 snake_case（STJ 一统）+ token/TerminalRegistry 鉴权 + 事件全自动化（`[Publish]` 发布路由 + `[Subscribe]`/`AddSubscribers` 监听 + wire-in 无 echo + 发布审计日志）；宿主接线（`WebApplication` + `AddSignalR` + `MapHub`），详见 DESIGN_CORE §11
 - [ ] 会话 / 身份 / 鉴权：Ui 连接鉴权、用户会话
-- [ ] **三层通信模型（2026-08-31 定案，待实现）**：Events 收口进程内（`ICancellable` 阻断 / `Publish` 同步 / `PublishAsync` fire-and-forget，见 DESIGN_CORE §7）；Packet 数据面（统一信封 Send + Status，Target / Except / All 寻址，`MapPacket<T>` 类型化 handler，**Tick 队列串行处理全部写入** + tick 末批量 flush + tick/seq 客户端应用）；Post/Reply 控制面（Minimal API：快照 / replay 追包 / `/api/packet` 桥接）；断线重连 = POST 快照 + 追包；默认全量同步无兴趣域（见 DESIGN_CORE §11）
+- [ ] **三层通信模型（2026-08-31 定案，待实现）**：Events 收口进程内（`ICancellable` 阻断 / `Publish` 同步，见 DESIGN_CORE §7）；Packet 数据面（统一信封 Send + Status，Target / Except / All 寻址，`MapPacket<T>` 类型化 handler，**Tick 队列串行处理全部写入** + tick 末批量 flush + tick/seq 客户端应用）；Post/Reply 控制面（Minimal API：快照 / replay 追包 / `/api/packet` 桥接）；断线重连 = POST 快照 + 追包；默认全量同步无兴趣域（见 DESIGN_CORE §11）
 - [ ] Agentic 模块（或并入 Ai）：意图识别（Ollama）、快慢通道、Agent 推理循环、工具集成（MCP 风格）、知识记忆（LiteDB）
 - [ ] 第三方动态加载（Roslyn / ALC 热插拔）：待插件生态需要时再评估（推迟）
 
