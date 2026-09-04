@@ -126,7 +126,7 @@ public sealed class GatewayTests
     {
         private readonly WebApplication _app;
 
-        public GatewayHarness(WebApplication app, Gateway gateway, EventHub events)
+        public GatewayHarness(WebApplication app, Gateway gateway, EventService events)
         {
             _app = app;
             Gateway = gateway;
@@ -139,7 +139,7 @@ public sealed class GatewayTests
 
         public Gateway Gateway { get; }
 
-        public EventHub Events { get; }
+        public EventService Events { get; }
 
         public static async Task<GatewayHarness> CreateAsync(string token = "test-token")
         {
@@ -159,7 +159,7 @@ public sealed class GatewayTests
             await app.StartAsync();
 
             var gateway = app.Services.GetRequiredService<Gateway>();
-            var events = app.Services.GetRequiredService<EventHub>();
+            var events = app.Services.GetRequiredService<EventService>();
             return new GatewayHarness(app, gateway, events);
         }
 

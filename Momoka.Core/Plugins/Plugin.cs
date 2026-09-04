@@ -138,7 +138,7 @@ public sealed record Plugin(PluginInfo Info)
         where T : Event
     {
         var typed = (Action<T>)method.CreateDelegate(typeof(Action<T>), owner);
-        EventHandlers.Add(new(owner, typeof(T), @event => typed((T)@event), priority));
+        EventHandlers.Add(new(owner, this, typeof(T), @event => typed((T)@event), priority));
 
         return this;
     }

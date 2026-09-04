@@ -12,8 +12,8 @@ namespace Momoka.Core.Plugins;
 /// </summary>
 public sealed class PluginService
 {
-    /// <summary>事件中心（事件注册/发布走这里）。</summary>
-    public EventHub Events { get; } = new();
+    /// <summary>事件服务（订阅/发布走这里）。</summary>
+    public EventService Events { get; } = new();
 
     /// <summary>当前启用插件（宿主启停按依赖拓扑序维护）。</summary>
     public List<Plugin> Plugins { get; } = new();
