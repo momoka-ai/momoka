@@ -96,8 +96,10 @@ public sealed class PluginLoader
         {
             _services.Add(plugin);
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
         {
+            // 组合登记唯一现实故障源：事件处理器与已启用插件重复注册（EventHub.Add 抛 InvalidOperationException）。
+            // 其余异常类型说明宿主侧实现/配置错误，不在此吞掉，让其向调用方如实暴露。
             _services.Remove(plugin);
             plugin.State = PluginState.Failed;
             return false;

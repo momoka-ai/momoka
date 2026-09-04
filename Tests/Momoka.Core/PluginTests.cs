@@ -52,8 +52,8 @@ public sealed class PluginTests
         Assert.Equal(ServiceLifecycle.Singleton, service.Lifecycle);
         Assert.Equal(typeof(IAlphaApi), service.SourceType);
         Assert.Same(plugin, service.Plugin);
-        Assert.Same(provider, service.ValueGetter());
-        Assert.Same(provider, service.ValueGetter());
+        Assert.Same(provider, service.Value());
+        Assert.Same(provider, service.Value());
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public sealed class PluginTests
 
         var service = Assert.Single(plugin.Services);
         Assert.Equal(typeof(BetaApi), service.TargetType);
-        Assert.Same(service.ValueGetter(), service.ValueGetter());
+        Assert.Same(service.Value(), service.Value());
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public sealed class PluginTests
 
         var service = Assert.Single(plugin.Services);
         Assert.Equal(ServiceLifecycle.Transient, service.Lifecycle);
-        Assert.NotSame(service.ValueGetter(), service.ValueGetter());
+        Assert.NotSame(service.Value(), service.Value());
     }
 
     [Fact]

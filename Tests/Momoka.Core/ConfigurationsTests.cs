@@ -20,9 +20,9 @@ public sealed class ConfigurationsTests : IDisposable
         {
             Directory.Delete(_tempRoot, recursive: true);
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // 清理尽力而为
+            // 清理尽力而为：临时目录删除的 IO 失败不影响测试结论
         }
     }
 

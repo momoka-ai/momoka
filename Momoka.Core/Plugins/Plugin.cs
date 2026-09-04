@@ -123,7 +123,11 @@ public sealed record Plugin(PluginInfo Info)
                     .MakeGenericMethod(item.ParameterType)
                     .Invoke(this, [handlers, item.Method, item.Priority]);
             }
-            catch (Exception) { }
+            catch (Exception)
+            {
+                // 尽力而为的扫描：CreateDelegate 对不兼容签名（如 ref/out、泛型方法等）会抛异常，
+                // 该条跳过、继续扫描其余 [EventHandler] 方法——单条装配失败不应使整批监听器声明失败。
+            }
         }
 
         return this;

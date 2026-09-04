@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http.Connections;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
@@ -98,9 +99,10 @@ public sealed class GatewayTests
         {
             await connection.StartAsync();
         }
-        catch
+        catch (Exception ex) when (ex is HttpRequestException or IOException or TimeoutException or HubException)
         {
-            // 服务器可能在握手期直接终止，StartAsync 抛异常亦可接受
+            // 服务器可能在握手期直接终止：StartAsync 抛出的传输/握手类异常均可接受；
+            // 其余异常类型说明握手流程本身异常，让测试如实失败
         }
 
         await closed.Task.WaitAsync(TimeSpan.FromSeconds(10));

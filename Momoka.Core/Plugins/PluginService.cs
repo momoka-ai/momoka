@@ -62,8 +62,8 @@ public sealed class PluginService
     /// <summary>解析当前服务实例；未注册返回 null。Singleton 复用、Transient 新建。</summary>
     public T? Resolve<T>()
         where T : class
-        => (T?)FindService(typeof(T))?.ValueGetter();
+        => (T?)FindService(typeof(T))?.Value();
 
     /// <summary>解析当前服务实例；未注册返回 null。</summary>
-    public object? Resolve(Type serviceType) => FindService(serviceType)?.ValueGetter();
+    public object? Resolve(Type serviceType) => FindService(serviceType)?.Value();
 }
