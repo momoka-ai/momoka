@@ -16,6 +16,6 @@ public static class SelfPluginEntry
 {
     public static void Build(Plugin plugin)
     {
-        plugin.AddService<ISelfServiceMarker>(new SelfServiceImpl());
+        plugin.AddSingleton<ISelfServiceMarker>(new SelfServiceImpl());
     }
 }

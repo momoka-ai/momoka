@@ -1,114 +1,141 @@
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Momoka.Core.Commands;
 using Momoka.Core.Events;
 using Momoka.Core.Services;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using EventHandler = Momoka.Core.Events.EventHandler;
 
 namespace Momoka.Core.Plugins;
 
 /// <summary>
-/// 插件声明面（宿主注入身份与环境后，经 plugin.toml 声明的静态 Build 入口填充）：
-/// 插件只做声明、不控制生命周期——生命周期完全由宿主（加载/启用/停用）接管。
-/// 声明项：服务（<see cref="AddService{T}"/>，写入 <see cref="Service{T}"/> 泛型注册表，声明记录
-/// 供 [ServiceInjection] 注入与反注册）／指令（<see cref="Commands"/>）／事件监听器
-/// （<see cref="EventHandlers"/>）。指令与监听器是 Core 管理的回调对象，[ServiceInjection]
-/// 注入目标仅限服务提供者。专属日志器 / 目录 / 配置文件按自身名称派生。
+/// 插件声明面（宿主经 plugin.toml 声明的静态 Build 入口填充）：插件只做声明、不控制生命周期——
+/// 生命周期完全由宿主（加载/启用/停用）接管，当前阶段见 <see cref="State"/>。
+/// 声明项：服务（<see cref="AddSingleton{TService}(TService)"/> 等，仅登记 Service 描述符，
+/// 宿主启用时随插件进入组合）／指令（<see cref="Commands"/>）／事件监听器
+/// （<see cref="EventHandlers"/>，宿主启用时注册进事件总线）。
 /// </summary>
-public sealed class Plugin
+public sealed record Plugin(PluginInfo Info)
 {
-    private readonly string _pluginsRoot;
-    private readonly ILogger _logger;
-
-    /// <summary>创建插件声明面。插件根目录（基目录下 Plugins）由宿主注入；日志工厂缺省取 NullLogger。</summary>
-    public Plugin(PluginInfo info, string pluginsRootDirectory, ILoggerFactory? loggerFactory = null)
-    {
-        ArgumentNullException.ThrowIfNull(info);
-        ArgumentException.ThrowIfNullOrWhiteSpace(pluginsRootDirectory);
-        Info = info;
-        _pluginsRoot = Path.GetFullPath(pluginsRootDirectory);
-        _logger = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger(info.Name);
-    }
-
-    /// <summary>插件信息（manifest，身份）。</summary>
-    public PluginInfo Info { get; }
-
     /// <summary>插件名（全局唯一，与 manifest.name 一致）。</summary>
     public string Name => Info.Name;
 
     /// <summary>插件版本（与 manifest.version 一致）。</summary>
     public string Version => Info.Version;
 
-    /// <summary>插件专属日志器（类别 = 插件名）。</summary>
-    public ILogger Logger => _logger;
+    /// <summary>当前生命周期状态（由宿主启停时更新，初始 Loaded）。</summary>
+    public PluginState State { get; set; } = PluginState.Loaded;
 
-    /// <summary>已声明的指令（Core 管理；注册进指令系统由宿主完成）。</summary>
-    public IList<Command> Commands { get; } = new List<Command>();
+    /// <summary>已声明的指令。</summary>
+    public List<Command> Commands { get; } = new();
 
-    /// <summary>已声明的事件监听器实例（实现 ≥1 个 <c>IEventHandler&lt;TEvent&gt;</c>，宿主启用时统一注册）。</summary>
-    public IList<object> EventHandlers { get; } = new List<object>();
+    /// <summary>已装配的事件监听条目（= 监听器上每个 [EventHandler] 方法一条）。</summary>
+    public List<EventHandler> EventHandlers { get; } = new();
 
-    /// <summary>本插件声明的服务注册记录（[ServiceInjection] 注入目标仅限服务提供者；
-    /// 宿主启停时按记录反注册/重建）。</summary>
-    internal IList<ServiceProviderRegistration> ServiceProviders { get; } = new List<ServiceProviderRegistration>();
+    /// <summary>已登记的服务描述符（staged：Build 期只收集，Enable 才生效）。</summary>
+    public List<Service> Services { get; } = new();
 
-    /// <summary>一次服务声明：接口类型（Service&lt;T&gt; 的 T）+ 提供商实例。</summary>
-    internal sealed record ServiceProviderRegistration(Type ServiceType, object Provider);
+    /// <summary>登记单例服务：直接给定实例（ValueGetter 恒返回它）。</summary>
+    public Plugin AddSingleton<TService>(TService instance)
+        where TService : class
+        => AddService(ServiceLifecycle.Singleton, typeof(TService), typeof(TService), () => instance);
 
-    /// <summary>
-    /// 声明服务提供商：立即写入 <see cref="Service{T}"/> 泛型注册表，来源 = 本插件，并记录声明供注入与反注册。
-    /// 默认先到先得（后续同类型注册成为可选提供商）；<paramref name="overwrite"/> = true 时显式替换当前提供商。
-    /// </summary>
-    public Plugin AddService<T>(T provider, bool overwrite = false)
-        where T : class
+    /// <summary>登记单例服务：惰性工厂（首次取用后共享同一实例）。</summary>
+    public Plugin AddSingleton<TService>(Func<TService> factory)
+        where TService : class
+        => AddService(ServiceLifecycle.Singleton, typeof(TService), typeof(TService), () => factory()!);
+
+    /// <summary>登记单例服务：实现类型（无参构造，容器按需创建一次）。</summary>
+    public Plugin AddSingleton<TService, TImpl>()
+        where TService : class
+        where TImpl : TService, new()
+        => AddService(ServiceLifecycle.Singleton, typeof(TService), typeof(TImpl), () => new TImpl());
+
+    /// <summary>登记瞬态服务：惰性工厂（每次取用都新建）。</summary>
+    public Plugin AddTransient<TService>(Func<TService> factory)
+        where TService : class
+        => AddService(ServiceLifecycle.Transient, typeof(TService), typeof(TService), () => factory()!);
+
+    /// <summary>登记瞬态服务：实现类型（无参构造，每次取用新建）。</summary>
+    public Plugin AddTransient<TService, TImpl>()
+        where TService : class
+        where TImpl : TService, new()
+        => AddService(ServiceLifecycle.Transient, typeof(TService), typeof(TImpl), () => new TImpl());
+
+    private Plugin AddService(ServiceLifecycle lifecycle, Type sourceType, Type targetType, Func<object> factory)
     {
-        ArgumentNullException.ThrowIfNull(provider);
-        if (overwrite)
-        {
-            Service<T>.Register(provider, this);
-        }
-        else
-        {
-            Service<T>.TryRegister(provider, this);
-        }
-
-        ServiceProviders.Add(new ServiceProviderRegistration(typeof(T), provider));
+        Services.Add(new Service(lifecycle, sourceType, targetType, lifecycle.ToValueGetter(factory), this));
         return this;
     }
 
-    /// <summary>声明指令。</summary>
+    /// <summary>声明指令（记录归属 <see cref="Command.Source"/>）。</summary>
     public Plugin AddCommand(Command command)
     {
-        ArgumentNullException.ThrowIfNull(command);
+        command.Source = this;
         Commands.Add(command);
         return this;
     }
 
-    /// <summary>声明事件监听器（实现 ≥1 个 <c>IEventHandler&lt;TEvent&gt;</c>；宿主启用时统一注册进事件总线）。</summary>
-    public Plugin AddEventHandler(object listener)
+    public Plugin AddCommand(Command[] commands)
     {
-        ArgumentNullException.ThrowIfNull(listener);
-        EventHandlers.Add(listener);
+        foreach (Command command in commands)
+        {
+            AddCommand(command);
+        }
+
         return this;
     }
 
-    /// <summary>插件可写目录（Plugins/&lt;Name&gt;/，首次访问自动创建；目录编排由插件自行决定）。</summary>
-    public DirectoryInfo GetPluginFolder()
+    /// <summary>
+    /// 声明事件监听器（实现 <see cref="IEventHandler"/>，方法上标记 <see cref="EventHandlerAttribute"/>）：
+    /// 反射扫描并把每个带标记方法封装为一条 <see cref="EventHandler"/> 记录
+    /// （事件类型 = 方法参数，须为 <see cref="Event"/> 派生类型；优先级取自特性）。
+    /// 同一监听器对象整体只装配一次（幂等）。
+    /// </summary>
+    public Plugin AddEventHandler(IEventHandler handlers)
     {
-        var folder = new DirectoryInfo(Path.Combine(_pluginsRoot, Name));
-        folder.Create();
-        return folder;
-    }
-
-    /// <summary>插件配置文件（Plugins/&lt;Name&gt;/config.toml，首次访问自动创建）。</summary>
-    public FileInfo GetPluginConfig()
-    {
-        var file = new FileInfo(Path.Combine(_pluginsRoot, Name, "config.toml"));
-        if (!file.Exists)
+        if (EventHandlers.Any(h => ReferenceEquals(h.Owner, handlers)))
         {
-            file.Directory?.Create();
-            file.Create().Dispose();
+            return this;
         }
 
-        return file;
+        Type type = handlers.GetType();
+        foreach (var item in type
+            .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+            .Where(x =>
+                x.GetCustomAttribute<EventHandlerAttribute>() is not null &&
+                x.GetParameters().Length == 1 &&
+                typeof(Event).IsAssignableFrom(x.GetParameters()[0].ParameterType))
+            .Where(x => x.ReturnType == typeof(void))
+            .Select(x => (
+                Method: x,
+                x.GetParameters()[0].ParameterType,
+                x.GetCustomAttribute<EventHandlerAttribute>()!.Priority)))
+        {
+            try
+            {
+                Delegate action = item.Method
+                    .CreateDelegate(typeof(Action<>)
+                    .MakeGenericType(item.ParameterType), handlers);
+
+                typeof(Plugin).GetMethod(nameof(AddEventHandlerBinding))!
+                    .MakeGenericMethod(item.ParameterType)
+                    .Invoke(this, [handlers, item.Method, item.Priority]);
+            }
+            catch (Exception) { }
+        }
+
+        return this;
+    }
+
+    /// <summary>装配单条类型化监听条目（事件类型 = 方法参数类型）。</summary>
+    public Plugin AddEventHandlerBinding<T>(IEventHandler owner, MethodInfo method, EventPriority priority)
+        where T : Event
+    {
+        var typed = (Action<T>)method.CreateDelegate(typeof(Action<T>), owner);
+        EventHandlers.Add(new(owner, typeof(T), @event => typed((T)@event), priority));
+
+        return this;
     }
 }

@@ -1,4 +1,9 @@
 using Momoka.Core.Commands.Arguments;
+using Momoka.Core.Plugins;
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Momoka.Core.Commands;
 
@@ -30,6 +35,9 @@ public abstract class Command
 
     /// <summary>指令名（全局唯一，注册时与全部别名一起查重）。</summary>
     public string Name { get; }
+
+    /// <summary>声明来源插件（由插件 AddCommand 时写入，供按命令反查插件）。</summary>
+    public Plugin? Source { get; set; }
 
     /// <summary>别名（默认空）。</summary>
     public virtual IReadOnlyList<string> Aliases => Array.Empty<string>();

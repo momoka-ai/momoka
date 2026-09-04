@@ -9,6 +9,10 @@ using Microsoft.Extensions.Logging;
 using Momoka.Core;
 using Momoka.Core.Events;
 using Xunit;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace Momoka.Core.Tests;
 
@@ -81,17 +85,6 @@ public sealed class GatewayTests
         Assert.Equal(second.ConnectionId, device.ConnectionId);
     }
 
-    [Fact]
-    public async Task EventHub_Publish_WritesAuditLog()
-    {
-        var logs = new CapturingLoggerProvider();
-        await using var harness = await GatewayHarness.CreateAsync(logs: logs);
-
-        await harness.Events.Publish(new LocalPlainEvent("x"));
-
-        Assert.Contains(logs.Messages, m => m.Contains("published") && m.Contains("LocalPlainEvent"));
-    }
-
     private static async Task AssertConnectionRejectedAsync(HubConnection connection)
     {
         var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -127,8 +120,6 @@ public sealed class GatewayTests
         }
     }
 
-    private sealed record class LocalPlainEvent(string Value) : Event<LocalPlainEvent>;
-
     private sealed class GatewayHarness : IAsyncDisposable
     {
         private readonly WebApplication _app;
@@ -148,18 +139,11 @@ public sealed class GatewayTests
 
         public EventHub Events { get; }
 
-        public static async Task<GatewayHarness> CreateAsync(
-            string token = "test-token",
-            CapturingLoggerProvider? logs = null)
+        public static async Task<GatewayHarness> CreateAsync(string token = "test-token")
         {
             var builder = WebApplication.CreateBuilder();
             builder.WebHost.UseTestServer();
             builder.Logging.ClearProviders();
-            if (logs is not null)
-            {
-                builder.Logging.AddFilter((_, _) => true);
-                builder.Logging.AddProvider(logs);
-            }
 
             builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -210,60 +194,6 @@ public sealed class GatewayTests
         public async ValueTask DisposeAsync()
         {
             await _app.DisposeAsync();
-        }
-    }
-
-    private sealed class CapturingLoggerProvider : ILoggerProvider
-    {
-        private readonly List<string> _messages = new();
-
-        public IReadOnlyList<string> Messages
-        {
-            get
-            {
-                lock (_messages)
-                {
-                    return _messages.ToList();
-                }
-            }
-        }
-
-        public ILogger CreateLogger(string categoryName) => new CaptureLogger(this);
-
-        public void Dispose()
-        {
-        }
-
-        private void Add(string message)
-        {
-            lock (_messages)
-            {
-                _messages.Add(message);
-            }
-        }
-
-        private sealed class CaptureLogger : ILogger
-        {
-            private readonly CapturingLoggerProvider _provider;
-
-            public CaptureLogger(CapturingLoggerProvider provider)
-            {
-                _provider = provider;
-            }
-
-            public IDisposable? BeginScope<TState>(TState state)
-                where TState : notnull
-                => null;
-
-            public bool IsEnabled(LogLevel logLevel) => true;
-
-            public void Log<TState>(
-                LogLevel logLevel,
-                EventId eventId,
-                TState state,
-                Exception? exception,
-                Func<TState, Exception?, string> formatter)
-                => _provider.Add(formatter(state, exception));
         }
     }
 }

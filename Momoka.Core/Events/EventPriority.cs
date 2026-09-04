@@ -5,18 +5,9 @@ namespace Momoka.Core.Events;
 /// </summary>
 public enum EventPriority
 {
-    /// <summary>最低。</summary>
     Lowest = 0,
-
-    /// <summary>低。</summary>
     Low = 1,
-
-    /// <summary>普通（默认）。</summary>
     Normal = 2,
-
-    /// <summary>高。</summary>
     High = 3,
-
-    /// <summary>最高。</summary>
     Highest = 4,
 }
